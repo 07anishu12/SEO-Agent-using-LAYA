@@ -1,5 +1,7 @@
 import asyncio
 import time
+import random
+import urllib.parse
 from typing import List, Dict, Any, Optional
 import httpx
 
@@ -45,6 +47,35 @@ class FetchResult:
         return self.status_code >= 500
 
 
+class CircuitBreaker:
+    """Per-host circuit breaker: trips after consecutive failures, auto-recovers after cooldown."""
+    def __init__(self, failure_threshold: int = 5, cooldown_seconds: float = 15.0):
+        self.failure_threshold = failure_threshold
+        self.cooldown_seconds = cooldown_seconds
+        self.failure_counts: Dict[str, int] = {}
+        self.tripped_until: Dict[str, float] = {}
+
+    def is_available(self, host: str) -> bool:
+        now = time.monotonic()
+        if host in self.tripped_until:
+            if now < self.tripped_until[host]:
+                return False
+            else:
+                # Reset after cooldown
+                del self.tripped_until[host]
+                self.failure_counts[host] = 0
+        return True
+
+    def record_success(self, host: str):
+        self.failure_counts[host] = 0
+
+    def record_failure(self, host: str):
+        count = self.failure_counts.get(host, 0) + 1
+        self.failure_counts[host] = count
+        if count >= self.failure_threshold:
+            self.tripped_until[host] = time.monotonic() + self.cooldown_seconds
+
+
 class AsyncFetcher:
     def __init__(
         self,
@@ -66,6 +97,8 @@ class AsyncFetcher:
             max_keepalive_connections=max_keepalive_connections
         )
         self._client: Optional[httpx.AsyncClient] = None
+        self.circuit_breaker = CircuitBreaker()
+        self.adaptive_delay_multiplier = 1.0
 
     async def get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -85,6 +118,10 @@ class AsyncFetcher:
         return self._client
 
     async def fetch(self, url: str) -> FetchResult:
+        host = urllib.parse.urlsplit(url).netloc
+        if not self.circuit_breaker.is_available(host):
+            return FetchResult(url=url, error="Circuit breaker tripped: host temporarily paused due to consecutive errors")
+
         client = await self.get_client()
         redirect_chain: List[str] = []
 
@@ -92,21 +129,35 @@ class AsyncFetcher:
         while retries <= self.max_retries:
             start_time = time.monotonic()
             try:
-                # We can perform a manual redirect trace or let httpx trace history
                 response = await client.get(url)
                 duration = time.monotonic() - start_time
 
-                # Track redirect history
                 if response.history:
                     for resp in response.history:
                         redirect_chain.append(str(resp.url))
 
-                # Handle transient 429 or 503 with backoff
-                if response.status_code in (429, 502, 503, 504) and retries < self.max_retries:
+                # Handle Rate Limiting (429) & Server Overload (502, 503, 504)
+                if response.status_code in (429, 502, 503, 504):
+                    self.adaptive_delay_multiplier = min(self.adaptive_delay_multiplier * 1.5, 5.0)
+                    retry_after_hdr = response.headers.get("Retry-After")
+                    if retry_after_hdr and retry_after_hdr.isdigit():
+                        sleep_time = float(retry_after_hdr)
+                    else:
+                        jitter = random.uniform(0.1, 0.5)
+                        sleep_time = (self.backoff_factor ** (retries + 1)) + jitter
+
                     retries += 1
-                    sleep_time = self.backoff_factor ** retries
-                    await asyncio.sleep(sleep_time)
-                    continue
+                    if retries <= self.max_retries:
+                        await asyncio.sleep(sleep_time)
+                        continue
+                    else:
+                        self.circuit_breaker.record_failure(host)
+                elif response.status_code >= 500:
+                    self.circuit_breaker.record_failure(host)
+                else:
+                    self.circuit_breaker.record_success(host)
+                    # Decay adaptive delay back down on normal responses
+                    self.adaptive_delay_multiplier = max(1.0, self.adaptive_delay_multiplier * 0.95)
 
                 content_type = response.headers.get("content-type", "").lower()
                 content_len = len(response.content) if response.content else 0
@@ -125,10 +176,13 @@ class AsyncFetcher:
 
             except (httpx.TimeoutException, httpx.NetworkError) as e:
                 retries += 1
+                self.adaptive_delay_multiplier = min(self.adaptive_delay_multiplier * 1.5, 5.0)
                 if retries <= self.max_retries:
-                    sleep_time = self.backoff_factor ** retries
+                    jitter = random.uniform(0.1, 0.5)
+                    sleep_time = (self.backoff_factor ** retries) + jitter
                     await asyncio.sleep(sleep_time)
                 else:
+                    self.circuit_breaker.record_failure(host)
                     duration = time.monotonic() - start_time
                     return FetchResult(
                         url=url,

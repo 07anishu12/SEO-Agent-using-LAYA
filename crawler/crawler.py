@@ -18,6 +18,10 @@ from .sitemap import SitemapParser
 from .fetcher import AsyncFetcher
 from .renderer import PlaywrightRenderer
 from .scheduler import CrawlScheduler
+from .traps import TrapDetector
+from .soft404 import Soft404Detector
+from engine.content_store import ContentStore
+from engine.memory_guard import MemoryGuard
 from seo.engine import SEOEngine
 from analysis.page_types import infer_page_type
 from analysis.templates import derive_template_id
@@ -62,6 +66,10 @@ class SEOCrawler:
             delay_seconds=self.delay
         )
         self.seo_engine = SEOEngine(self.normalizer)
+        self.content_store = ContentStore(base_dir=config.get("storage", {}).get("store_dir", "store"))
+        self.trap_detector = TrapDetector()
+        self.soft404_detector = Soft404Detector()
+        self.memory_guard = MemoryGuard(limit_mb=crawl_cfg.get("rss_limit_mb", 2048.0))
 
         self.start_time = 0.0
         self.console = Console()
@@ -109,6 +117,12 @@ class SEOCrawler:
         sitemap_urls, records = await self.sitemap_parser.discover_all(client, sitemap_seeds)
         self.console.print(f"[green]✓ Discovered {len(sitemap_urls)} URLs across {len(records)} sitemap file(s).[/green]")
 
+        # 2.5 Probe site for soft 404 template signature
+        self.console.print("[cyan]Probing 404 template signature...[/cyan]")
+        await self.soft404_detector.probe_site(self.fetcher, self.target_url)
+        if self.soft404_detector.probed:
+            self.console.print("[green]✓ Soft-404 detector initialized with site fingerprint.[/green]")
+
         # 3. Add seed & sitemap URLs to scheduler and storage
         seed_norm = self.normalizer.normalize(self.target_url)
         url_tuples = []
@@ -118,6 +132,11 @@ class SEOCrawler:
             url_tuples.append((seed_norm, "queued", "seed", 0))
 
         for sm_url in sitemap_urls:
+            is_trap, trap_type, trap_reason = self.trap_detector.is_trap(sm_url)
+            if is_trap:
+                self.trap_detector.record_quarantine(sm_url, trap_type, trap_reason)
+                continue
+
             if self.robots.is_allowed(sm_url):
                 if self.scheduler.enqueue(sm_url, discovery_source="sitemap", depth=1):
                     url_tuples.append((sm_url, "queued", "sitemap", 1))
@@ -188,7 +207,18 @@ class SEOCrawler:
                     self.storage.update_url_status(self.crawl_id, url, "blocked")
                     continue
 
-                await self.scheduler.throttle()
+                # Check memory guard periodically
+                self.memory_guard.check_and_enforce()
+
+                # Check trap detector before fetch
+                is_trap, trap_type, trap_reason = self.trap_detector.is_trap(url)
+                if is_trap:
+                    self.trap_detector.record_quarantine(url, trap_type, trap_reason)
+                    self.scheduler.mark_skipped(url)
+                    self.storage.update_url_status(self.crawl_id, url, "trap_quarantine")
+                    continue
+
+                await self.scheduler.throttle(self.fetcher.adaptive_delay_multiplier)
 
                 # Fetch page via HTTP
                 fetch_res = await self.fetcher.fetch(url)
@@ -210,6 +240,24 @@ class SEOCrawler:
                         if render_res.get("html"):
                             html_content = render_res["html"]
                             is_rendered = True
+
+                # Content-addressed compression
+                content_hash, raw_ref = self.content_store.put(html_content)
+                rendered_ref = ""
+                if is_rendered:
+                    _, rendered_ref = self.content_store.put(html_content)
+
+                self.storage.save_fetch(
+                    run_id=self.crawl_id,
+                    url=url,
+                    status_code=fetch_res.status_code,
+                    headers=fetch_res.headers,
+                    response_time=fetch_res.response_time,
+                    content_hash=content_hash,
+                    raw_store_ref=raw_ref,
+                    rendered_store_ref=rendered_ref,
+                    is_rendered=is_rendered
+                )
 
                 # Deduce page type and template ID
                 page_type = infer_page_type(url)
@@ -234,6 +282,24 @@ class SEOCrawler:
                     error=fetch_res.error
                 )
 
+                # Soft 404 Check
+                is_soft_404, soft_reason = self.soft404_detector.is_soft_404(
+                    status_code=fetch_res.status_code,
+                    html=html_content,
+                    title=page_data.title,
+                    h1=page_data.h1_text
+                )
+                if is_soft_404:
+                    from models.issue import Issue
+                    issues.append(Issue(
+                        url=url,
+                        category="technical",
+                        issue="soft_404_response",
+                        severity="critical",
+                        evidence=f"Status 200 returned but page matches 404 criteria: {soft_reason}",
+                        recommendation="Configure web server to return true HTTP 404 / 410 status code."
+                    ))
+
                 self.total_issues_found += len(issues)
 
                 # Persist results in SQLite
@@ -243,7 +309,7 @@ class SEOCrawler:
                 self.storage.save_schemas(self.crawl_id, schemas)
                 self.storage.save_issues(self.crawl_id, issues)
 
-                if fetch_res.is_success:
+                if fetch_res.is_success and not is_soft_404:
                     self.scheduler.mark_crawled(url)
                     self.storage.update_url_status(self.crawl_id, url, "crawled")
                 else:
@@ -254,6 +320,11 @@ class SEOCrawler:
                 new_url_tuples = []
                 for link in links:
                     if link.is_internal and self.normalizer.is_crawlable_page(link.target_url):
+                        is_link_trap, trap_t, trap_r = self.trap_detector.is_trap(link.target_url)
+                        if is_link_trap:
+                            self.trap_detector.record_quarantine(link.target_url, trap_t, trap_r)
+                            continue
+
                         if self.scheduler.enqueue(link.target_url, discovery_source="internal_link", depth=depth + 1):
                             new_url_tuples.append((link.target_url, "queued", "internal_link", depth + 1))
 

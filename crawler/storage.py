@@ -327,7 +327,25 @@ class CrawlStorage:
             WHERE crawl_id = ? AND status IN ('discovered', 'queued') 
             ORDER BY depth ASC, rowid ASC LIMIT ?
             """, (crawl_id, limit)).fetchall()
-            return [(r["url"], r["discovery_source"], r["depth"]) for r in rows]
+    def save_fetch(
+        self,
+        run_id: str,
+        url: str,
+        status_code: int,
+        headers: Dict[str, str],
+        response_time: float,
+        content_hash: str,
+        raw_store_ref: str,
+        rendered_store_ref: str = "",
+        is_rendered: bool = False
+    ):
+        with self._lock, self._get_connection() as conn:
+            conn.execute("""
+            INSERT INTO fetches 
+            (run_id, url, status_code, headers_json, response_time, content_hash, raw_store_ref, rendered_store_ref, is_rendered, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (run_id, url, status_code, json.dumps(headers) if headers else "{}", response_time, content_hash, raw_store_ref, rendered_store_ref, 1 if is_rendered else 0))
+            conn.commit()
 
     def save_page(self, crawl_id: str, page: PageData):
         with self._lock, self._get_connection() as conn:
