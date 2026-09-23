@@ -1,0 +1,3 @@
+url,brand,model,coverage_score_pct,missing_sections,primary_missing_section
+https://www.drivio.in/22motors/testmodel,,Vehicle Model,5.9,price; on_road_price; variants; specifications; mileage; engine; power; torque; features; colors; pros; cons; comparison; emi; faqs; reviews,price
+https://www.drivio.in/22motors/testmodel1,,Vehicle Model,5.9,price; on_road_price; variants; specifications; mileage; engine; power; torque; features; colors; pros; cons; comparison; emi; faqs; reviews,price

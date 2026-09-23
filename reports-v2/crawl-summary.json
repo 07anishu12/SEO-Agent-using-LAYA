@@ -1,0 +1,48 @@
+{
+  "website": "https://www.drivio.in/",
+  "crawl_id": "crawl_20260924_001323",
+  "stats": {
+    "urls_discovered": 3171,
+    "urls_eligible": 3171,
+    "urls_crawled": 109,
+    "urls_skipped": 0,
+    "urls_failed": 0,
+    "urls_blocked_robots": 0,
+    "urls_redirected": 0,
+    "urls_error_4xx": 0,
+    "urls_error_5xx": 0,
+    "indexable_urls": 98,
+    "non_indexable_urls": 11,
+    "average_response_time": 0.781,
+    "crawl_duration_seconds": 12.19,
+    "total_issues": 620,
+    "critical_issues": 13,
+    "high_issues": 12,
+    "medium_issues": 144,
+    "low_issues": 451,
+    "templates_count": 44,
+    "performance_sample_count": 10,
+    "laya_decisions_count": 26
+  },
+  "distributions": {
+    "page_types": {
+      "category": 27,
+      "homepage": 1,
+      "listing": 79,
+      "model": 2
+    },
+    "http_status": {
+      "200": 109
+    },
+    "issue_categories": {
+      "metadata": 101,
+      "content": 17,
+      "indexability": 11,
+      "internal_linking": 229,
+      "images": 238,
+      "duplicates": 15,
+      "headings": 8,
+      "canonical": 1
+    }
+  }
+}

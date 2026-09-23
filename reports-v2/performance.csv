@@ -1,0 +1,11 @@
+id,crawl_id,url,page_type,template_id,ttfb,fcp,lcp,cls,inp,speed_index,performance_score,js_size,css_size,img_size,total_size,tested_at
+121,crawl_20260924_001323,https://www.drivio.in/,homepage,tpl_homepage,0.153,0.38,0.494,0.0,39.3,0.456,100.0,273346,178444,0,541872,2026-09-23 18:43:40
+126,crawl_20260924_001323,https://www.drivio.in/22motors-scooters,category,tpl_category_Nmotors-scooters_1seg,0.096,0.312,0.406,0.0,138.6,0.374,100.0,694482,177236,53540,958131,2026-09-23 18:43:40
+127,crawl_20260924_001323,https://www.drivio.in/about-us,category,tpl_category_about-us_1seg,0.082,0.276,0.359,0.0,30.6,0.331,100.0,159180,174039,9995,372409,2026-09-23 18:43:40
+122,crawl_20260924_001323,https://www.drivio.in/adventure,category,tpl_category_adventure_1seg,0.35,0.66,0.858,0.0,70.7,0.792,100.0,246319,242731,23597,559733,2026-09-23 18:43:40
+128,crawl_20260924_001323,https://www.drivio.in/aeroride-ev,category,tpl_category_aeroride-ev_1seg,0.123,0.332,0.432,0.0,35.1,0.398,100.0,238941,193229,24218,486345,2026-09-23 18:43:40
+129,crawl_20260924_001323,https://www.drivio.in/aftek-motors-scooters,category,tpl_category_aftek-motors-scooters_1seg,0.107,0.4,0.8,0.0,37.8,0.48,100.0,238941,190493,55755,512248,2026-09-23 18:43:40
+130,crawl_20260924_001323,https://www.drivio.in/amo-electric-ev,category,tpl_category_amo-electric-ev_1seg,0.11,0.4,0.8,0.0,35.8,0.48,100.0,238941,195219,54618,518437,2026-09-23 18:43:40
+123,crawl_20260924_001323,https://www.drivio.in/bajaj/avenger-street-160,listing,tpl_listing_bajaj_2seg,0.17,0.396,0.515,0.0,155.2,0.475,100.0,722497,250596,353354,1383620,2026-09-23 18:43:40
+124,crawl_20260924_001323,https://www.drivio.in/bajaj/freedom,listing,tpl_listing_bajaj_2seg,0.16,0.5,0.65,0.0,64.2,0.6,100.0,300932,261024,282359,898700,2026-09-23 18:43:40
+125,crawl_20260924_001323,https://www.drivio.in/bikes,category,tpl_category_bikes_1seg,0.129,0.36,0.468,0.0,37.7,0.432,100.0,174234,174704,0,424780,2026-09-23 18:43:40

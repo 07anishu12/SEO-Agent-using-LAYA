@@ -1,0 +1,41 @@
+crawler:
+  concurrency: 10
+  delay: 0.05
+  timeout: 15.0
+  max_retries: 3
+  backoff_factor: 1.5
+  user_agent: "SEOJEV-Bot/1.0 (+https://seojev.ai/bot; universal seo engine)"
+  verify_ssl: true
+  max_pages: 5000
+  follow_redirects: true
+  max_redirects: 10
+
+robots:
+  respect_robots: true
+  user_agent_token: "SEOJEV-Bot"
+
+sitemap:
+  auto_discover: true
+  timeout: 15.0
+
+render:
+  enabled: false
+  selective: true
+  empty_threshold_words: 30
+  wait_timeout: 12000
+  max_browser_contexts: 3
+
+performance:
+  sample_size: 100
+  timeout_ms: 15000
+
+laya:
+  enabled: true
+  model_id: "aac6fef/laya-mlx"
+  batch_size: 16
+
+storage:
+  db_path: "data/seo.db"
+
+reports:
+  output_dir: "reports/"
