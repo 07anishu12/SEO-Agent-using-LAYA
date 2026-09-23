@@ -15,8 +15,20 @@ class MemoryGuard:
 
     def get_current_rss_mb(self) -> float:
         """Returns current process Resident Set Size (RSS) in Megabytes."""
+        # 1. Try querying OS for actual live dynamic RSS
         try:
-            # On macOS, ru_maxrss is in bytes; on Linux, in kilobytes.
+            import subprocess
+            out = subprocess.check_output(["ps", "-o", "rss=", "-p", str(os.getpid())], timeout=0.5)
+            rss_kb = int(out.strip())
+            rss_mb = rss_kb / 1024.0
+            if rss_mb > self.peak_rss_mb:
+                self.peak_rss_mb = rss_mb
+            return rss_mb
+        except Exception:
+            pass
+
+        # 2. Fallback to resource.getrusage (historical peak)
+        try:
             usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             if os.uname().sysname == "Darwin":
                 rss_mb = usage / (1024.0 * 1024.0)

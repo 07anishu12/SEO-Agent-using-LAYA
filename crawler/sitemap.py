@@ -70,3 +70,20 @@ class SitemapParser:
             self.sitemap_records.append(record)
 
         return sorted(list(self.discovered_urls)), self.sitemap_records
+
+    def parse_sitemap_content(self, content: str, sitemap_url: str = "") -> Tuple[List[str], List[str]]:
+        """Parses sitemap XML content directly, returning (discovered_urls, sub_sitemaps)."""
+        discovered = []
+        sub_sitemaps = []
+        if "<sitemapindex" in content:
+            subs = re.findall(r"<loc>(.*?)</loc>", content, re.IGNORECASE)
+            sub_sitemaps = [s.strip() for s in subs if s.strip()]
+        elif "<urlset" in content or "<loc>" in content:
+            locs = re.findall(r"<loc>(.*?)</loc>", content, re.IGNORECASE)
+            for loc in locs:
+                loc = loc.strip()
+                norm = self.normalizer.normalize(loc)
+                if norm and self.normalizer.is_same_domain(norm) and self.normalizer.is_crawlable_page(norm):
+                    discovered.append(norm)
+                    self.discovered_urls.add(norm)
+        return discovered, sub_sitemaps

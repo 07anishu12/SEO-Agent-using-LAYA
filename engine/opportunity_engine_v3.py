@@ -316,7 +316,7 @@ class OpportunityEngineV3:
         # 7. Synthesize AEO & GEO Opportunities
         if aeo_evals:
             for url, aeo in aeo_evals.items():
-                score_val = aeo.get("extractability_score", 100.0)
+                score_val = aeo.get("aeo_readiness_score", 100.0)
                 if score_val < 50.0:
                     fp = self.id_system.generate_fingerprint("aeo_extractability", "answer_engine", url)
                     disp_id = self.id_system.get_or_create_display_id(fp, "aeo")

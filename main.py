@@ -397,17 +397,66 @@ async def main_async(args):
 
     # V3 Upgrade Pipeline: Opportunities, Work Orders, Tickets, Master Reports, CSV Suite, HTML Explorer
     print("\n[SEOJEV V3] Synthesizing Opportunities & Work Orders...")
+    
+    # Transform V2 issue clusters into V3 findings format for OpportunityEngineV3
+    v3_findings = []
+    for cluster in raw_clusters:
+        sample_urls_raw = cluster.get('sample_urls', '')
+        if isinstance(sample_urls_raw, str):
+            import json as _json
+            try:
+                sample_url_list = _json.loads(sample_urls_raw) if sample_urls_raw.startswith('[') else [u.strip() for u in sample_urls_raw.split(',') if u.strip()]
+            except Exception:
+                sample_url_list = [u.strip() for u in sample_urls_raw.split(',') if u.strip()]
+        else:
+            sample_url_list = list(sample_urls_raw) if sample_urls_raw else []
+        
+        tpl = cluster.get('primary_affected_template', 'default')
+        scope = cluster.get('scope', 'template')
+        
+        if scope == 'site' or not sample_url_list:
+            v3_findings.append({
+                'rule_id': cluster.get('cluster_id', cluster.get('issue', 'GENERIC')),
+                'url': None,
+                'scope_key': 'site',
+                'severity': (cluster.get('severity') or cluster.get('priority', 'medium')).upper(),
+                'message': cluster.get('evidence_summary', cluster.get('issue', '')),
+                'template_id': tpl,
+                'recommended_action': cluster.get('recommended_action', '')
+            })
+        else:
+            for url in sample_url_list[:5]:  # Use sample URLs to create per-page findings
+                v3_findings.append({
+                    'rule_id': cluster.get('cluster_id', cluster.get('issue', 'GENERIC')),
+                    'url': url,
+                    'scope_key': 'template' if tpl != 'default' else 'page',
+                    'severity': (cluster.get('severity') or cluster.get('priority', 'medium')).upper(),
+                    'message': cluster.get('evidence_summary', cluster.get('issue', '')),
+                    'template_id': tpl,
+                    'recommended_action': cluster.get('recommended_action', '')
+                })
+
+    # Transform V2 content gaps into V3 format
+    v3_content_gaps = []
+    for cg in content_gaps_csv:
+        missing = cg.get('missing_sections', '')
+        v3_content_gaps.append({
+            'url': cg.get('url', ''),
+            'missing_sections': missing.split('; ') if isinstance(missing, str) else missing,
+            'missing_attributes': []
+        })
+
     opp_engine_v3 = OpportunityEngineV3(db_path=db_path)
     v3_opps = opp_engine_v3.synthesize_opportunities(
         run_id=crawl_id,
         pages=pages,
-        findings=raw_clusters,
+        findings=v3_findings,
         templates={t["template_id"]: t for t in all_templates},
         query_page_map=[],
         link_recommendations=link_opportunities,
-        content_gaps=[],
-        aeo_evals={},
-        geo_evals={}
+        content_gaps=v3_content_gaps,
+        aeo_evals=aeo_evals,
+        geo_evals=geo_evals
     )
     opp_engine_v3.persist_opportunities(v3_opps)
 
@@ -441,6 +490,15 @@ async def main_async(args):
 
     print("[SEOJEV V3] Running Claims Linter Quality Gate on deliverables...")
     claims_linter = ClaimsLinter()
+
+    # Run claims linter on generated work orders and deliverables
+    lint_violations = []
+    for wo in work_orders:
+        violations = claims_linter.lint_work_order(wo)
+        lint_violations.extend(violations)
+    lint_report_path = os.path.join(output_dir, 'lint-report.json')
+    claims_linter.export_report(lint_violations, lint_report_path)
+    print(f"[SEOJEV V3] Claims Linter: {len(lint_violations)} violations detected across {len(work_orders)} work orders.")
 
     # Final Output
     print(f"""

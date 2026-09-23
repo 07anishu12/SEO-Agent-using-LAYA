@@ -33,10 +33,10 @@ class CSVSuiteExporter:
             dump_query("issues_all.csv", "SELECT * FROM issues")
 
             # 3. Issues Critical & High
-            dump_query("issues_critical_high.csv", "SELECT * FROM issues WHERE severity IN ('CRITICAL', 'HIGH')")
+            dump_query("issues_critical_high.csv", "SELECT * FROM issues WHERE LOWER(severity) IN ('critical', 'high')")
 
             # 4. Issue Clusters
-            dump_query("issue_clusters.csv", "SELECT * FROM findings")
+            dump_query("issue_clusters.csv", "SELECT * FROM issue_clusters")
 
             # 5. Opportunities
             dump_query("opportunities.csv", "SELECT * FROM opportunities ORDER BY priority_score DESC")
@@ -72,7 +72,7 @@ class CSVSuiteExporter:
             dump_query("content_gaps.csv", "SELECT * FROM opportunities WHERE type = 'CONTENT'")
 
             # 16. Schemas
-            dump_query("schemas.csv", "SELECT * FROM schema_items")
+            dump_query("schemas.csv", "SELECT * FROM schemas")
 
             # 17. Soft 404s
             dump_query("soft_404s.csv", "SELECT * FROM findings WHERE rule_id LIKE '%404%'")

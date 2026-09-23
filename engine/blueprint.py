@@ -32,37 +32,105 @@ class PageOptimizationBlueprint:
 
             page = dict(page_row) if page_row else {"url": norm_url, "status_code": 200}
 
-            # 2. Fetch Schema items
-            schemas = [dict(r) for r in conn.execute(
-                "SELECT * FROM schema_items WHERE url = ?", (norm_url,)
-            ).fetchall()]
+            # 2. Fetch Schema items (with fallback to schemas table)
+            schemas = []
+            try:
+                schemas = [dict(r) for r in conn.execute(
+                    "SELECT * FROM schema_items WHERE url = ?", (norm_url,)
+                ).fetchall()]
+            except Exception:
+                pass
+            if not schemas:
+                try:
+                    schemas = [dict(r) for r in conn.execute(
+                        "SELECT schema_type, is_valid, raw_json as item_json FROM schemas WHERE page_url = ?", (norm_url,)
+                    ).fetchall()]
+                except Exception:
+                    pass
 
-            # 3. Fetch Extracted Attributes
-            attrs = [dict(r) for r in conn.execute(
-                "SELECT * FROM attributes WHERE url = ?", (norm_url,)
-            ).fetchall()]
+            # 3. Fetch Extracted Attributes (with fallback to product_pages table)
+            attrs = []
+            cov_score_from_db = None
+            try:
+                attrs = [dict(r) for r in conn.execute(
+                    "SELECT * FROM attributes WHERE url = ?", (norm_url,)
+                ).fetchall()]
+            except Exception:
+                pass
+            if not attrs:
+                try:
+                    prod_row = conn.execute(
+                        "SELECT * FROM product_pages WHERE url = ?", (norm_url,)
+                    ).fetchone()
+                    if prod_row:
+                        prod_dict = dict(prod_row)
+                        cov_score_from_db = prod_dict.get("coverage_score_pct")
+                        specs_raw = prod_dict.get("specs_json", "{}")
+                        try:
+                            specs = json.loads(specs_raw) if isinstance(specs_raw, str) else specs_raw
+                        except Exception:
+                            specs = {}
+                        if isinstance(specs, dict):
+                            for k, v in specs.items():
+                                if v is not None:
+                                    attrs.append({"attribute_name": k, "attribute_value": str(v)})
+                        for k in ("price_str", "ex_showroom_price", "on_road_price", "brand", "model"):
+                            val = prod_dict.get(k)
+                            if val:
+                                attrs.append({"attribute_name": k, "attribute_value": str(val)})
+                except Exception:
+                    pass
 
             # 4. Fetch GSC & Query Fit
-            q_rows = [dict(r) for r in conn.execute(
-                "SELECT * FROM query_page_map WHERE url = ? ORDER BY impressions DESC LIMIT 10",
-                (norm_url,)
-            ).fetchall()]
+            q_rows = []
+            try:
+                q_rows = [dict(r) for r in conn.execute(
+                    "SELECT * FROM query_page_map WHERE url = ? ORDER BY impressions DESC LIMIT 10",
+                    (norm_url,)
+                ).fetchall()]
+            except Exception:
+                pass
 
             # 5. Fetch Inbound & Outbound Links
-            inlinks = [dict(r) for r in conn.execute(
-                "SELECT source_url, anchor_text FROM links WHERE target_url = ? LIMIT 20",
-                (norm_url,)
-            ).fetchall()]
-            outlinks = [dict(r) for r in conn.execute(
-                "SELECT target_url, anchor_text, is_internal FROM links WHERE source_url = ? LIMIT 20",
-                (norm_url,)
-            ).fetchall()]
+            inlinks = []
+            outlinks = []
+            total_inlinks_count = 0
+            try:
+                inlinks = [dict(r) for r in conn.execute(
+                    "SELECT source_url, anchor_text FROM links WHERE target_url = ? LIMIT 20",
+                    (norm_url,)
+                ).fetchall()]
+                cnt_row = conn.execute("SELECT COUNT(*) FROM links WHERE target_url = ?", (norm_url,)).fetchone()
+                total_inlinks_count = cnt_row[0] if cnt_row else len(inlinks)
+                outlinks = [dict(r) for r in conn.execute(
+                    "SELECT target_url, anchor_text, is_internal FROM links WHERE source_url = ? LIMIT 20",
+                    (norm_url,)
+                ).fetchall()]
+            except Exception:
+                pass
+
+            # 5b. Fetch Grounded Inbound Link Opportunities
+            rec_inlinks = []
+            try:
+                rec_inlinks = [
+                    {"source_url": r["source_url"], "suggested_anchor": r["recommended_anchor_text"], "reason": r["reason"]}
+                    for r in conn.execute(
+                        "SELECT source_url, recommended_anchor_text, reason FROM internal_link_opportunities WHERE target_url = ? LIMIT 5",
+                        (norm_url,)
+                    ).fetchall()
+                ]
+            except Exception:
+                pass
 
             # 6. Fetch Touching Work Orders
-            wo_rows = [dict(r) for r in conn.execute(
-                "SELECT * FROM work_orders WHERE evidence_json LIKE ? OR file_locations_json LIKE ? LIMIT 10",
-                (f"%{norm_url}%", f"%{norm_url}%")
-            ).fetchall()]
+            wo_rows = []
+            try:
+                wo_rows = [dict(r) for r in conn.execute(
+                    "SELECT * FROM work_orders WHERE evidence_json LIKE ? OR file_locations_json LIKE ? LIMIT 10",
+                    (f"%{norm_url}%", f"%{norm_url}%")
+                ).fetchall()]
+            except Exception:
+                pass
 
         # Try to load HTML from content store
         content_hash = page.get("content_hash", "")
@@ -99,13 +167,16 @@ class PageOptimizationBlueprint:
         detected_attr_names = {a["attribute_name"] for a in attrs}
         standard_attrs = ["price", "engine_capacity", "mileage", "power", "torque", "fuel_type", "transmission", "brakes", "weight"]
         missing_attrs = [a for a in standard_attrs if a not in detected_attr_names]
-        cov_score = round((len(detected_attr_names & set(standard_attrs)) / len(standard_attrs)) * 100, 1)
+        if cov_score_from_db is not None:
+            cov_score = float(cov_score_from_db)
+        else:
+            cov_score = round((len(detected_attr_names & set(standard_attrs)) / len(standard_attrs)) * 100, 1)
 
         # Dimension mapping
         blueprint = {
             "dimension_1_identity": {
                 "url": norm_url,
-                "canonical_url": page.get("canonical_url", norm_url),
+                "canonical_url": page.get("canonical") or page.get("canonical_url", norm_url),
                 "is_self_canonical": page.get("is_self_canonical", 1) == 1,
                 "status_code": page.get("status_code", 200)
             },
@@ -159,7 +230,7 @@ class PageOptimizationBlueprint:
                 "schema_verdict": "Present & Valid" if schemas else "Missing Structured Data"
             },
             "dimension_11_internal_links_in": {
-                "inlinks_count": len(inlinks) or page.get("in_links_count", 0),
+                "inlinks_count": total_inlinks_count or len(inlinks) or page.get("in_links_count", 0),
                 "sample_inbound_sources": [i.get("source_url") for i in inlinks[:5]],
                 "top_inbound_anchors": [i.get("anchor_text") for i in inlinks[:5] if i.get("anchor_text")]
             },
@@ -167,7 +238,7 @@ class PageOptimizationBlueprint:
                 "outlinks_count": len(outlinks) or page.get("out_links_count", 0),
                 "sample_outbound_targets": [o.get("target_url") for o in outlinks[:5]]
             },
-            "dimension_13_recommended_inbound_links": [
+            "dimension_13_recommended_inbound_links": rec_inlinks if rec_inlinks else [
                 {"source_url": "/bikes/", "suggested_anchor": title or "View Model Details"},
                 {"source_url": "/used-bikes/", "suggested_anchor": "Check Technical Specifications"}
             ],

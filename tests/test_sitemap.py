@@ -18,10 +18,10 @@ class TestSitemapParser(unittest.TestCase):
             </url>
         </urlset>
         """
-        import re
-        locs = re.findall(r"<loc>(.*?)</loc>", sample_xml)
-        self.assertEqual(len(locs), 2)
-        self.assertEqual(normalizer.normalize(locs[0]), "https://www.drivio.in/")
+        discovered, _ = parser.parse_sitemap_content(sample_xml)
+        self.assertEqual(len(discovered), 2)
+        self.assertEqual(discovered[0], "https://www.drivio.in/")
+        self.assertEqual(discovered[1], "https://www.drivio.in/bikes/honda")
 
 if __name__ == "__main__":
     unittest.main()
