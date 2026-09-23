@@ -46,3 +46,5 @@ class NumericProvenanceLedger:
             conn.row_factory = sqlite3.Row
             rows = conn.execute("SELECT * FROM numeric_provenance WHERE run_id = ?", (run_id,)).fetchall()
             return [dict(r) for r in rows]
+
+ProvenanceLedger = NumericProvenanceLedger
