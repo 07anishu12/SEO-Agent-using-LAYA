@@ -81,7 +81,7 @@ class CSVSuiteExporter:
             dump_query("traps.csv", "SELECT * FROM findings WHERE rule_id LIKE '%TRAP%'")
 
             # 19. Performance
-            dump_query("performance.csv", "SELECT url, load_time, word_count, internal_links_count FROM pages ORDER BY load_time DESC LIMIT 1000")
+            dump_query("performance.csv", "SELECT url, response_time, word_count, internal_links_count FROM pages ORDER BY response_time DESC LIMIT 1000")
 
             # 20. AEO Evaluations
             dump_query("aeo_evaluations.csv", "SELECT * FROM opportunities WHERE type = 'AEO'")
