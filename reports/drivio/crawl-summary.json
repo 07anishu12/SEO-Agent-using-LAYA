@@ -1,0 +1,58 @@
+{
+  "website": "https://www.drivio.in/",
+  "crawl_id": "crawl_20260923_234236",
+  "stats": {
+    "urls_discovered": 9250,
+    "urls_eligible": 9250,
+    "urls_crawled": 5001,
+    "urls_skipped": 0,
+    "urls_failed": 8,
+    "urls_blocked_robots": 0,
+    "urls_redirected": 0,
+    "urls_error_4xx": 8,
+    "urls_error_5xx": 0,
+    "indexable_urls": 4901,
+    "non_indexable_urls": 108,
+    "average_response_time": 0.989,
+    "crawl_duration_seconds": 4531.32,
+    "total_issues": 90194,
+    "critical_issues": 93,
+    "high_issues": 14612,
+    "medium_issues": 33027,
+    "low_issues": 42462,
+    "templates_count": 413,
+    "performance_sample_count": 100,
+    "laya_decisions_count": 3777
+  },
+  "distributions": {
+    "page_types": {
+      "article": 815,
+      "brand": 597,
+      "category": 234,
+      "city": 524,
+      "comparison": 432,
+      "finance": 361,
+      "guide": 1,
+      "homepage": 2,
+      "listing": 831,
+      "model": 1212
+    },
+    "http_status": {
+      "200": 5001,
+      "404": 8
+    },
+    "issue_categories": {
+      "internal_linking": 20696,
+      "metadata": 4131,
+      "images": 11424,
+      "url": 1043,
+      "canonical": 1208,
+      "technical": 8,
+      "duplicates": 50442,
+      "performance": 227,
+      "headings": 606,
+      "content": 295,
+      "indexability": 114
+    }
+  }
+}
