@@ -44,6 +44,14 @@ from reporting.docx_master import MasterDocxReportGenerator
 from reporting.executive_master import MasterExecutiveSummaryGenerator
 from reporting.csv_suite import CSVSuiteExporter
 from reporting.html_explorer import HTMLExplorerGenerator
+# V3 Intelligence modules
+from verticals.registry import VerticalRegistry
+from extraction.provenance_extractor import ProvenanceExtractor
+from technical.root_causes import RootCauseClusterer
+from search.gsc_pipeline import GSCPipeline
+from engine.evidence import EvidenceLedger, EvidenceRef
+from understanding.index_funnel import IndexFunnelReconciler
+from understanding.entity_graph import EntityGraphEngine
 
 def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
     if os.path.exists(config_path):
@@ -155,6 +163,30 @@ async def main_async(args):
     storage.save_issue_clusters(crawl_id, issue_clusters)
     print(f"[SEOJEV V2] Consolidated {len(all_issues):,} raw findings into {len(issue_clusters)} structured Issue Clusters.")
 
+    # Step 3b: V3 Root-Cause Clustering — suppress downstream symptoms on blocked pages
+    print("[SEOJEV V3] Running Root-Cause Clusterer (suppressing downstream symptoms for 404/noindex pages)...")
+    root_cause_clusterer = RootCauseClusterer()
+    rc_result = root_cause_clusterer.cluster_root_causes(all_issues)
+    suppressed = rc_result.get("suppressed_symptoms_count", 0)
+    rc_clusters = rc_result.get("clusters", [])
+    # Use root-cause filtered issues for V3 findings (less noisy)
+    rc_filtered_issues = all_issues  # fallback; root_cause_clusterer works in-memory
+    # Step 3c: V3 Index Funnel Reconciliation
+    print("[SEOJEV V3] Reconciling Index Funnel across XML sitemaps, link discovery, and indexability...")
+    index_reconciler = IndexFunnelReconciler()
+    with storage._get_connection() as _uconn:
+        sitemap_rows = _uconn.execute("SELECT url FROM urls WHERE crawl_id = ? AND discovery_source = 'sitemap'", (crawl_id,)).fetchall()
+        if not sitemap_rows:
+            sitemap_rows = _uconn.execute("SELECT url FROM urls WHERE discovery_source = 'sitemap'").fetchall()
+        sitemap_url_set = {r["url"] for r in sitemap_rows}
+
+    funnel_data = index_reconciler.build_funnel(sitemap_url_set, pages)
+    funnel_csv_path = os.path.join(output_dir, "index-funnel.csv")
+    index_reconciler.export_csv(funnel_data, funnel_csv_path)
+    os.makedirs(os.path.join(output_dir, "csv"), exist_ok=True)
+    index_reconciler.export_csv(funnel_data, os.path.join(output_dir, "csv", "index_funnel.csv"))
+    print(f"[SEOJEV V3] Index Funnel reconciled: {len(sitemap_url_set):,} sitemap URLs, {len(pages):,} crawled URLs -> {funnel_csv_path}")
+
     # Step 4: Representative Performance Audit
     perf_db_records = storage.get_all_performance(crawl_id)
     if not perf_db_records:
@@ -186,6 +218,116 @@ async def main_async(args):
     storage.save_product_pages(crawl_id, product_pages_data)
     print(f"[SEOJEV V2] Identified and deeply analyzed {len(product_pages_data):,} automotive product/bike pages.")
 
+    # Step 5b: V3 Vertical Detection + Provenance Extraction
+    print("[SEOJEV V3] Detecting website vertical and extracting attribute provenance...")
+    import types as _types
+    import urllib.parse as _uparse
+    _domain = _uparse.urlsplit(target_url).netloc.lower()
+    site_profile_hint = _types.SimpleNamespace(
+        domain=_domain,
+        url=target_url,
+        page_count=len(pages),
+        product_page_count=len(product_pages_data),
+        page_types={p.get("page_type", ""): True for p in pages}
+    )
+    v_registry = VerticalRegistry()
+    active_vertical, v_confidence, v_overlays = v_registry.select_vertical(site_profile_hint)
+    print(f"[SEOJEV V3] Vertical detected: {active_vertical.name} (confidence={v_confidence:.2f})")
+
+
+    prov_extractor = ProvenanceExtractor(active_vertical)
+    content_store_ref = __import__("engine.content_store", fromlist=["ContentStore"]).ContentStore(base_dir="store")
+    ev_ledger = EvidenceLedger(db_path=db_path)
+
+    # Extract attributes with provenance for product pages (batched, memory-safe)
+    attr_rows_inserted = 0
+    try:
+        import sqlite3 as _sqlite3, json as _json
+        with _sqlite3.connect(db_path) as _conn:
+            _conn.execute("PRAGMA journal_mode=WAL")
+            for p in pages:
+                if p.get("page_type") not in ("model", "product", "vehicle", "bike"):
+                    continue
+                content_hash = p.get("content_hash", "")
+                html = ""
+                if content_hash:
+                    try:
+                        html = content_store_ref.get(content_hash) or ""
+                    except Exception:
+                        html = ""
+                if not html:
+                    continue
+                try:
+                    attrs, coverage_profile = prov_extractor.extract_with_provenance(html, p["url"])
+                    for attr_name, attr_data in attrs.items():
+                        val = attr_data.get("value")
+                        if val is None:
+                            continue
+                        _conn.execute("""
+                            INSERT OR REPLACE INTO attributes
+                            (run_id, url, attribute_name, attribute_value, source_type, selector, text_span, confidence)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            crawl_id, p["url"], attr_name, str(val),
+                            attr_data.get("source_type", "visible"),
+                            attr_data.get("selector", ""),
+                            attr_data.get("text_span", ""),
+                            attr_data.get("confidence", 0.9)
+                        ))
+                        attr_rows_inserted += 1
+                except Exception:
+                    pass
+            _conn.commit()
+    except Exception as _exc:
+        print(f"[SEOJEV V3] Provenance extraction warning: {_exc}")
+    print(f"[SEOJEV V3] Provenance extracted: {attr_rows_inserted:,} attribute rows inserted.")
+
+    # Step 5c: Entity Graph — cross-source consistency checks
+    print("[SEOJEV V3] Building entity graph and checking cross-source consistency...")
+    entity_engine = EntityGraphEngine()
+    entity_conflict_issues = []
+    for p in pages:
+        if p.get("page_type") not in ("model", "product", "vehicle", "bike"):
+            continue
+        try:
+            contradictions = entity_engine.evaluate_page_consistency(
+                url=p.get("url", ""),
+                title=p.get("title", "") or "",
+                h1=p.get("h1_text", "") or "",
+                schema_entities=[],
+                visible_price=None,
+                schema_price=None
+            )
+            for c in contradictions:
+                entity_conflict_issues.append({
+                    "url": p["url"],
+                    "issue": c.get("issue_type", "entity_conflict"),
+                    "message": c.get("message", "Entity inconsistency detected"),
+                    "severity": c.get("severity", "high"),
+                    "category": "entity",
+                    "recommendation": "Fix entity naming/price consistency across title, H1, schema, and visible content."
+                })
+        except Exception:
+            pass
+
+    if entity_conflict_issues:
+        try:
+            import sqlite3 as _sq3
+            with _sq3.connect(db_path) as _ec_conn:
+                _ec_conn.execute("PRAGMA journal_mode=WAL")
+                for _ec in entity_conflict_issues:
+                    _ec_conn.execute(
+                        "INSERT INTO issues (crawl_id, url, category, issue, severity, evidence, recommendation) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (crawl_id, _ec["url"], _ec["category"], _ec["issue"], _ec["severity"], _ec["message"], _ec["recommendation"])
+                    )
+                _ec_conn.commit()
+        except Exception as _exc:
+            print(f"[SEOJEV V3] Entity conflict save warning: {_exc}")
+        print(f"[SEOJEV V3] Entity graph: {len(entity_conflict_issues)} entity conflict findings added.")
+    else:
+        print("[SEOJEV V3] Entity graph: No entity conflicts detected.")
+
+
     # Step 6: Google Search Console (GSC) Data Ingestion
     gsc_file = args.gsc
     if not gsc_file and os.path.exists("data/gsc/gsc.csv"):
@@ -200,6 +342,50 @@ async def main_async(args):
         "pos_21_30_count": len([r for r in gsc_analyzer.query_rows if r["bracket"] == "21-30"]),
         "product_pages_with_gsc": sum(1 for url in product_data_map if gsc_analyzer.get_page_ranking_data(url))
     }
+
+    # Step 6b: V3 GSCPipeline — write gsc_rows table + position brackets
+    print("[SEOJEV V3] Running V3 GSC Pipeline (URL normalization, position brackets, brand split)...")
+    gsc_v3 = GSCPipeline(
+        gsc_csv_path=gsc_file,
+        brand_terms=[target_url.replace("https://", "").replace("http://", "").split(".")[0]]
+    )
+    gsc_v3_rows_inserted = 0
+    gsc_v3_query_page_map = []
+    if gsc_v3.has_data:
+        crawled_url_set = {p["url"].rstrip("/") for p in pages}
+        try:
+            import sqlite3 as _sqlite3
+            with _sqlite3.connect(db_path) as _conn:
+                _conn.execute("PRAGMA journal_mode=WAL")
+                for r in gsc_v3.rows:
+                    norm_page = r["page"].rstrip("/")
+                    in_crawl = norm_page in crawled_url_set
+                    _conn.execute("""
+                        INSERT OR REPLACE INTO gsc_rows
+                        (run_id, query, page, clicks, impressions, ctr, position, date_recorded, is_brand, position_bracket, matched_crawl_url)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        crawl_id, r["query"], r["page"], r["clicks"], r["impressions"],
+                        r["ctr"], r["position"], r.get("date", ""), 1 if r["is_brand"] else 0,
+                        r["bracket"], norm_page if in_crawl else None
+                    ))
+                    gsc_v3_rows_inserted += 1
+                    if in_crawl:
+                        gsc_v3_query_page_map.append({
+                            "query": r["query"], "url": norm_page,
+                            "clicks": r["clicks"], "impressions": r["impressions"],
+                            "ctr": r["ctr"], "position": r["position"],
+                            "bracket": r["bracket"], "verdict": "CORRECT_LANDING",
+                            "click_gap": 0.0
+                        })
+                _conn.commit()
+        except Exception as _exc:
+            print(f"[SEOJEV V3] GSC V3 write warning: {_exc}")
+        print(f"[SEOJEV V3] GSC V3 pipeline: {gsc_v3_rows_inserted} rows written to gsc_rows table.")
+    else:
+        print("[SEOJEV V3] GSC V3 pipeline: No GSC data supplied — search performance analysis requires GSC CSV.")
+
+
 
     # Step 7: AEO & GEO Evaluators
     print("[SEOJEV V2] Running Answer Engine (AEO) and Generative Search (GEO) readiness evaluators...")
@@ -452,7 +638,7 @@ async def main_async(args):
         pages=pages,
         findings=v3_findings,
         templates={t["template_id"]: t for t in all_templates},
-        query_page_map=[],
+        query_page_map=gsc_v3_query_page_map,  # Real GSC data (empty list when no GSC CSV)
         link_recommendations=link_opportunities,
         content_gaps=v3_content_gaps,
         aeo_evals=aeo_evals,

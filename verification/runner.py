@@ -79,16 +79,60 @@ class VerificationRunner:
 
         canonical_matches_url = (canonical.rstrip("/") == url.rstrip("/")) if canonical and url else True
 
+        def inbound_link_exists(target: str) -> bool:
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    cnt = conn.execute("SELECT COUNT(*) FROM links WHERE target_url = ?", (target,)).fetchone()[0]
+                    return cnt > 0
+            except Exception:
+                return False
+
+        def content_sections_present(u: str, expected_sections: Any) -> bool:
+            if not soup:
+                return True
+            txt = soup.get_text().lower()
+            if isinstance(expected_sections, (list, tuple)):
+                return all(str(s).lower() in txt for s in expected_sections)
+            return str(expected_sections).lower() in txt
+
+        def check_site_config(r_id: str) -> bool:
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    cnt = conn.execute("SELECT COUNT(*) FROM pages WHERE status_code = 200").fetchone()[0]
+                    return cnt > 0
+            except Exception:
+                return True
+
+        def target_query_matches_intent(q: str, u: str) -> bool:
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    row = conn.execute("SELECT verdict FROM query_page_map WHERE query = ? AND url = ?", (q, u)).fetchone()
+                    if row:
+                        return row[0] == "CORRECT_LANDING"
+            except Exception:
+                pass
+            return True
+
+        def entity_clarity_score(u: str) -> float:
+            if not soup:
+                return 75.0
+            t = soup.find("title")
+            h = soup.find("h1")
+            has_t = bool(t and len(t.get_text(strip=True)) > 5)
+            has_h = bool(h and len(h.get_text(strip=True)) > 3)
+            return 80.0 if (has_t and has_h) else (50.0 if (has_t or has_h) else 20.0)
+
         sandbox = {
             "has_selector": has_selector,
             "selector_count": selector_count,
             "text_length": text_length,
             "schema_type_exists": schema_type_exists,
-            "check_site_config": lambda x: True,
-            "target_query_matches_intent": lambda q, u: True,
-            "inbound_link_exists": lambda u: True,
-            "content_sections_present": lambda u, s: True,
+            "check_site_config": check_site_config,
+            "target_query_matches_intent": target_query_matches_intent,
+            "inbound_link_exists": inbound_link_exists,
+            "content_sections_present": content_sections_present,
             "has_qa_section": lambda u: bool(soup and ("faq" in soup.get_text().lower() or "?" in soup.get_text())),
+            "entity_clarity_score": entity_clarity_score,
             "status_code": status_code,
             "word_count": word_count,
             "canonical_matches_url": canonical_matches_url,

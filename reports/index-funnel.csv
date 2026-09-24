@@ -1,0 +1,15 @@
+Funnel Stage,URL Count
+1. In XML Sitemap,2641
+2. Discovered & Crawled,5009
+3. HTTP 200 OK,5001
+4. Technical Indexable,4901
+5. Received GSC Impressions,0
+6. Generated Clicks,0
+
+Diagnostic Mismatch Dimension,Affected URLs
+Sitemap Count,2641
+Crawled Count,5009
+In Sitemap Not Linked Count,0
+Linked Not In Sitemap Count,2368
+In Sitemap Non Indexable Count,68
+Indexable Zero Impressions Count,4901

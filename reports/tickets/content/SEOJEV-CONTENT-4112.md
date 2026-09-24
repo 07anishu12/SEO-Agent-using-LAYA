@@ -1,0 +1,37 @@
+# [SEOJEV-CONTENT-4112] [SEOJEV-CONTENT-4112] Author missing sections (['on_road_price', 'variants', 'mileage', 'engine',...
+
+**Type:** Content  
+**Priority:** P2  
+**Scope:** Page (1 URLs)  
+**Effort:** M  
+
+---
+
+### Problem & Observed Evidence
+Page https://www.drivio.in/bikes/tvs/scooty-pep-plus/reviews has content gaps: missing sections ['on_road_price', 'variants', 'mileage'] and missing specifications [].
+
+Diagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.
+
+**Sample Affected URLs:**
+- https://www.drivio.in/bikes/tvs/scooty-pep-plus/reviews
+
+---
+
+### Required Implementation
+Action Required: Author missing sections (['on_road_price', 'variants', 'mileage', 'engine', 'power', 'torque', 'colors', 'pros', 'cons', 'emi', 'faqs']) and add spec rows for [].
+
+Target Location: Editorial content on https://www.drivio.in/bikes/tvs/scooty-pep-plus/reviews
+Scope: Page (1 URLs affected)
+Observed Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.
+
+---
+
+### Acceptance Criteria
+- [ ] Implementation updated in `Editorial content on https://www.drivio.in/bikes/tvs/scooty-pep-plus/reviews`.
+- [ ] Verification spec evaluates to true: `content_sections_present('https://www.drivio.in/bikes/tvs/scooty-pep-plus/reviews', ['on_road_price', 'variants']) == True`.
+- [ ] Validated on sample URLs: https://www.drivio.in/bikes/tvs/scooty-pep-plus/reviews.
+
+**Automated Verification Spec:**
+```
+content_sections_present('https://www.drivio.in/bikes/tvs/scooty-pep-plus/reviews', ['on_road_price', 'variants']) == True
+```

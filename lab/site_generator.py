@@ -36,9 +36,18 @@ class SyntheticSiteGenerator:
                 <a href="{self.base_url}/bikes">Bikes Catalog</a>
                 <a href="{self.base_url}/bikes/thunder-250">Thunder 250</a>
                 <a href="{self.base_url}/bikes/blaze-125">Blaze 125</a>
-                <a href="{self.base_url}/cities/delhi">Delhi Showroom</a>
-                <a href="{self.base_url}/soft-404-candidate">Discontinued Model</a>
                 <a href="{self.base_url}/bikes/eco-scooter">Eco Electric</a>
+                <a href="{self.base_url}/bikes-duplicate">Bikes Copy</a>
+                <a href="{self.base_url}/bikes/js-only-model">JS Model</a>
+                <a href="{self.base_url}/bikes/global-edition">Global Edition</a>
+                <a href="{self.base_url}/bikes/draft-release">Draft Release</a>
+                <a href="{self.base_url}/bikes/stale-vintage">Vintage Cruiser</a>
+                <a href="{self.base_url}/bikes/thin-specs">Thin Specs</a>
+                <a href="{self.base_url}/catalog?filter=1&color=red&size=large&sort=price&brand=moto">Catalog Filter</a>
+                <a href="{self.base_url}/redirect-chain">Redirect Chain</a>
+                <a href="{self.base_url}/redirect-loop">Redirect Loop</a>
+                <a href="{self.base_url}/soft-404-candidate">Discontinued Model</a>
+                <a href="{self.base_url}/sitemap-dead-page">Dead Link</a>
             </nav>
             </body></html>
             """,
@@ -61,6 +70,7 @@ class SyntheticSiteGenerator:
             {lorem_substantive}
             <p>Thunder 250 ex-showroom price is ₹1,50,000. Engine 250 cc single cylinder, max power 24 bhp @ 8500 rpm, ARAI mileage 35 kmpl.</p>
             <a href="{home_url}">Home</a>
+            <a href="{self.base_url}/bikes">Bikes</a>
             </body></html>
             """,
             "page_type": "model"
@@ -83,12 +93,14 @@ class SyntheticSiteGenerator:
             {lorem_substantive}
             <p>Blaze 125 scooter price starting ₹85,000. Real-world mileage 50 kmpl with digital instrument cluster.</p>
             <a href="{home_url}">Home</a>
+            <a href="{self.base_url}/bikes">Bikes</a>
             </body></html>
             """,
             "page_type": "model"
         }
         self.sitemap_urls.append(entity_conflict_url)
         self.ground_truth_manifest.setdefault(entity_conflict_url, []).append("entity_conflict")
+        self.ground_truth_manifest.setdefault(entity_conflict_url, []).append("cannibalization")
 
         # 4. Planted Defect: Soft-404 returning HTTP 200
         soft_404_url = f"{self.base_url}/soft-404-candidate"
@@ -104,6 +116,7 @@ class SyntheticSiteGenerator:
             <body><h1>Page Not Found</h1>
             <p>Oops! The two-wheeler model you are looking for has been discontinued or moved. Return to our homepage to explore active models.</p>
             <a href="{home_url}">Back to Home</a>
+            <a href="{self.base_url}/bikes">Bikes</a>
             </body></html>
             """,
             "page_type": "other"
@@ -144,6 +157,8 @@ class SyntheticSiteGenerator:
             <body>
             {lorem_substantive}
             <p>Eco Electric scooter starting at ₹60,000 with 85 km range and portable lithium battery pack.</p>
+            <a href="{home_url}">Home</a>
+            <a href="{self.base_url}/bikes">Bikes</a>
             </body></html>
             """,
             "page_type": "model"
@@ -170,8 +185,220 @@ class SyntheticSiteGenerator:
             <a href="{canon_mismatch_url}">Thunder 250</a>
             <a href="{entity_conflict_url}">Blaze 125</a>
             <a href="{missing_meta_url}">Eco Scooter</a>
+            <a href="{self.base_url}/bikes-duplicate">Bikes Duplicate</a>
+            <a href="{self.base_url}/bikes/js-only-model">JS Model</a>
+            <a href="{self.base_url}/bikes/global-edition">Global Edition</a>
+            <a href="{self.base_url}/bikes/draft-release">Draft Release</a>
+            <a href="{self.base_url}/bikes/stale-vintage">Vintage Cruiser</a>
+            <a href="{self.base_url}/bikes/thin-specs">Thin Specs</a>
+            <a href="{self.base_url}/bikes/deep-commuter">Deep Commuter</a>
             </body></html>
             """,
             "page_type": "listing"
         }
         self.sitemap_urls.append(clean_url)
+        self.ground_truth_manifest.setdefault(clean_url, []).append("cannibalization")
+
+        # 8. Planted Defect: Redirect Chain
+        red_chain_url = f"{self.base_url}/redirect-chain"
+        self.pages[red_chain_url] = {
+            "url": red_chain_url,
+            "status_code": 301,
+            "title": "Redirecting...",
+            "h1": "",
+            "html": f"<html><body>Redirecting...<a href='{home_url}'>Home</a><a href='{clean_url}'>Bikes</a></body></html>",
+            "redirect_chain": [f"{self.base_url}/hop-1", f"{self.base_url}/hop-2", f"{self.base_url}/final-target"],
+            "page_type": "other"
+        }
+        self.ground_truth_manifest.setdefault(red_chain_url, []).append("redirect_chain")
+
+        # 9. Planted Defect: Redirect Loop
+        red_loop_url = f"{self.base_url}/redirect-loop"
+        self.pages[red_loop_url] = {
+            "url": red_loop_url,
+            "status_code": 301,
+            "title": "Redirect Loop",
+            "h1": "",
+            "html": f"<html><body>Looping...<a href='{home_url}'>Home</a><a href='{clean_url}'>Bikes</a></body></html>",
+            "redirect_chain": [red_loop_url],
+            "page_type": "other"
+        }
+        self.ground_truth_manifest.setdefault(red_loop_url, []).append("redirect_loop")
+
+        # 10. Planted Defect: Parameter Trap
+        trap_url = f"{self.base_url}/catalog?brand=moto&color=red&filter=1&size=large&sort=price"
+        self.pages[trap_url] = {
+            "url": trap_url,
+            "status_code": 200,
+            "title": "Faceted Filter Catalog Page",
+            "h1": "Faceted Filter Catalog Page",
+            "html": f"<html><head><title>Faceted Filter Catalog Page</title><meta name='description' content='Faceted filter catalog page.' /><link rel='canonical' href='{trap_url}' /></head><body><h1>Faceted Filter Catalog Page</h1>{lorem_substantive}<a href='{home_url}'>Home</a><a href='{clean_url}'>Bikes</a></body></html>",
+            "page_type": "listing"
+        }
+        self.ground_truth_manifest.setdefault(trap_url, []).append("parameter_trap")
+
+        # 11. Planted Defect: Weakly Linked Page (only 1 inbound link from catalog page)
+        weak_url = f"{self.base_url}/bikes/deep-commuter"
+        self.pages[weak_url] = {
+            "url": weak_url,
+            "status_code": 200,
+            "title": "Deep Commuter 100 - Specs and Price",
+            "h1": "Deep Commuter 100",
+            "html": f"<html><head><title>Deep Commuter 100 - Specs and Price</title><meta name='description' content='Deep commuter 100cc motorcycle specifications and on-road prices in India.' /><link rel='canonical' href='{weak_url}' /></head><body><h1>Deep Commuter 100</h1>{lorem_substantive}<p>Price ₹55,000, 100cc engine, 65 kmpl mileage.</p><a href='{home_url}'>Home</a><a href='{clean_url}'>Bikes</a></body></html>",
+            "page_type": "model"
+        }
+        self.sitemap_urls.append(weak_url)
+        self.ground_truth_manifest.setdefault(weak_url, []).append("weak_links")
+
+        # 12. Planted Defect: Duplicate Content Page (identical substantive body to clean_url)
+        dup_url = f"{self.base_url}/bikes-duplicate"
+        clean_html = self.pages[clean_url]["html"]
+        dup_html = clean_html.replace(f'<link rel="canonical" href="{clean_url}" />', f'<link rel="canonical" href="{dup_url}" />')
+        dup_html = dup_html.replace(f'<a href="{self.base_url}/bikes/deep-commuter">Deep Commuter</a>', f'<a href="{self.base_url}/bikes/thunder-250">Thunder Alternate</a>')
+        self.pages[dup_url] = {
+            "url": dup_url,
+            "status_code": 200,
+            "title": self.pages[clean_url]["title"],
+            "h1": self.pages[clean_url]["h1"],
+            "html": dup_html,
+            "page_type": "listing"
+        }
+        self.sitemap_urls.append(dup_url)
+        self.ground_truth_manifest.setdefault(dup_url, []).append("duplicate_page")
+
+        # 13. Planted Defect: JS-only Content (Raw HTML is client script shell, Rendered has content)
+        js_url = f"{self.base_url}/bikes/js-only-model"
+        self.pages[js_url] = {
+            "url": js_url,
+            "status_code": 200,
+            "title": "Client-Rendered Model - Synthetic Moto",
+            "h1": "Client Model",
+            "html": f"""
+            <html><head><title>Client-Rendered Model - Synthetic Moto</title>
+            <meta name="description" content="Client rendered model page shell." />
+            <link rel="canonical" href="{js_url}" />
+            </head><body><div id="root"></div>
+            <!-- Client bundle hydration shell loading dynamic vehicle specs -->
+            <script src="/static/js/bundle.main.vendor.chunk.js"></script>
+            <noscript>Please enable JavaScript to view vehicle specifications.</noscript>
+            <a href="{home_url}">Home</a><a href="{clean_url}">Bikes</a>
+            </body></html>
+            """,
+            "rendered_html": f"""
+            <html><head><title>Client-Rendered Model - Synthetic Moto</title>
+            <meta name="description" content="Full model specifications loaded via JS." />
+            <link rel="canonical" href="{js_url}" /></head>
+            <body><h1>Client Model</h1>
+            {lorem_substantive}
+            <p>Price ₹1,20,000, 200cc engine, 45 kmpl mileage with dual-channel ABS.</p>
+            <a href="{home_url}">Home</a><a href="{clean_url}">Bikes</a>
+            </body></html>
+            """,
+            "page_type": "model"
+        }
+        self.sitemap_urls.append(js_url)
+        self.ground_truth_manifest.setdefault(js_url, []).append("js_only_content")
+
+        # 14. Planted Defect: Hreflang Error
+        hreflang_url = f"{self.base_url}/bikes/global-edition"
+        self.pages[hreflang_url] = {
+            "url": hreflang_url,
+            "status_code": 200,
+            "title": "Global Edition Cruiser - Synthetic Moto",
+            "h1": "Global Cruiser",
+            "html": f"""
+            <html><head><title>Global Edition Cruiser - Synthetic Moto</title>
+            <meta name="description" content="Global cruiser international edition specifications and availability." />
+            <link rel="canonical" href="{hreflang_url}" />
+            <link rel="alternate" hreflang="invalid_locale_xyz" href="{hreflang_url}" />
+            </head><body><h1>Global Cruiser</h1>
+            {lorem_substantive}
+            <p>Price ₹3,50,000, 650cc twin engine.</p>
+            <a href="{home_url}">Home</a><a href="{clean_url}">Bikes</a>
+            </body></html>
+            """,
+            "page_type": "model"
+        }
+        self.sitemap_urls.append(hreflang_url)
+        self.ground_truth_manifest.setdefault(hreflang_url, []).append("hreflang_error")
+
+        # 15. Planted Defect: Noindex Leak (Page in Sitemap but marked noindex)
+        noindex_url = f"{self.base_url}/bikes/draft-release"
+        self.pages[noindex_url] = {
+            "url": noindex_url,
+            "status_code": 200,
+            "title": "Unreleased Draft Motorcycle - Synthetic Moto",
+            "h1": "Draft Motorcycle",
+            "html": f"""
+            <html><head><title>Unreleased Draft Motorcycle - Synthetic Moto</title>
+            <meta name="description" content="Draft motorcycle release preview for internal review only." />
+            <meta name="robots" content="noindex, follow" />
+            <link rel="canonical" href="{noindex_url}" /></head>
+            <body><h1>Draft Motorcycle</h1>
+            {lorem_substantive}
+            <a href="{home_url}">Home</a><a href="{clean_url}">Bikes</a>
+            </body></html>
+            """,
+            "page_type": "model"
+        }
+        self.sitemap_urls.append(noindex_url)
+        self.ground_truth_manifest.setdefault(noindex_url, []).append("noindex_leak")
+
+        # 16. Planted Defect: Sitemap Mismatch (Dead 404 listed in sitemap)
+        sitemap_dead_url = f"{self.base_url}/sitemap-dead-page"
+        self.pages[sitemap_dead_url] = {
+            "url": sitemap_dead_url,
+            "status_code": 404,
+            "title": "404 Not Found",
+            "h1": "404 Not Found",
+            "html": f"<html><body><h1>404 Not Found</h1><p>Dead page in sitemap.</p><a href='{home_url}'>Home</a><a href='{clean_url}'>Bikes</a></body></html>",
+            "page_type": "other"
+        }
+        self.sitemap_urls.append(sitemap_dead_url)
+        self.ground_truth_manifest.setdefault(sitemap_dead_url, []).append("sitemap_mismatch")
+
+        # 17. Planted Defect: Missing Sections (Thin specs vehicle page)
+        thin_specs_url = f"{self.base_url}/bikes/thin-specs"
+        self.pages[thin_specs_url] = {
+            "url": thin_specs_url,
+            "status_code": 200,
+            "title": "Thin Specs Commuter Model - Synthetic Moto",
+            "h1": "Thin Specs Model",
+            "html": f"""
+            <html><head><title>Thin Specs Commuter Model - Synthetic Moto</title>
+            <meta name="description" content="Thin specs model page with missing pricing and sections." />
+            <link rel="canonical" href="{thin_specs_url}" /></head>
+            <body><h1>Thin Specs Model</h1>
+            {lorem_substantive}
+            <p>Vehicle details: missing pricing and sections.</p>
+            <a href="{home_url}">Home</a><a href="{clean_url}">Bikes</a>
+            </body></html>
+            """,
+            "page_type": "model"
+        }
+        self.sitemap_urls.append(thin_specs_url)
+        self.ground_truth_manifest.setdefault(thin_specs_url, []).append("missing_sections")
+
+        # 18. Planted Defect: Stale Data (2021 and 2022 prices on new vehicle page)
+        stale_url = f"{self.base_url}/bikes/stale-vintage"
+        self.pages[stale_url] = {
+            "url": stale_url,
+            "status_code": 200,
+            "title": "Vintage Cruiser 2021 Price and Specs - Synthetic Moto",
+            "h1": "Vintage Cruiser 2021",
+            "html": f"""
+            <html><head><title>Vintage Cruiser 2021 Price and Specs - Synthetic Moto</title>
+            <meta name="description" content="Vintage Cruiser 2021 price and specs in India." />
+            <link rel="canonical" href="{stale_url}" /></head>
+            <body><h1>Vintage Cruiser 2021</h1>
+            {lorem_substantive}
+            <p>Original 2021 launch price ₹95,000, 2022 model update discontinued.</p>
+            <a href="{home_url}">Home</a><a href="{clean_url}">Bikes</a>
+            </body></html>
+            """,
+            "page_type": "model"
+        }
+        self.sitemap_urls.append(stale_url)
+        self.ground_truth_manifest.setdefault(stale_url, []).append("stale_data")
+
+

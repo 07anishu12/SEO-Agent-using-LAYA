@@ -1,0 +1,37 @@
+# [SEOJEV-CONTENT-7871] [SEOJEV-CONTENT-7871] Add an explicit FAQ / summary section formatted with direct answers (under ...
+
+**Type:** Content  
+**Priority:** P2  
+**Scope:** Page (1 URLs)  
+**Effort:** S  
+
+---
+
+### Problem & Observed Evidence
+AEO answer extractability score for https://www.drivio.in/news/gogoros-upcoming-scooters-will-be-faster-than-the-tvs-iqube-electric-s is 20.0/100. Missing concise definitions and Q&A formatting.
+
+Diagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.
+
+**Sample Affected URLs:**
+- https://www.drivio.in/news/gogoros-upcoming-scooters-will-be-faster-than-the-tvs-iqube-electric-s
+
+---
+
+### Required Implementation
+Action Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.
+
+Target Location: FAQ section on https://www.drivio.in/news/gogoros-upcoming-scooters-will-be-faster-than-the-tvs-iqube-electric-s
+Scope: Page (1 URLs affected)
+Observed Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.
+
+---
+
+### Acceptance Criteria
+- [ ] Implementation updated in `FAQ section on https://www.drivio.in/news/gogoros-upcoming-scooters-will-be-faster-than-the-tvs-iqube-electric-s`.
+- [ ] Verification spec evaluates to true: `has_qa_section('https://www.drivio.in/news/gogoros-upcoming-scooters-will-be-faster-than-the-tvs-iqube-electric-s') == True`.
+- [ ] Validated on sample URLs: https://www.drivio.in/news/gogoros-upcoming-scooters-will-be-faster-than-the-tvs-iqube-electric-s.
+
+**Automated Verification Spec:**
+```
+has_qa_section('https://www.drivio.in/news/gogoros-upcoming-scooters-will-be-faster-than-the-tvs-iqube-electric-s') == True
+```

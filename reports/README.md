@@ -5,7 +5,7 @@
 - **Discovered URLs**: 9,250
 - **Crawled URLs**: 5,001
 - **Indexable URLs**: 4,901
-- **Total Issues Detected**: 64,167
+- **Total Issues Detected**: 132,183
 
 ## Deliverables in this Directory:
 

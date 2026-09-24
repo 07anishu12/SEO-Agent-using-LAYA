@@ -356,9 +356,63 @@ class OpportunityEngineV3:
                     }
                     opportunities.append(opp)
 
+        # 8. Synthesize GEO (Generative Engine Optimization) Opportunities
+        if geo_evals:
+            for url, geo in geo_evals.items():
+                score_val = geo.get("geo_readiness_score", 100.0)
+                if score_val < 50.0:
+                    fp = self.id_system.generate_fingerprint("geo_entity_clarity", "generative_search", url)
+                    disp_id = self.id_system.get_or_create_display_id(fp, "geo")
+
+                    entity_gap = geo.get("entity_clarity_score", 0.0)
+                    citation_gap = geo.get("citation_readiness_score", 0.0)
+
+                    gaps_list = []
+                    if entity_gap < 50.0:
+                        gaps_list.append("entity naming/disambiguation")
+                    if citation_gap < 50.0:
+                        gaps_list.append("citation-ready fact density")
+                    gaps_str = " and ".join(gaps_list) if gaps_list else "GEO signal gaps"
+
+                    factors = {
+                        "visibility": 55.0,
+                        "gap": 80.0,
+                        "page_importance": 70.0,
+                        "template_scope": 25.0,
+                        "technical_severity": 25.0,
+                        "ctr_headroom": 55.0,
+                        "link_gap": 35.0
+                    }
+                    score, opp_tier = self.priority_model.calculate_opportunity_score(factors)
+                    conf_tier = self.priority_model.calculate_confidence_tier("E3", 1, 0.85)
+
+                    opp = {
+                        "opportunity_id": f"OPP-{disp_id}",
+                        "fingerprint": fp,
+                        "display_id": disp_id,
+                        "run_id": run_id,
+                        "type": "GEO",
+                        "observation": f"GEO readiness score for {url} is {score_val}/100. Gaps: {gaps_str}.",
+                        "diagnosis": "Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).",
+                        "hypothesis": "Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.",
+                        "action": f"Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: {gaps_str}.",
+                        "implementation_location": f"Page head + main content on {url}",
+                        "affected_templates_json": json.dumps([]),
+                        "affected_urls_count": 1,
+                        "sample_urls_json": json.dumps([url]),
+                        "opportunity_tier": opp_tier,
+                        "confidence_tier": conf_tier,
+                        "effort": "S",
+                        "priority_score": score,
+                        "priority_factors_json": json.dumps(factors),
+                        "verification_spec": f"entity_clarity_score('{url}') >= 60"
+                    }
+                    opportunities.append(opp)
+
         # Sort opportunities by priority_score descending
         opportunities.sort(key=lambda x: x["priority_score"], reverse=True)
         return opportunities
+
 
     def _derive_verification_spec(self, rule_id: str) -> str:
         """Translates a deterministic rule into an executable verification assertion."""
@@ -378,8 +432,10 @@ class OpportunityEngineV3:
         return "status_code == 200"
 
     def persist_opportunities(self, opportunities: List[Dict[str, Any]]):
-        """Persists synthesized opportunities and actions into SQLite database."""
+        """Persists synthesized opportunities, actions, and findings into SQLite database."""
+        import datetime
         with sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             for opp in opportunities:
                 conn.execute("""
                 INSERT OR REPLACE INTO opportunities (
@@ -409,4 +465,47 @@ class OpportunityEngineV3:
                     f"ACT-{opp['display_id']}", opp["opportunity_id"], opp["fingerprint"],
                     act_type, opp["implementation_location"], "", opp["action"]
                 ))
+
+                # FIX-10: Persist to findings table (was always empty before)
+                # Map opportunity back to a V3 finding record with evidence refs
+                now = datetime.datetime.utcnow().isoformat()
+                severity_map = {
+                    "P0": "critical", "P1": "high", "P2": "medium", "P3": "low",
+                    "CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low"
+                }
+                opp_tier = opp.get("opportunity_tier", "P2")
+                severity = severity_map.get(opp_tier, "medium")
+                priority = "high" if opp_tier in ("P0", "P1") else "low"
+
+                sample_urls = json.loads(opp.get("sample_urls_json", "[]"))
+                url_val = sample_urls[0] if sample_urls else None
+                template_ids = json.loads(opp.get("affected_templates_json", "[]"))
+                template_id = template_ids[0] if template_ids else None
+                subject = url_val or template_id or opp.get("type", "SITE")
+
+                finding_fp = opp["fingerprint"] + ":finding"
+                conn.execute("""
+                INSERT OR REPLACE INTO findings (
+                    fingerprint, display_id, run_id, rule_id, scope_key, subject,
+                    claim_type, severity, priority, template_id, url,
+                    message, evidence_refs_json, recommended_action, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    finding_fp,
+                    "FND-" + opp["display_id"],
+                    opp["run_id"],
+                    opp["type"],
+                    opp.get("opportunity_tier", "P2"),
+                    subject,
+                    "OBSERVED",
+                    severity,
+                    priority,
+                    template_id,
+                    url_val,
+                    opp["observation"],
+                    json.dumps([opp["fingerprint"]]),  # evidence ref = parent opportunity fingerprint
+                    opp["action"],
+                    now
+                ))
             conn.commit()
+

@@ -1,6 +1,6 @@
 {
   "website": "https://www.drivio.in/",
-  "crawl_date": "2026-09-24 00:19:51",
+  "crawl_date": "2026-09-24 23:27:38",
   "crawl_id": "crawl_20260923_234236",
   "pages": {
     "discovered": 9250,
@@ -12,16 +12,16 @@
   },
   "issues": {
     "critical": 93,
-    "high": 9133,
-    "medium": 20115,
-    "low": 34826
+    "high": 24425,
+    "medium": 53749,
+    "low": 53916
   },
   "templates": 413,
   "performance_sample": 100,
   "laya": {
-    "decisions": 52,
-    "median_latency_ms": 57.75,
-    "p95_latency_ms": 75.07
+    "decisions": 89,
+    "median_latency_ms": 287.46,
+    "p95_latency_ms": 1189.35
   },
   "reports": {
     "docx": "reports/seo-audit.docx",
@@ -30,7 +30,7 @@
   "v2_intelligence": {
     "product_pages_count": 1729,
     "ranking_opportunities_count": 5009,
-    "issue_clusters_count": 52,
+    "issue_clusters_count": 89,
     "internal_link_opportunities_count": 951,
     "gsc_connected": false,
     "gsc_queries_count": 0,

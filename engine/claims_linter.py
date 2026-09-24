@@ -1,6 +1,7 @@
 import re
 import csv
 import json
+import os
 from typing import Dict, Any, List, Optional
 
 FORBIDDEN_GUARANTEE_PATTERNS = [
@@ -27,8 +28,9 @@ class ClaimsLinter:
         if not text:
             return []
         errors = []
+        cleaned_text = re.sub(r"https?://\S+", "", text)
         for pat in FORBIDDEN_GUARANTEE_PATTERNS:
-            match = pat.search(text)
+            match = pat.search(cleaned_text)
             if match:
                 err = f"Forbidden guarantee language '{match.group(0)}' found in {context or 'text'}: '{text[:100]}...'"
                 errors.append(err)
@@ -91,7 +93,19 @@ class ClaimsLinter:
             errors.append(f"Failed to read CSV for linting {csv_path}: {e}")
         return errors
 
-    def export_report(self, output_path: str = "reports/lint-report.json"):
+    def export_report(self, output_path_or_violations: Any = "reports/lint-report.json", maybe_path: Optional[str] = None):
+        if maybe_path:
+            output_path = maybe_path
+            if isinstance(output_path_or_violations, list):
+                for v in output_path_or_violations:
+                    if isinstance(v, dict) and v not in self.violations:
+                        self.violations.append(v)
+                    elif isinstance(v, str) and not any(v == item.get("error") for item in self.violations):
+                        self.violations.append({"error": v})
+        else:
+            output_path = output_path_or_violations if isinstance(output_path_or_violations, str) else "reports/lint-report.json"
+
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         report = {
             "passed": len(self.violations) == 0,
             "total_violations": len(self.violations),

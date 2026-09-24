@@ -14,15 +14,15 @@
     "indexable_urls": 4901,
     "non_indexable_urls": 108,
     "average_response_time": 0.989,
-    "crawl_duration_seconds": 2116.33,
-    "total_issues": 64167,
+    "crawl_duration_seconds": 85222.57,
+    "total_issues": 132183,
     "critical_issues": 93,
-    "high_issues": 9133,
-    "medium_issues": 20115,
-    "low_issues": 34826,
+    "high_issues": 24425,
+    "medium_issues": 53749,
+    "low_issues": 53916,
     "templates_count": 413,
     "performance_sample_count": 100,
-    "laya_decisions_count": 3644
+    "laya_decisions_count": 4019
   },
   "distributions": {
     "page_types": {
@@ -42,17 +42,18 @@
       "404": 8
     },
     "issue_categories": {
-      "internal_linking": 16340,
-      "metadata": 3823,
-      "images": 10692,
-      "url": 1017,
-      "canonical": 1182,
+      "entity": 690,
+      "internal_linking": 27929,
+      "metadata": 4731,
+      "images": 12848,
+      "url": 1087,
+      "canonical": 1249,
       "technical": 8,
-      "duplicates": 29895,
-      "performance": 225,
-      "headings": 588,
-      "content": 291,
-      "indexability": 106
+      "duplicates": 81996,
+      "performance": 230,
+      "headings": 638,
+      "content": 302,
+      "indexability": 130
     }
   }
 }

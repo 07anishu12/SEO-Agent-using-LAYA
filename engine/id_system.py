@@ -21,10 +21,13 @@ class IDSystem:
     def __init__(self, db_path: str = "data/seo.db"):
         self.db_path = db_path
         self._lock = threading.Lock()
+        self._cache: Dict[str, str] = {}
+        self._next_seq: Dict[str, int] = {}
         self._init_db()
 
     def _init_db(self):
         with self._lock, sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("""
             CREATE TABLE IF NOT EXISTS display_id_map (
                 fingerprint TEXT PRIMARY KEY,
@@ -34,7 +37,17 @@ class IDSystem:
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_disp_id_type ON display_id_map (id_type, sequence_number);")
             conn.commit()
+
+            # Pre-load cache
+            try:
+                for row in conn.execute("SELECT fingerprint, display_id FROM display_id_map"):
+                    self._cache[row[0]] = row[1]
+                for row in conn.execute("SELECT id_type, MAX(sequence_number) FROM display_id_map GROUP BY id_type"):
+                    self._next_seq[row[0]] = row[1] or 0
+            except Exception:
+                pass
 
     @staticmethod
     def generate_fingerprint(rule_id: str, scope_key: str, subject: str) -> str:
@@ -47,20 +60,24 @@ class IDSystem:
 
     def get_or_create_display_id(self, fingerprint: str, id_type: str = "default") -> str:
         """Returns existing display ID for fingerprint or allocates the next sequential ID."""
-        prefix = PREFIX_MAP.get(id_type, PREFIX_MAP["default"])
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            row = conn.execute("SELECT display_id FROM display_id_map WHERE fingerprint = ?", (fingerprint,)).fetchone()
-            if row:
-                return row[0]
+        with self._lock:
+            if fingerprint in self._cache:
+                return self._cache[fingerprint]
 
-            # Allocate next sequence number for this prefix
-            seq_row = conn.execute("SELECT MAX(sequence_number) FROM display_id_map WHERE id_type = ?", (id_type,)).fetchone()
-            next_seq = (seq_row[0] or 0) + 1
+            prefix = PREFIX_MAP.get(id_type, PREFIX_MAP["default"])
+            next_seq = self._next_seq.get(id_type, 0) + 1
+            self._next_seq[id_type] = next_seq
             display_id = f"{prefix}-{next_seq:03d}"
+            self._cache[fingerprint] = display_id
 
-            conn.execute("""
-            INSERT OR REPLACE INTO display_id_map (fingerprint, id_type, display_id, sequence_number)
-            VALUES (?, ?, ?, ?)
-            """, (fingerprint, id_type, display_id, next_seq))
-            conn.commit()
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("""
+                    INSERT OR REPLACE INTO display_id_map (fingerprint, id_type, display_id, sequence_number)
+                    VALUES (?, ?, ?, ?)
+                    """, (fingerprint, id_type, display_id, next_seq))
+                    conn.commit()
+            except Exception:
+                pass
             return display_id

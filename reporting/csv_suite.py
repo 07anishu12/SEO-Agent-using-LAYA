@@ -101,6 +101,9 @@ class CSVSuiteExporter:
             # 25. Numeric Provenance
             dump_query("numeric_provenance.csv", "SELECT * FROM numeric_provenance")
 
+            # 26. URLs Universe & Discovery Source
+            dump_query("urls_universe.csv", "SELECT url, discovery_source, status, depth, is_trap FROM urls LIMIT 50000")
+
         return exported
 
     def _write_csv(self, filename: str, rows: List[Dict[str, Any]]):
