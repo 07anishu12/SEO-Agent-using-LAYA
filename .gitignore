@@ -42,3 +42,4 @@ data/*.db-shm
 
 # Reports & Logs (optional ignore, keep directory structure)
 logs/*.log
+reports/baseline/csv/
