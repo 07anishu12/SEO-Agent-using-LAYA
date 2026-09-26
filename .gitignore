@@ -31,6 +31,8 @@ ENV/
 .idea/
 .vscode/
 *.swp
+.agents/
+skills-lock.json
 
 # SQLite / Database
 data/*.db

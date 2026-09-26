@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from models.product import ProductPageData
 
 STANDARD_PRODUCT_QUESTIONS = [

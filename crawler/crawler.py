@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import time
 import signal
 import sys
@@ -36,13 +37,19 @@ class SEOCrawler:
         render_enabled: bool = False,
         resume: bool = False,
         max_pages: Optional[int] = None,
-        concurrency: Optional[int] = None
+        concurrency: Optional[int] = None,
+        cancel_check: Optional[Any] = None,
+        url_progress_callback: Optional[Any] = None,
+        show_live_display: Optional[bool] = None
     ):
         self.target_url = target_url
         self.crawl_id = crawl_id
         self.storage = storage
         self.config = config
         self.resume = resume
+        self.cancel_check = cancel_check
+        self.url_progress_callback = url_progress_callback
+        self.show_live_display = show_live_display if show_live_display is not None else sys.stdout.isatty()
 
         crawl_cfg = config.get("crawler", {})
         self.max_pages = max_pages or crawl_cfg.get("max_pages", 5000)
@@ -190,6 +197,10 @@ class SEOCrawler:
         async def worker():
             nonlocal active_workers
             while not self._shutdown_requested and self.scheduler.has_capacity():
+                if self.cancel_check and self.cancel_check():
+                    self._shutdown_requested = True
+                    self.scheduler.stop()
+                    break
                 item = self.scheduler.dequeue()
                 if item is None:
                     # Check if there are active workers still generating links
@@ -316,6 +327,16 @@ class SEOCrawler:
                     self.scheduler.mark_failed(url)
                     self.storage.update_url_status(self.crawl_id, url, "failed")
 
+                if self.url_progress_callback:
+                    try:
+                        self.url_progress_callback(
+                            self.scheduler.crawled_count,
+                            self.scheduler.discovered_count,
+                            url
+                        )
+                    except Exception:
+                        pass
+
                 # Discover new internal links
                 new_url_tuples = []
                 for link in links:
@@ -332,22 +353,33 @@ class SEOCrawler:
                     self.storage.add_urls(self.crawl_id, new_url_tuples)
 
         # Launch worker pool
-        with Live(self._render_progress_panel(), refresh_per_second=2, console=self.console) as live:
+        if self.show_live_display:
+            with Live(self._render_progress_panel(), refresh_per_second=2, console=self.console) as live:
+                workers = []
+                for _ in range(self.concurrency):
+                    active_workers += 1
+                    w = asyncio.create_task(worker())
+                    workers.append(w)
+
+                async def monitor():
+                    while any(not w.done() for w in workers):
+                        live.update(self._render_progress_panel())
+                        await asyncio.sleep(0.5)
+                    live.update(self._render_progress_panel())
+
+                monitor_task = asyncio.create_task(monitor())
+                await asyncio.gather(*workers, return_exceptions=True)
+                await monitor_task
+        else:
             workers = []
             for _ in range(self.concurrency):
                 active_workers += 1
                 w = asyncio.create_task(worker())
                 workers.append(w)
-
-            async def monitor():
-                while any(not w.done() for w in workers):
-                    live.update(self._render_progress_panel())
-                    await asyncio.sleep(0.5)
-                live.update(self._render_progress_panel())
-
-            monitor_task = asyncio.create_task(monitor())
             await asyncio.gather(*workers, return_exceptions=True)
-            await monitor_task
+
+        if self.cancel_check and self.cancel_check():
+            self.storage.update_crawl_status(self.crawl_id, "cancelled", datetime.datetime.now().isoformat())
 
         # Cleanup
         await self.fetcher.close()
