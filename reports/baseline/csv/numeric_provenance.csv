@@ -1,0 +1,19 @@
+id,run_id,metric_name,metric_value,calculation_method,source_table,source_query,timestamp
+num_crawl_20260923_234236_total_pages_crawled,crawl_20260923_234236,total_pages_crawled,6098.0,COUNT(*),pages,SELECT COUNT(*) FROM pages,2026-09-24T23:27:46.282447
+num_crawl_20260923_234236_indexable_pages_count,crawl_20260923_234236,indexable_pages_count,5931.0,COUNT(*),pages,SELECT COUNT(*) FROM pages WHERE is_indexable = 1,2026-09-24T23:27:46.284381
+num_crawl_20260923_234236_internal_links_count,crawl_20260923_234236,internal_links_count,620914.0,COUNT(*),links,SELECT COUNT(*) FROM links,2026-09-24T23:27:46.285740
+num_crawl_20260923_234236_total_opportunities_count,crawl_20260923_234236,total_opportunities_count,11361.0,COUNT(*),opportunities,SELECT COUNT(*) FROM opportunities,2026-09-24T23:27:46.286206
+num_crawl_20260923_234236_exec_total_pages,crawl_20260923_234236,exec_total_pages,6098.0,COUNT(*),pages,SELECT COUNT(*) FROM pages,2026-09-24T23:27:46.426539
+num_crawl_20260923_234236_exec_indexable_pages,crawl_20260923_234236,exec_indexable_pages,5931.0,COUNT(*),pages,SELECT COUNT(*) FROM pages WHERE is_indexable = 1,2026-09-24T23:27:46.428294
+num_crawl_20260926_223012_total_pages_crawled,crawl_20260926_223012,total_pages_crawled,6112.0,COUNT(*),pages,SELECT COUNT(*) FROM pages,2026-09-26T22:30:16.303955
+num_crawl_20260926_223012_indexable_pages_count,crawl_20260926_223012,indexable_pages_count,5944.0,COUNT(*),pages,SELECT COUNT(*) FROM pages WHERE is_indexable = 1,2026-09-26T22:30:16.304728
+num_crawl_20260926_223012_internal_links_count,crawl_20260926_223012,internal_links_count,620967.0,COUNT(*),links,SELECT COUNT(*) FROM links,2026-09-26T22:30:16.305158
+num_crawl_20260926_223012_total_opportunities_count,crawl_20260926_223012,total_opportunities_count,11361.0,COUNT(*),opportunities,SELECT COUNT(*) FROM opportunities,2026-09-26T22:30:16.305504
+num_crawl_20260926_223012_exec_total_pages,crawl_20260926_223012,exec_total_pages,6112.0,COUNT(*),pages,SELECT COUNT(*) FROM pages,2026-09-26T22:30:16.379178
+num_crawl_20260926_223012_exec_indexable_pages,crawl_20260926_223012,exec_indexable_pages,5944.0,COUNT(*),pages,SELECT COUNT(*) FROM pages WHERE is_indexable = 1,2026-09-26T22:30:16.379663
+num_crawl_20260926_223133_total_pages_crawled,crawl_20260926_223133,total_pages_crawled,6126.0,COUNT(*),pages,SELECT COUNT(*) FROM pages,2026-09-26T22:31:39.890311
+num_crawl_20260926_223133_indexable_pages_count,crawl_20260926_223133,indexable_pages_count,5957.0,COUNT(*),pages,SELECT COUNT(*) FROM pages WHERE is_indexable = 1,2026-09-26T22:31:39.891859
+num_crawl_20260926_223133_internal_links_count,crawl_20260926_223133,internal_links_count,621020.0,COUNT(*),links,SELECT COUNT(*) FROM links,2026-09-26T22:31:39.893045
+num_crawl_20260926_223133_total_opportunities_count,crawl_20260926_223133,total_opportunities_count,11409.0,COUNT(*),opportunities,SELECT COUNT(*) FROM opportunities,2026-09-26T22:31:39.894642
+num_crawl_20260926_223133_exec_total_pages,crawl_20260926_223133,exec_total_pages,6126.0,COUNT(*),pages,SELECT COUNT(*) FROM pages,2026-09-26T22:31:39.991882
+num_crawl_20260926_223133_exec_indexable_pages,crawl_20260926_223133,exec_indexable_pages,5957.0,COUNT(*),pages,SELECT COUNT(*) FROM pages WHERE is_indexable = 1,2026-09-26T22:31:39.992430

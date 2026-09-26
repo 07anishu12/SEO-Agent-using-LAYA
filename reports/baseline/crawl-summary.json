@@ -1,0 +1,49 @@
+{
+  "website": "http://127.0.0.1:8899/",
+  "crawl_id": "crawl_20260926_223133",
+  "stats": {
+    "urls_discovered": 17,
+    "urls_eligible": 16,
+    "urls_crawled": 12,
+    "urls_skipped": 0,
+    "urls_failed": 2,
+    "urls_blocked_robots": 1,
+    "urls_redirected": 0,
+    "urls_error_4xx": 1,
+    "urls_error_5xx": 0,
+    "indexable_urls": 13,
+    "non_indexable_urls": 1,
+    "average_response_time": 0.004,
+    "crawl_duration_seconds": 0.0,
+    "total_issues": 43,
+    "critical_issues": 0,
+    "high_issues": 6,
+    "medium_issues": 17,
+    "low_issues": 20,
+    "templates_count": 6,
+    "performance_sample_count": 14,
+    "laya_decisions_count": 16
+  },
+  "distributions": {
+    "page_types": {
+      "brand": 9,
+      "category": 4,
+      "homepage": 1
+    },
+    "http_status": {
+      "200": 12,
+      "404": 1,
+      "0": 1
+    },
+    "issue_categories": {
+      "content": 14,
+      "structured_data": 13,
+      "metadata": 6,
+      "headings": 2,
+      "internal_linking": 2,
+      "canonical": 1,
+      "duplicates": 4,
+      "technical": 1
+    }
+  }
+}

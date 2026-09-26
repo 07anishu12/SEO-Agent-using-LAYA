@@ -1,0 +1,962 @@
+[
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-001] [SEOJEV-CONTENT-001] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-001] [SEOJEV-CONTENT-001] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/blaze-125 is 45.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/blaze-125\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/blaze-125\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/blaze-125`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/blaze-125') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/blaze-125.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/blaze-125') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-002] [SEOJEV-CONTENT-002] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-002] [SEOJEV-CONTENT-002] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/deep-commuter is 45.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/deep-commuter\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/deep-commuter\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/deep-commuter`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/deep-commuter') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/deep-commuter.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/deep-commuter') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-003] [SEOJEV-CONTENT-003] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-003] [SEOJEV-CONTENT-003] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/eco-scooter is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/eco-scooter\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/eco-scooter\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/eco-scooter`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/eco-scooter') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/eco-scooter.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/eco-scooter') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-004] [SEOJEV-CONTENT-004] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-004] [SEOJEV-CONTENT-004] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/global-edition is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/global-edition\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/global-edition\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/global-edition`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/global-edition') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/global-edition.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/global-edition') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-005] [SEOJEV-CONTENT-005] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-005] [SEOJEV-CONTENT-005] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/hidden-cruiser is 45.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/hidden-cruiser\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/hidden-cruiser\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/hidden-cruiser`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/hidden-cruiser') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/hidden-cruiser.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/hidden-cruiser') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-006] [SEOJEV-CONTENT-006] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-006] [SEOJEV-CONTENT-006] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/js-only-model is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/js-only-model\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/js-only-model\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/js-only-model`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/js-only-model') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/js-only-model.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/js-only-model') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-007] [SEOJEV-CONTENT-007] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-007] [SEOJEV-CONTENT-007] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/stale-vintage is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/stale-vintage\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/stale-vintage\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/stale-vintage`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/stale-vintage') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/stale-vintage.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/stale-vintage') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-008] [SEOJEV-CONTENT-008] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-008] [SEOJEV-CONTENT-008] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes/thin-specs is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/thin-specs\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes/thin-specs\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes/thin-specs`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes/thin-specs') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/thin-specs.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes/thin-specs') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-009] [SEOJEV-CONTENT-009] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-009] [SEOJEV-CONTENT-009] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-010] [SEOJEV-CONTENT-010] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-010] [SEOJEV-CONTENT-010] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/bikes-duplicate is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes-duplicate\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/bikes-duplicate\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/bikes-duplicate`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/bikes-duplicate') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes-duplicate.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/bikes-duplicate') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-011] [SEOJEV-CONTENT-011] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-011] [SEOJEV-CONTENT-011] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/sitemap-dead-page is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/sitemap-dead-page\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/sitemap-dead-page\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/sitemap-dead-page`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/sitemap-dead-page') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/sitemap-dead-page.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/sitemap-dead-page') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-012] [SEOJEV-CONTENT-012] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-012] [SEOJEV-CONTENT-012] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/redirect-loop is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/redirect-loop\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/redirect-loop\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/redirect-loop`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/redirect-loop') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/redirect-loop.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/redirect-loop') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-013] [SEOJEV-CONTENT-013] Add an explicit FAQ / summary section formatted with direct answers (under 4...",
+      "description": "# [SEOJEV-CONTENT-013] [SEOJEV-CONTENT-013] Add an explicit FAQ / summary section formatted with direct answers (under 4...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nAEO answer extractability score for http://127.0.0.1:8899/ is 20.0/100. Missing concise definitions and Q&A formatting.\n\nDiagnosis: Content lacks extractable single-sentence factual answers required by AI search assistants and featured snippets.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/\n\n---\n\n### Required Implementation\nAction Required: Add an explicit FAQ / summary section formatted with direct answers (under 45 words) preceding detailed explanations.\n\nTarget Location: FAQ section on http://127.0.0.1:8899/\nScope: Page (1 URLs affected)\nObserved Hypothesis: Structuring core product FAQs into clear Q&A pairs with direct answer sentences increases probability of snippet extraction.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `FAQ section on http://127.0.0.1:8899/`.\n- [ ] Verification spec evaluates to true: `has_qa_section('http://127.0.0.1:8899/') == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/.\n\n**Automated Verification Spec:**\n```\nhas_qa_section('http://127.0.0.1:8899/') == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-014] [SEOJEV-CONTENT-014] Author missing sections (['on_road_price', 'variants', 'engine', 'power', 't...",
+      "description": "# [SEOJEV-CONTENT-014] [SEOJEV-CONTENT-014] Author missing sections (['on_road_price', 'variants', 'engine', 'power', 't...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/blaze-125 has content gaps: missing sections ['on_road_price', 'variants', 'engine'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/blaze-125\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['on_road_price', 'variants', 'engine', 'power', 'torque', 'features', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/blaze-125\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/blaze-125`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/blaze-125', ['on_road_price', 'variants']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/blaze-125.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/blaze-125', ['on_road_price', 'variants']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-015] [SEOJEV-CONTENT-015] Author missing sections (['on_road_price', 'variants', 'mileage', 'power', '...",
+      "description": "# [SEOJEV-CONTENT-015] [SEOJEV-CONTENT-015] Author missing sections (['on_road_price', 'variants', 'mileage', 'power', '...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/deep-commuter has content gaps: missing sections ['on_road_price', 'variants', 'mileage'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/deep-commuter\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['on_road_price', 'variants', 'mileage', 'power', 'torque', 'features', 'colors', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/deep-commuter\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/deep-commuter`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/deep-commuter', ['on_road_price', 'variants']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/deep-commuter.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/deep-commuter', ['on_road_price', 'variants']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-016] [SEOJEV-CONTENT-016] Author missing sections (['price', 'on_road_price', 'variants', 'specificati...",
+      "description": "# [SEOJEV-CONTENT-016] [SEOJEV-CONTENT-016] Author missing sections (['price', 'on_road_price', 'variants', 'specificati...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/eco-scooter has content gaps: missing sections ['price', 'on_road_price', 'variants'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/eco-scooter\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['price', 'on_road_price', 'variants', 'specifications', 'mileage', 'engine', 'power', 'torque', 'features', 'colors', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/eco-scooter\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/eco-scooter`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/eco-scooter', ['price', 'on_road_price']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/eco-scooter.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/eco-scooter', ['price', 'on_road_price']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-017] [SEOJEV-CONTENT-017] Author missing sections (['price', 'on_road_price', 'variants', 'mileage', '...",
+      "description": "# [SEOJEV-CONTENT-017] [SEOJEV-CONTENT-017] Author missing sections (['price', 'on_road_price', 'variants', 'mileage', '...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/global-edition has content gaps: missing sections ['price', 'on_road_price', 'variants'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/global-edition\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['price', 'on_road_price', 'variants', 'mileage', 'engine', 'power', 'torque', 'features', 'colors', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/global-edition\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/global-edition`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/global-edition', ['price', 'on_road_price']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/global-edition.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/global-edition', ['price', 'on_road_price']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-018] [SEOJEV-CONTENT-018] Author missing sections (['on_road_price', 'variants', 'mileage', 'power', '...",
+      "description": "# [SEOJEV-CONTENT-018] [SEOJEV-CONTENT-018] Author missing sections (['on_road_price', 'variants', 'mileage', 'power', '...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/hidden-cruiser has content gaps: missing sections ['on_road_price', 'variants', 'mileage'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/hidden-cruiser\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['on_road_price', 'variants', 'mileage', 'power', 'torque', 'features', 'colors', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/hidden-cruiser\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/hidden-cruiser`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/hidden-cruiser', ['on_road_price', 'variants']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/hidden-cruiser.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/hidden-cruiser', ['on_road_price', 'variants']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-019] [SEOJEV-CONTENT-019] Author missing sections (['price', 'on_road_price', 'variants', 'specificati...",
+      "description": "# [SEOJEV-CONTENT-019] [SEOJEV-CONTENT-019] Author missing sections (['price', 'on_road_price', 'variants', 'specificati...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/js-only-model has content gaps: missing sections ['price', 'on_road_price', 'variants'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/js-only-model\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['price', 'on_road_price', 'variants', 'specifications', 'mileage', 'engine', 'power', 'torque', 'features', 'colors', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/js-only-model\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/js-only-model`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/js-only-model', ['price', 'on_road_price']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/js-only-model.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/js-only-model', ['price', 'on_road_price']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-020] [SEOJEV-CONTENT-020] Author missing sections (['on_road_price', 'variants', 'specifications', 'mi...",
+      "description": "# [SEOJEV-CONTENT-020] [SEOJEV-CONTENT-020] Author missing sections (['on_road_price', 'variants', 'specifications', 'mi...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/stale-vintage has content gaps: missing sections ['on_road_price', 'variants', 'specifications'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/stale-vintage\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['on_road_price', 'variants', 'specifications', 'mileage', 'engine', 'power', 'torque', 'features', 'colors', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/stale-vintage\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/stale-vintage`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/stale-vintage', ['on_road_price', 'variants']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/stale-vintage.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/stale-vintage', ['on_road_price', 'variants']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-021] [SEOJEV-CONTENT-021] Author missing sections (['price', 'on_road_price', 'variants', 'specificati...",
+      "description": "# [SEOJEV-CONTENT-021] [SEOJEV-CONTENT-021] Author missing sections (['price', 'on_road_price', 'variants', 'specificati...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/thin-specs has content gaps: missing sections ['price', 'on_road_price', 'variants'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/thin-specs\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['price', 'on_road_price', 'variants', 'specifications', 'mileage', 'engine', 'power', 'torque', 'features', 'colors', 'pros', 'cons', 'comparison', 'emi', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/thin-specs\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/thin-specs`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/thin-specs', ['price', 'on_road_price']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/thin-specs.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/thin-specs', ['price', 'on_road_price']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-022] [SEOJEV-CONTENT-022] Author missing sections (['on_road_price', 'variants', 'engine', 'torque', '...",
+      "description": "# [SEOJEV-CONTENT-022] [SEOJEV-CONTENT-022] Author missing sections (['on_road_price', 'variants', 'engine', 'torque', '...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nPage http://127.0.0.1:8899/bikes/thunder-250 has content gaps: missing sections ['on_road_price', 'variants', 'engine'] and missing specifications [].\n\nDiagnosis: Thin entity coverage compared to expected vertical baseline reduces topical completeness and satisfaction of search intent.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/thunder-250\n\n---\n\n### Required Implementation\nAction Required: Author missing sections (['on_road_price', 'variants', 'engine', 'torque', 'features', 'pros', 'cons', 'comparison', 'faqs', 'images', 'reviews']) and add spec rows for [].\n\nTarget Location: Editorial content on http://127.0.0.1:8899/bikes/thunder-250\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding structured specification tables and required editorial sections provides comprehensive answers for user purchase queries.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Editorial content on http://127.0.0.1:8899/bikes/thunder-250`.\n- [ ] Verification spec evaluates to true: `content_sections_present('http://127.0.0.1:8899/bikes/thunder-250', ['on_road_price', 'variants']) == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/thunder-250.\n\n**Automated Verification Spec:**\n```\ncontent_sections_present('http://127.0.0.1:8899/bikes/thunder-250', ['on_road_price', 'variants']) == True\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-023] [SEOJEV-CONTENT-023] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-023] [SEOJEV-CONTENT-023] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/bikes/eco-scooter is 40.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/eco-scooter\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/bikes/eco-scooter\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/bikes/eco-scooter`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/bikes/eco-scooter') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/eco-scooter.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/bikes/eco-scooter') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-024] [SEOJEV-CONTENT-024] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-024] [SEOJEV-CONTENT-024] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/bikes/global-edition is 40.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/global-edition\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/bikes/global-edition\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/bikes/global-edition`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/bikes/global-edition') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/global-edition.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/bikes/global-edition') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-025] [SEOJEV-CONTENT-025] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-025] [SEOJEV-CONTENT-025] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/bikes/js-only-model is 40.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/js-only-model\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/bikes/js-only-model\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/bikes/js-only-model`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/bikes/js-only-model') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/js-only-model.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/bikes/js-only-model') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-026] [SEOJEV-CONTENT-026] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-026] [SEOJEV-CONTENT-026] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/bikes/stale-vintage is 40.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/stale-vintage\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/bikes/stale-vintage\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/bikes/stale-vintage`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/bikes/stale-vintage') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/stale-vintage.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/bikes/stale-vintage') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-027] [SEOJEV-CONTENT-027] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-027] [SEOJEV-CONTENT-027] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/bikes/thin-specs is 40.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/thin-specs\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/bikes/thin-specs\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/bikes/thin-specs`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/bikes/thin-specs') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/thin-specs.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/bikes/thin-specs') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-028] [SEOJEV-CONTENT-028] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-028] [SEOJEV-CONTENT-028] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/bikes is 25.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/bikes\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/bikes`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/bikes') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/bikes') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-029] [SEOJEV-CONTENT-029] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-029] [SEOJEV-CONTENT-029] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/bikes-duplicate is 25.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes-duplicate\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/bikes-duplicate\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/bikes-duplicate`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/bikes-duplicate') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes-duplicate.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/bikes-duplicate') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-030] [SEOJEV-CONTENT-030] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-030] [SEOJEV-CONTENT-030] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/sitemap-dead-page is 25.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/sitemap-dead-page\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/sitemap-dead-page\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/sitemap-dead-page`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/sitemap-dead-page') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/sitemap-dead-page.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/sitemap-dead-page') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-031] [SEOJEV-CONTENT-031] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-031] [SEOJEV-CONTENT-031] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/redirect-loop is 25.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/redirect-loop\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/redirect-loop\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/redirect-loop`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/redirect-loop') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/redirect-loop.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/redirect-loop') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-CONTENT-032] [SEOJEV-CONTENT-032] Add entity-clear product name in <title>/<h1>, structured specification summ...",
+      "description": "# [SEOJEV-CONTENT-032] [SEOJEV-CONTENT-032] Add entity-clear product name in <title>/<h1>, structured specification summ...\n\n**Type:** Content  \n**Priority:** P2  \n**Scope:** Page (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nGEO readiness score for http://127.0.0.1:8899/ is 25.0/100. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nDiagnosis: Page lacks the structured entity signals and factual density required for confident citation by generative AI engines (SGE, Perplexity, Bing Copilot).\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/\n\n---\n\n### Required Implementation\nAction Required: Add entity-clear product name in <title>/<h1>, structured specification summary, and authoritative source references. Gaps: entity naming/disambiguation and citation-ready fact density.\n\nTarget Location: Page head + main content on http://127.0.0.1:8899/\nScope: Page (1 URLs affected)\nObserved Hypothesis: Adding entity disambiguation markup, factual summaries, and authoritative citations increases probability of AI citation and generative-search visibility.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `Page head + main content on http://127.0.0.1:8899/`.\n- [ ] Verification spec evaluates to true: `entity_clarity_score('http://127.0.0.1:8899/') >= 60`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/.\n\n**Automated Verification Spec:**\n```\nentity_clarity_score('http://127.0.0.1:8899/') >= 60\n```\n",
+      "issuetype": {
+        "name": "Story"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "content",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-001] [SEOJEV-ENG-001] High-impact fix: update tpl_brand_bikes_2seg layout to resolve canonical mismatc...",
+      "description": "# [SEOJEV-ENG-001] [SEOJEV-ENG-001] High-impact fix: update tpl_brand_bikes_2seg layout to resolve canonical mismatc...\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_canonical_mismatch': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/thunder-250\n\n---\n\n### Required Implementation\nAction Required: High-impact fix: update tpl_brand_bikes_2seg layout to resolve canonical mismatch across 1 pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `canonical_matches_url == True`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/thunder-250.\n\n**Automated Verification Spec:**\n```\ncanonical_matches_url == True\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-002] [SEOJEV-ENG-002] Routine hygiene cleanup: review low text to html ratio on affected pages.",
+      "description": "# [SEOJEV-ENG-002] [SEOJEV-ENG-002] Routine hygiene cleanup: review low text to html ratio on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_low_text_to_html_ratio': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/js-only-model\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review low text to html ratio on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/js-only-model.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-003] [SEOJEV-ENG-003] Routine hygiene cleanup: review duplicate meta description on affected pages.",
+      "description": "# [SEOJEV-ENG-003] [SEOJEV-ENG-003] Routine hygiene cleanup: review duplicate meta description on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (2 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nObserved 2 URLs in template 'tpl_category_bikes-duplicate_1seg' with issue 'cluster_duplicate_meta_description': Observed on 2 URLs across 2 templates. Primary concentration in 'tpl_category_bikes-duplicate_1seg' (1 pages affected, 50.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_category_bikes-duplicate_1seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes-duplicate\n- http://127.0.0.1:8899/bikes\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review duplicate meta description on affected pages.\n\nTarget Location: templates/tpl_category_bikes-duplicate_1seg.html\nScope: Template (2 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_category_bikes-duplicate_1seg systematically remedies all 2 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_category_bikes-duplicate_1seg.html`.\n- [ ] Verification spec evaluates to true: `has_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes-duplicate, http://127.0.0.1:8899/bikes.\n\n**Automated Verification Spec:**\n```\nhas_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-004] [SEOJEV-ENG-004] Routine hygiene cleanup: review short meta description on affected pages.",
+      "description": "# [SEOJEV-ENG-004] [SEOJEV-ENG-004] Routine hygiene cleanup: review short meta description on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (4 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nObserved 4 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_short_meta_description': Observed on 4 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (4 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/global-edition\n- http://127.0.0.1:8899/bikes/js-only-model\n- http://127.0.0.1:8899/bikes/stale-vintage\n- http://127.0.0.1:8899/bikes/thin-specs\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review short meta description on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (4 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 4 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `has_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/global-edition, http://127.0.0.1:8899/bikes/js-only-model, http://127.0.0.1:8899/bikes/stale-vintage.\n\n**Automated Verification Spec:**\n```\nhas_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-005] [SEOJEV-ENG-005] Routine hygiene cleanup: review missing structured data on affected pages.",
+      "description": "# [SEOJEV-ENG-005] [SEOJEV-ENG-005] Routine hygiene cleanup: review missing structured data on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (5 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nObserved 5 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_missing_structured_data': Observed on 12 URLs across 4 templates. Primary concentration in 'tpl_brand_bikes_2seg' (9 pages affected, 75.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/blaze-125\n- http://127.0.0.1:8899/bikes/deep-commuter\n- http://127.0.0.1:8899/bikes/eco-scooter\n- http://127.0.0.1:8899/bikes/global-edition\n- http://127.0.0.1:8899/bikes/hidden-cruiser\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review missing structured data on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (5 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 5 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/blaze-125, http://127.0.0.1:8899/bikes/deep-commuter, http://127.0.0.1:8899/bikes/eco-scooter.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-006] [SEOJEV-ENG-006] High-impact fix: update tpl_brand_bikes_2seg layout to resolve orphan page acros...",
+      "description": "# [SEOJEV-ENG-006] [SEOJEV-ENG-006] High-impact fix: update tpl_brand_bikes_2seg layout to resolve orphan page acros...\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_orphan_page': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/hidden-cruiser\n\n---\n\n### Required Implementation\nAction Required: High-impact fix: update tpl_brand_bikes_2seg layout to resolve orphan page across 1 pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/hidden-cruiser.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-007] [SEOJEV-ENG-007] Important architectural improvement: revise Template component: 'tpl_brand_bikes...",
+      "description": "# [SEOJEV-ENG-007] [SEOJEV-ENG-007] Important architectural improvement: revise Template component: 'tpl_brand_bikes...\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_missing_meta_description': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/eco-scooter\n\n---\n\n### Required Implementation\nAction Required: Important architectural improvement: revise Template component: 'tpl_brand_bikes_2seg' to supply unique structured content.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `has_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/eco-scooter.\n\n**Automated Verification Spec:**\n```\nhas_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-008] [SEOJEV-ENG-008] Routine hygiene cleanup: review zero outbound internal links on affected pages.",
+      "description": "# [SEOJEV-ENG-008] [SEOJEV-ENG-008] Routine hygiene cleanup: review zero outbound internal links on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_zero_outbound_internal_links': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/hidden-cruiser\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review zero outbound internal links on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/hidden-cruiser.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-009] [SEOJEV-ENG-009] Routine hygiene cleanup: review template thin content on affected pages.",
+      "description": "# [SEOJEV-ENG-009] [SEOJEV-ENG-009] Routine hygiene cleanup: review template thin content on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_template_thin_content': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/blaze-125\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review template thin content on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/blaze-125.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-010] [SEOJEV-ENG-010] Routine hygiene cleanup: review template missing structured data on affected pages.",
+      "description": "# [SEOJEV-ENG-010] [SEOJEV-ENG-010] Routine hygiene cleanup: review template missing structured data on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_template_missing_structured_data': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/blaze-125\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review template missing structured data on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/blaze-125.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-011] [SEOJEV-ENG-011] Routine hygiene cleanup: review template short meta description on affected pages.",
+      "description": "# [SEOJEV-ENG-011] [SEOJEV-ENG-011] Routine hygiene cleanup: review template short meta description on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_template_short_meta_description': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/blaze-125\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review template short meta description on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `has_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/blaze-125.\n\n**Automated Verification Spec:**\n```\nhas_selector(\"meta[name='description']\") and text_length(\"meta[name='description'][content]\") >= 50\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-012] [SEOJEV-ENG-012] Important architectural improvement: revise Template component: 'tpl_category_bi...",
+      "description": "# [SEOJEV-ENG-012] [SEOJEV-ENG-012] Important architectural improvement: revise Template component: 'tpl_category_bi...\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (2 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nObserved 2 URLs in template 'tpl_category_bikes-duplicate_1seg' with issue 'cluster_duplicate_title_tag': Observed on 2 URLs across 2 templates. Primary concentration in 'tpl_category_bikes-duplicate_1seg' (1 pages affected, 50.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_category_bikes-duplicate_1seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes-duplicate\n- http://127.0.0.1:8899/bikes\n\n---\n\n### Required Implementation\nAction Required: Important architectural improvement: revise Template component: 'tpl_category_bikes-duplicate_1seg' to supply unique structured content.\n\nTarget Location: templates/tpl_category_bikes-duplicate_1seg.html\nScope: Template (2 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_category_bikes-duplicate_1seg systematically remedies all 2 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_category_bikes-duplicate_1seg.html`.\n- [ ] Verification spec evaluates to true: `has_selector(\"title\") and text_length(\"title\") >= 10`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes-duplicate, http://127.0.0.1:8899/bikes.\n\n**Automated Verification Spec:**\n```\nhas_selector(\"title\") and text_length(\"title\") >= 10\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-013] [SEOJEV-ENG-013] Important architectural improvement: revise Template component: 'tpl_brand_bikes...",
+      "description": "# [SEOJEV-ENG-013] [SEOJEV-ENG-013] Important architectural improvement: revise Template component: 'tpl_brand_bikes...\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (5 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nObserved 5 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_thin_content': Observed on 9 URLs across 3 templates. Primary concentration in 'tpl_brand_bikes_2seg' (7 pages affected, 77.8% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/blaze-125\n- http://127.0.0.1:8899/bikes/deep-commuter\n- http://127.0.0.1:8899/bikes/eco-scooter\n- http://127.0.0.1:8899/bikes/hidden-cruiser\n- http://127.0.0.1:8899/bikes/stale-vintage\n\n---\n\n### Required Implementation\nAction Required: Important architectural improvement: revise Template component: 'tpl_brand_bikes_2seg' to supply unique structured content.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (5 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 5 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/blaze-125, http://127.0.0.1:8899/bikes/deep-commuter, http://127.0.0.1:8899/bikes/eco-scooter.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-014] [SEOJEV-ENG-014] High-impact fix: update tpl_category_sitemap-dead-page_1seg layout to resolve ht...",
+      "description": "# [SEOJEV-ENG-014] [SEOJEV-ENG-014] High-impact fix: update tpl_category_sitemap-dead-page_1seg layout to resolve ht...\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (1 URLs)  \n**Effort:** S  \n\n---\n\n### Problem & Observed Evidence\nObserved 1 URLs in template 'tpl_category_sitemap-dead-page_1seg' with issue 'cluster_http_404_error': Observed on 1 URLs across 1 templates. Primary concentration in 'tpl_category_sitemap-dead-page_1seg' (1 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_category_sitemap-dead-page_1seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/sitemap-dead-page\n\n---\n\n### Required Implementation\nAction Required: High-impact fix: update tpl_category_sitemap-dead-page_1seg layout to resolve http 404 error across 1 pages.\n\nTarget Location: templates/tpl_category_sitemap-dead-page_1seg.html\nScope: Template (1 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_category_sitemap-dead-page_1seg systematically remedies all 1 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_category_sitemap-dead-page_1seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/sitemap-dead-page.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-015] [SEOJEV-ENG-015] High-impact fix: update tpl_brand_bikes_2seg layout to resolve missing h1 across...",
+      "description": "# [SEOJEV-ENG-015] [SEOJEV-ENG-015] High-impact fix: update tpl_brand_bikes_2seg layout to resolve missing h1 across...\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (2 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nObserved 2 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_missing_h1': Observed on 2 URLs across 1 templates. Primary concentration in 'tpl_brand_bikes_2seg' (2 pages affected, 100.0% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/eco-scooter\n- http://127.0.0.1:8899/bikes/js-only-model\n\n---\n\n### Required Implementation\nAction Required: High-impact fix: update tpl_brand_bikes_2seg layout to resolve missing h1 across 2 pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (2 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 2 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `selector_count(\"h1\") == 1`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/eco-scooter, http://127.0.0.1:8899/bikes/js-only-model.\n\n**Automated Verification Spec:**\n```\nselector_count(\"h1\") == 1\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  },
+  {
+    "fields": {
+      "project": {
+        "key": "SEO"
+      },
+      "summary": "[SEOJEV-ENG-016] [SEOJEV-ENG-016] Routine hygiene cleanup: review extremely thin content on affected pages.",
+      "description": "# [SEOJEV-ENG-016] [SEOJEV-ENG-016] Routine hygiene cleanup: review extremely thin content on affected pages.\n\n**Type:** Engineering  \n**Priority:** P2  \n**Scope:** Template (3 URLs)  \n**Effort:** M  \n\n---\n\n### Problem & Observed Evidence\nObserved 3 URLs in template 'tpl_brand_bikes_2seg' with issue 'cluster_extremely_thin_content': Observed on 3 URLs across 2 templates. Primary concentration in 'tpl_brand_bikes_2seg' (2 pages affected, 66.7% of total occurrences)..\n\nDiagnosis: Template-level omission or formatting defect in component rendering tpl_brand_bikes_2seg.\n\n**Sample Affected URLs:**\n- http://127.0.0.1:8899/bikes/global-edition\n- http://127.0.0.1:8899/bikes/js-only-model\n- http://127.0.0.1:8899/\n\n---\n\n### Required Implementation\nAction Required: Routine hygiene cleanup: review extremely thin content on affected pages.\n\nTarget Location: templates/tpl_brand_bikes_2seg.html\nScope: Template (3 URLs affected)\nObserved Hypothesis: Updating the template component for tpl_brand_bikes_2seg systematically remedies all 3 affected URLs in a single engineering change.\n\n---\n\n### Acceptance Criteria\n- [ ] Implementation updated in `templates/tpl_brand_bikes_2seg.html`.\n- [ ] Verification spec evaluates to true: `status_code == 200`.\n- [ ] Validated on sample URLs: http://127.0.0.1:8899/bikes/global-edition, http://127.0.0.1:8899/bikes/js-only-model, http://127.0.0.1:8899/.\n\n**Automated Verification Spec:**\n```\nstatus_code == 200\n```\n",
+      "issuetype": {
+        "name": "Task"
+      },
+      "priority": {
+        "name": "Medium"
+      },
+      "labels": [
+        "seojev",
+        "engineering",
+        "P2"
+      ]
+    }
+  }
+]

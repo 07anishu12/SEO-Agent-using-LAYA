@@ -191,24 +191,16 @@ class SEOCrawler:
     async def crawl(self):
         """Main async crawl loop."""
         self.start_time = time.monotonic()
-        active_workers = 0
-        worker_tasks = set()
+        busy_workers = 0
 
-        async def worker():
-            nonlocal active_workers
-            while not self._shutdown_requested and self.scheduler.has_capacity():
+        async def process_item(item):
+            nonlocal busy_workers
+            busy_workers += 1
+            try:
                 if self.cancel_check and self.cancel_check():
                     self._shutdown_requested = True
                     self.scheduler.stop()
-                    break
-                item = self.scheduler.dequeue()
-                if item is None:
-                    # Check if there are active workers still generating links
-                    if active_workers > 1:
-                        await asyncio.sleep(0.1)
-                        continue
-                    else:
-                        break
+                    return
 
                 url, discovery_source, depth = item
 
@@ -216,7 +208,7 @@ class SEOCrawler:
                 if not self.robots.is_allowed(url):
                     self.scheduler.mark_blocked(url)
                     self.storage.update_url_status(self.crawl_id, url, "blocked")
-                    continue
+                    return
 
                 # Check memory guard periodically
                 self.memory_guard.check_and_enforce()
@@ -227,7 +219,7 @@ class SEOCrawler:
                     self.trap_detector.record_quarantine(url, trap_type, trap_reason)
                     self.scheduler.mark_skipped(url)
                     self.storage.update_url_status(self.crawl_id, url, "trap_quarantine")
-                    continue
+                    return
 
                 await self.scheduler.throttle(self.fetcher.adaptive_delay_multiplier)
 
@@ -245,7 +237,6 @@ class SEOCrawler:
 
                 # Selective rendering check
                 if self.render_enabled and self.renderer and fetch_res.status_code == 200:
-                    # If HTML is very thin or appears client-side rendered
                     if len(html_content) < 800 or '<div id="root"></div>' in html_content or '<div id="__next"></div>' in html_content:
                         render_res = await self.renderer.render_page(url)
                         if render_res.get("html"):
@@ -292,8 +283,10 @@ class SEOCrawler:
                     is_rendered=is_rendered,
                     error=fetch_res.error
                 )
+                page_data.crawl_id = self.crawl_id
+                page_data.content_hash = content_hash
 
-                # Soft 404 Check
+                # Check for soft 404
                 is_soft_404, soft_reason = self.soft404_detector.is_soft_404(
                     status_code=fetch_res.status_code,
                     html=html_content,
@@ -351,15 +344,28 @@ class SEOCrawler:
 
                 if new_url_tuples:
                     self.storage.add_urls(self.crawl_id, new_url_tuples)
+            finally:
+                busy_workers -= 1
+
+        async def worker():
+            while not self._shutdown_requested and self.scheduler.has_capacity():
+                if self.cancel_check and self.cancel_check():
+                    self._shutdown_requested = True
+                    self.scheduler.stop()
+                    break
+                item = self.scheduler.dequeue()
+                if item is None:
+                    if busy_workers > 0:
+                        await asyncio.sleep(0.05)
+                        continue
+                    else:
+                        break
+                await process_item(item)
 
         # Launch worker pool
         if self.show_live_display:
             with Live(self._render_progress_panel(), refresh_per_second=2, console=self.console) as live:
-                workers = []
-                for _ in range(self.concurrency):
-                    active_workers += 1
-                    w = asyncio.create_task(worker())
-                    workers.append(w)
+                workers = [asyncio.create_task(worker()) for _ in range(self.concurrency)]
 
                 async def monitor():
                     while any(not w.done() for w in workers):
@@ -371,11 +377,7 @@ class SEOCrawler:
                 await asyncio.gather(*workers, return_exceptions=True)
                 await monitor_task
         else:
-            workers = []
-            for _ in range(self.concurrency):
-                active_workers += 1
-                w = asyncio.create_task(worker())
-                workers.append(w)
+            workers = [asyncio.create_task(worker()) for _ in range(self.concurrency)]
             await asyncio.gather(*workers, return_exceptions=True)
 
         if self.cancel_check and self.cancel_check():
@@ -385,3 +387,4 @@ class SEOCrawler:
         await self.fetcher.close()
         if self.renderer:
             await self.renderer.close()
+

@@ -19,6 +19,7 @@ from typing import Dict, Any, List, Optional, Callable, Set
 
 from models.crawl import CrawlRun, CrawlStats
 from crawler.storage import CrawlStorage
+from crawler.migrations import MigrationRunner
 from crawler.crawler import SEOCrawler
 from analysis.internal_links import build_and_analyze_link_graph
 from analysis.templates import analyze_templates
@@ -98,14 +99,27 @@ class SEOJEVPipeline:
         os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
         self.storage = CrawlStorage(db_path=self.db_path)
         self.content_store = ContentStore(base_dir=self.config.get("storage", {}).get("store_dir", "store"))
+        self.migration_runner = MigrationRunner(db_path=self.db_path)
+        self.migration_runner.run_migrations()
 
         # Crawl ID resolution
+        self._last_pct: float = 0.0
         self.crawl_id = self._resolve_crawl_id(crawl_id)
         self.stats = CrawlStats()
         self.pass_timings: Dict[str, float] = {}
 
     def _resolve_crawl_id(self, explicit_id: Optional[str]) -> str:
         if explicit_id:
+            max_p = self.options.get("max_pages", 5000)
+            conc = self.options.get("concurrency", 10)
+            run_record = CrawlRun(
+                crawl_id=explicit_id,
+                target_url=self.target_url,
+                start_time=datetime.datetime.now().isoformat(),
+                max_pages=max_p,
+                concurrency=conc
+            )
+            self.storage.save_crawl_run(run_record)
             return explicit_id
         if self.options.get("crawl_id"):
             return self.options["crawl_id"]
@@ -132,12 +146,26 @@ class SEOJEVPipeline:
         return fresh_id
 
     def emit_progress(self, pass_name: str, pct: float, message: str, meta: Optional[Dict[str, Any]] = None):
-        """Invoke external progress callback if registered."""
+        """Invoke external progress callback if registered with guaranteed monotonic pct."""
+        if pct < getattr(self, "_last_pct", 0.0):
+            pct = self._last_pct
+        self._last_pct = pct
         if self.progress_callback:
             try:
-                self.progress_callback(pass_name, pct, message, meta or {})
+                import inspect
+                sig = inspect.signature(self.progress_callback)
+                if len(sig.parameters) >= 4:
+                    self.progress_callback(pass_name, pct, message, meta or {})
+                else:
+                    self.progress_callback(pass_name, pct, message)
             except Exception:
-                pass
+                try:
+                    self.progress_callback(pass_name, pct, message, meta or {})
+                except Exception:
+                    try:
+                        self.progress_callback(pass_name, pct, message)
+                    except Exception:
+                        pass
 
     def check_cancelled(self):
         """Raises PipelineCancelledException if cancel_check triggers."""
@@ -693,10 +721,15 @@ class SEOJEVPipeline:
         start_wall_time = time.monotonic()
         try:
             p1_res = await self.run_pass_1_crawl()
+            self.check_cancelled()
             p2_res = await self.run_pass_2_signals(p1_res)
+            self.check_cancelled()
             p3_res = await self.run_pass_3_search_opportunities(p2_res)
+            self.check_cancelled()
             p4_res = await self.run_pass_4_calibration(p3_res)
+            self.check_cancelled()
             p5_res = await self.run_pass_5_work_orders(p4_res)
+            self.check_cancelled()
             p6_res = await self.run_pass_6_deliverables(p5_res)
 
             total_duration = round(time.monotonic() - start_wall_time, 2)

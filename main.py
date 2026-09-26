@@ -6,7 +6,7 @@ import sys
 import time
 import yaml
 from collections import Counter
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from models.crawl import CrawlRun, CrawlStats
 from crawler.storage import CrawlStorage

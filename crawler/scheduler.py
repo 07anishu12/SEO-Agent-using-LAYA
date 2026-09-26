@@ -43,6 +43,14 @@ class CrawlScheduler:
     def total_discovered(self) -> int:
         return len(self.discovered_urls)
 
+    @property
+    def crawled_count(self) -> int:
+        return len(self.crawled_urls)
+
+    @property
+    def discovered_count(self) -> int:
+        return len(self.discovered_urls)
+
     def calculate_priority(self, discovery_source: str, depth: int) -> float:
         """Calculates crawl priority score (higher is fetched sooner)."""
         base = 50.0

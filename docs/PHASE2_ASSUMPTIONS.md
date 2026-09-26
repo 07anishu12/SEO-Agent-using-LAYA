@@ -22,10 +22,11 @@
 
 ---
 
-## 2. Data Model & ETL Strategy (Stage 1)
+## 2. Data Model & ETL Strategy (Stage 2)
 - **Assumption 2.1 (Dual Storage):** The per-run SQLite WAL database in `data/seo.db` (or custom per-run path) remains the engine's scratchpad and local audit store, preserving byte-for-byte fidelity. PostgreSQL serves as the persistent multi-tenant metadata and time-series query layer.
-- **Assumption 2.2 (Org Isolation):** Every table in Postgres carries `org_id` (UUID or string) for strict row-level security from Day 1, with a default organization (`org_default`) for single-tenant or initial deployments.
-- **Assumption 2.3 (ETL Boundary):** An idempotent ETL process runs upon completion of `P6_DELIVERABLES`, extracting structured records from SQLite into Postgres (`sites`, `runs`, `findings`, `opportunities`, `work_orders`, `templates`, `gsc_summary`, `snapshots`, `audit_log`).
+- **Assumption 2.2 (Org Isolation):** Every table in Postgres carries `org_id` (VARCHAR(64)) for strict row-level security from Day 1, with a default organization (`org_default`) for single-tenant or initial deployments. All application reads MUST route through `ScopedQuery(org_id)` which enforces `WHERE org_id = %(_scoped_org_id)s` and prevents cross-tenant access.
+- **Assumption 2.3 (ETL Idempotency & Deterministic Primary Keys):** The ETL job in `database/etl.py` extracts completed run data from SQLite and maps it to PostgreSQL using deterministic primary keys (e.g. `{crawl_id}_{fingerprint}` for findings/opportunities, `{crawl_id}_{work_order_id}` for work orders, `{crawl_id}_{template_id}` for templates). Upserts employ `ON CONFLICT (id) DO UPDATE SET ...` to guarantee exact idempotency: re-running ETL on the same run produces identical row counts with zero duplication.
+- **Assumption 2.4 (PostgreSQL Migration Runner):** Migrations are managed via `PostgresMigrator` applying versioned SQL scripts (beginning with `001_phase2_postgres.sql`) tracked in `schema_migrations`.
 
 ---
 
