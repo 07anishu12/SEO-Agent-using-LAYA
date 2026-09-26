@@ -1,17 +1,10 @@
 {
-  "domain": "www.drivio.in",
-  "estimated_pages": 9250,
+  "domain": "127.0.0.1:8911",
+  "estimated_pages": 17,
   "page_types": {
-    "article": 815,
-    "brand": 597,
-    "category": 234,
-    "city": 524,
-    "comparison": 432,
-    "finance": 361,
-    "guide": 1,
-    "homepage": 2,
-    "listing": 831,
-    "model": 1212
+    "brand": 9,
+    "category": 4,
+    "homepage": 1
   },
-  "templates": 413
+  "templates": 6
 }
