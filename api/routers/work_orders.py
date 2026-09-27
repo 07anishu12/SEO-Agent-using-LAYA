@@ -435,3 +435,65 @@ def verify_work_order(
         details=details_str,
         executed_at=timestamp.isoformat()
     )
+
+
+class TicketSyncRequest(BaseModel):
+    provider: str = "github"
+    payload: Dict[str, Any] = {}
+    target_url: Optional[str] = None
+    html_content: Optional[str] = None
+    live_fetch: bool = True
+
+
+@router.post("/work-orders/ticket-sync")
+def sync_external_ticket_state(
+    req: TicketSyncRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Bi-directional External Ticket Sync (Section 6.3):
+    Accepts state changes from GitHub, Jira, Linear.
+    When a ticket is closed, executes the work order's verify_spec and updates status to Verified or Verification failed.
+    Idempotent and strictly scoped to current_user's org_id.
+    """
+    org_id = current_user["org_id"]
+    from services.ticket_sync import get_ticket_sync_manager
+    manager = get_ticket_sync_manager()
+
+    result = manager.process_ticket_event(
+        org_id=org_id,
+        provider=req.provider,
+        payload=req.payload,
+        target_url=req.target_url,
+        html_content=req.html_content,
+        live_fetch=req.live_fetch
+    )
+    return result
+
+
+@router.get("/work-orders/{id}/sync-history")
+def get_work_order_sync_history(
+    id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Returns the ticket sync and verification history for a work order."""
+    org_id = current_user["org_id"]
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT tse.id, tse.provider, tse.external_ticket_id, tse.event_type,
+                       tse.previous_status, tse.new_status, tse.verification_id,
+                       tse.verification_result, tse.failure_reason, tse.processed_at
+                FROM ticket_sync_events tse
+                JOIN work_orders wo ON wo.id = tse.work_order_id
+                WHERE tse.org_id = %s AND (wo.id = %s OR wo.display_id = %s)
+                ORDER BY tse.processed_at DESC
+                """,
+                (org_id, id, id)
+            )
+            rows = cur.fetchall()
+
+    return {"work_order_id": id, "history": [dict(r) for r in rows]}
+
