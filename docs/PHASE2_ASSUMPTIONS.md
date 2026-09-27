@@ -30,14 +30,22 @@
 
 ---
 
-## 3. Job Queue & Orchestration (Stages 2–4)
-- **Assumption 3.1 (In-Process Library Invocation):** Celery/RQ workers import `SEOJEVPipeline` directly in Python. No shell subprocesses or CLI text scraping are used.
-- **Assumption 3.2 (Redis Pub/Sub SSE):** Progress events emitted by `progress_callback` publish directly to Redis channel `run:{run_id}:progress`, which the FastAPI SSE endpoint streams to the browser.
-- **Assumption 3.3 (Object Storage):** Deliverables (`.docx`, `.csv`, `.html`, `.zip`) are stored in S3/MinIO. Downloads are served via pre-signed expiring URLs rather than streaming large binaries through the API process.
+## 3. FastAPI Backend Skeleton (Stage 3)
+- **Assumption 3.1 (JWT & API Key Auth):** Endpoints support stateless JWT bearer authentication with bcrypt password hashing. API keys are supported via `X-API-Key` headers matching SHA-256 digests in the `api_keys` table. All user contexts carry `org_id`.
+- **Assumption 3.2 (Tenant Scoping via JWT):** `org_id` is extracted strictly from the validated JWT token/API key, never accepted as a client query parameter or path parameter for access control.
+- **Assumption 3.3 (Existence Masking on Cross-Tenant Reads):** Cross-tenant read, patch, or delete requests return HTTP 404 (Not Found) rather than 403 (Forbidden) to prevent resource existence enumeration.
+- **Assumption 3.4 (Synchronous Stage 3 Runs Execution):** In Stage 3, `POST /runs` executes `SEOJEVPipeline` synchronously in the request thread and follows immediately with `run_etl` before returning the run summary. Async task worker queues (Celery/Redis/SSE) are introduced in Stage 4.
 
 ---
 
-## 4. Frontend & Power Features (Stages 5–11)
-- **Assumption 4.1 (Next.js App):** The web frontend is built as a Next.js (TypeScript + Tailwind CSS) client communicating with FastAPI via REST and SSE.
-- **Assumption 4.2 (Cloud-Portable Laya):** To ensure portability beyond Apple Silicon Macs, an abstraction interface (`laya/backends/`) allows runtime selection between `mlx` (local Apple Silicon), `llama_cpp` (CPU/CUDA), and `api` (hosted endpoint), defaulting to deterministic fallback when no LLM runtime is available.
-- **Assumption 4.3 (Synthetic Lab Generalization):** A held-out synthetic test suite and a hand-labeled sample from a real crawl are added to `lab/` to evaluate real-world false-positive rates beyond planted generator defects.
+## 4. Job Queue & Orchestration (Stage 4)
+- **Assumption 4.1 (In-Process Library Invocation):** Celery/RQ workers import `SEOJEVPipeline` directly in Python. No shell subprocesses or CLI text scraping are used.
+- **Assumption 4.2 (Redis Pub/Sub SSE):** Progress events emitted by `progress_callback` publish directly to Redis channel `run:{run_id}:progress`, which the FastAPI SSE endpoint streams to the browser.
+- **Assumption 4.3 (Object Storage):** Deliverables (`.docx`, `.csv`, `.html`, `.zip`) are stored in S3/MinIO. Downloads are served via pre-signed expiring URLs rather than streaming large binaries through the API process.
+
+---
+
+## 5. Frontend & Power Features (Stages 5–11)
+- **Assumption 5.1 (Next.js App):** The web frontend is built as a Next.js (TypeScript + Tailwind CSS) client communicating with FastAPI via REST and SSE.
+- **Assumption 5.2 (Cloud-Portable Laya):** To ensure portability beyond Apple Silicon Macs, an abstraction interface (`laya/backends/`) allows runtime selection between `mlx` (local Apple Silicon), `llama_cpp` (CPU/CUDA), and `api` (hosted endpoint), defaulting to deterministic fallback when no LLM runtime is available.
+- **Assumption 5.3 (Synthetic Lab Generalization):** A held-out synthetic test suite and a hand-labeled sample from a real crawl are added to `lab/` to evaluate real-world false-positive rates beyond planted generator defects.
