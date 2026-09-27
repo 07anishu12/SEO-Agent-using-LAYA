@@ -448,3 +448,32 @@ export interface SearchResponse {
   results: CategorizedSearchResults;
   total_matches: number;
 }
+
+// ---------------------------------------------------------------------------
+// Stage 10i.1: Multi-Site Portfolio Models
+// ---------------------------------------------------------------------------
+export interface SitePortfolioItem {
+  id: string;
+  domain: string;
+  url: string;
+  vertical?: string;
+  created_at?: string;
+  latest_run_id?: string;
+  latest_run_status?: string;
+  latest_run_date?: string;
+  issue_count: number;
+  opportunity_count: number;
+  open_alerts_count: number;
+  critical_alerts_count: number;
+  health_status: "healthy" | "warning" | "critical" | string;
+}
+
+export interface PortfolioResponse {
+  total_sites: number;
+  total_issues: number;
+  total_opportunities: number;
+  total_open_alerts: number;
+  healthy_sites: number;
+  sites: SitePortfolioItem[];
+}
+

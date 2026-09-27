@@ -29,6 +29,7 @@ import {
   SiteTrendsResponse,
   TrendPoint,
   SearchResponse,
+  PortfolioResponse,
 } from "@/types/api";
 
 const TOKEN_KEY = "seojev_access_token";
@@ -520,3 +521,11 @@ export async function searchContent(
   const qs = params.toString();
   return request<SearchResponse>(`/search${qs ? `?${qs}` : ""}`);
 }
+
+// ---------------------------------------------------------------------------
+// Stage 10i.1: Multi-Site Portfolio API
+// ---------------------------------------------------------------------------
+export async function getPortfolio(): Promise<PortfolioResponse> {
+  return request<PortfolioResponse>("/sites/portfolio");
+}
+

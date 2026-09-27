@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { getSites, createSite } from "@/lib/api";
-import { Site } from "@/types/api";
+import { getSites, createSite, getPortfolio } from "@/lib/api";
+import { Site, PortfolioResponse, SitePortfolioItem } from "@/types/api";
 import {
   Globe,
   Plus,
@@ -16,10 +16,12 @@ import {
   Calendar,
   Bell,
   TrendingUp,
+  ShieldCheck,
 } from "lucide-react";
 
 export default function SitesPage() {
   const [sites, setSites] = useState<Site[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,8 +37,12 @@ export default function SitesPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getSites();
-      setSites(data);
+      const [sitesData, portfolioData] = await Promise.all([
+        getSites(),
+        getPortfolio().catch(() => null),
+      ]);
+      setSites(sitesData);
+      setPortfolio(portfolioData);
     } catch (err: any) {
       setError(err.message || "Failed to load sites");
     } finally {
@@ -118,6 +124,54 @@ export default function SitesPage() {
           </div>
         )}
 
+        {/* Portfolio Summary Cards */}
+        {!loading && portfolio && portfolio.total_sites > 0 && (
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Total Sites</span>
+                <Globe className="w-4 h-4 text-sky-400" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-white">{portfolio.total_sites}</span>
+                <span className="text-xs text-emerald-400 font-medium">({portfolio.healthy_sites} healthy)</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Open Alerts</span>
+                <Bell className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="mt-2">
+                <span className={`text-2xl font-bold ${portfolio.total_open_alerts > 0 ? "text-amber-400" : "text-white"}`}>
+                  {portfolio.total_open_alerts}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Total Issues</span>
+                <AlertCircle className="w-4 h-4 text-rose-400" />
+              </div>
+              <div className="mt-2">
+                <span className="text-2xl font-bold text-white">{portfolio.total_issues}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Opportunities</span>
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="mt-2">
+                <span className="text-2xl font-bold text-white">{portfolio.total_opportunities}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Empty state */}
         {!loading && !error && sites.length === 0 && (
           <div className="mt-12 border border-dashed border-slate-800 rounded-2xl p-12 text-center bg-slate-900/40">
@@ -141,7 +195,9 @@ export default function SitesPage() {
         {/* Sites Grid */}
         {!loading && !error && sites.length > 0 && (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sites.map((site) => (
+            {sites.map((site) => {
+              const pItem = portfolio?.sites?.find((p) => p.id === site.id);
+              return (
               <div
                 key={site.id}
                 className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-slate-700 transition shadow-sm flex flex-col justify-between"
@@ -149,9 +205,20 @@ export default function SitesPage() {
                 <div>
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-medium">
-                        {site.vertical || "generic"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-medium">
+                          {site.vertical || "generic"}
+                        </span>
+                        {pItem && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                            pItem.health_status === "critical" ? "bg-rose-500/20 text-rose-300 border-rose-500/40" :
+                            pItem.health_status === "warning" ? "bg-amber-500/20 text-amber-300 border-amber-500/40" :
+                            "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                          }`}>
+                            {pItem.health_status}
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-lg font-bold text-white mt-2 truncate" title={site.domain}>
                         {site.domain}
                       </h3>
@@ -170,6 +237,25 @@ export default function SitesPage() {
                   <p className="text-xs text-slate-400 mt-1 truncate" title={site.url}>
                     {site.url}
                   </p>
+
+                  {pItem && (
+                    <div className="mt-3 grid grid-cols-3 gap-2 py-2 px-3 rounded-lg bg-slate-950/60 border border-slate-800/80 text-center">
+                      <div>
+                        <span className="text-[10px] uppercase text-slate-500 font-medium block">Issues</span>
+                        <span className="text-xs font-bold text-slate-200">{pItem.issue_count}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase text-slate-500 font-medium block">Opps</span>
+                        <span className="text-xs font-bold text-emerald-400">{pItem.opportunity_count}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase text-slate-500 font-medium block">Alerts</span>
+                        <span className={`text-xs font-bold ${pItem.open_alerts_count > 0 ? "text-amber-400" : "text-slate-400"}`}>
+                          {pItem.open_alerts_count}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
                     <span className="font-mono text-[11px]">{site.id}</span>
@@ -208,7 +294,8 @@ export default function SitesPage() {
                   </Link>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

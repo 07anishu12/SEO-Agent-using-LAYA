@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 from database.connection import get_connection
 from database.scoped_query import ScopedQuery
 from ..auth import get_current_user, require_admin, require_editor_or_admin
-from ..schemas import SiteCreateRequest, SiteUpdateRequest, SiteResponse
+from ..schemas import SiteCreateRequest, SiteUpdateRequest, SiteResponse, SitePortfolioItem, PortfolioResponse
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
@@ -61,6 +61,143 @@ def list_sites(current_user: dict = Depends(get_current_user)):
     with ScopedQuery(org_id=current_user["org_id"]) as sq:
         rows = sq.fetch_all("sites", order_by="created_at DESC")
     return [SiteResponse(**r) for r in rows]
+
+
+@router.get("/portfolio", response_model=PortfolioResponse)
+def get_portfolio_overview(current_user: dict = Depends(get_current_user)):
+    """
+    Stage 10i.1: Multi-Site Portfolio View (Section 6.6)
+    Aggregates health, trends, runs, and alerts across all sites belonging to the tenant.
+    """
+    org_id = current_user["org_id"]
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # 1. Fetch all sites for org
+            cur.execute(
+                """
+                SELECT id, domain, url, vertical, created_at
+                FROM sites
+                WHERE org_id = %s
+                ORDER BY created_at DESC
+                """,
+                (org_id,)
+            )
+            site_rows = cur.fetchall()
+            if not site_rows:
+                return PortfolioResponse(
+                    total_sites=0,
+                    total_issues=0,
+                    total_opportunities=0,
+                    total_open_alerts=0,
+                    healthy_sites=0,
+                    sites=[]
+                )
+
+            site_ids = [r["id"] for r in site_rows]
+
+            # 2. Latest runs for each site
+            cur.execute(
+                """
+                SELECT DISTINCT ON (site_id) site_id, id, status, finished_at, created_at
+                FROM runs
+                WHERE org_id = %s AND site_id = ANY(%s)
+                ORDER BY site_id, created_at DESC
+                """,
+                (org_id, site_ids)
+            )
+            latest_runs = {r["site_id"]: r for r in cur.fetchall()}
+
+            # 3. Latest trends for each site (issue_count & opportunity_count)
+            cur.execute(
+                """
+                SELECT DISTINCT ON (site_id, metric) site_id, metric, value
+                FROM site_trends
+                WHERE org_id = %s AND site_id = ANY(%s)
+                ORDER BY site_id, metric, date DESC, created_at DESC
+                """,
+                (org_id, site_ids)
+            )
+            trends_map: Dict[str, Dict[str, int]] = {}
+            for row in cur.fetchall():
+                trends_map.setdefault(row["site_id"], {})[row["metric"]] = int(row["value"])
+
+            # 4. Open alerts count and critical alerts count per site
+            cur.execute(
+                """
+                SELECT site_id,
+                       COUNT(*) FILTER (WHERE status = 'open') AS open_count,
+                       COUNT(*) FILTER (WHERE status = 'open' AND severity = 'critical') AS crit_count
+                FROM alerts
+                WHERE org_id = %s AND site_id = ANY(%s)
+                GROUP BY site_id
+                """,
+                (org_id, site_ids)
+            )
+            alerts_map = {r["site_id"]: r for r in cur.fetchall()}
+
+    items = []
+    total_issues = 0
+    total_opps = 0
+    total_alerts = 0
+    healthy_sites = 0
+
+    for s in site_rows:
+        sid = s["id"]
+        run = latest_runs.get(sid)
+        t_data = trends_map.get(sid, {})
+        a_data = alerts_map.get(sid, {})
+
+        issues = t_data.get("issue_count", 0)
+        opps = t_data.get("opportunity_count", 0)
+        open_alerts = a_data.get("open_count", 0) if a_data else 0
+        crit_alerts = a_data.get("crit_count", 0) if a_data else 0
+
+        total_issues += issues
+        total_opps += opps
+        total_alerts += open_alerts
+
+        # Health status determination
+        if crit_alerts > 0:
+            health = "critical"
+        elif open_alerts > 0 or issues > 15:
+            health = "warning"
+        else:
+            health = "healthy"
+            healthy_sites += 1
+
+        run_date_str = None
+        if run:
+            dt = run.get("finished_at") or run.get("created_at")
+            if dt:
+                run_date_str = dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
+
+        items.append(
+            SitePortfolioItem(
+                id=s["id"],
+                domain=s["domain"],
+                url=s["url"],
+                vertical=s["vertical"] or "generic",
+                created_at=s["created_at"],
+                latest_run_id=run["id"] if run else None,
+                latest_run_status=run["status"] if run else None,
+                latest_run_date=run_date_str,
+                issue_count=issues,
+                opportunity_count=opps,
+                open_alerts_count=open_alerts,
+                critical_alerts_count=crit_alerts,
+                health_status=health
+            )
+        )
+
+    return PortfolioResponse(
+        total_sites=len(site_rows),
+        total_issues=total_issues,
+        total_opportunities=total_opps,
+        total_open_alerts=total_alerts,
+        healthy_sites=healthy_sites,
+        sites=items
+    )
+
 
 
 @router.get("/{id}", response_model=SiteResponse)

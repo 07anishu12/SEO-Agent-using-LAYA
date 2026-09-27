@@ -214,3 +214,32 @@ class SiteTrendsResponse(BaseModel):
     trends: Dict[str, List[TrendPoint]]
 
 
+# ---------------------------------------------------------------------------
+# Stage 10i.1: Multi-Site Portfolio Schemas
+# ---------------------------------------------------------------------------
+class SitePortfolioItem(BaseModel):
+    id: str
+    domain: str
+    url: str
+    vertical: Optional[str] = "generic"
+    created_at: Optional[datetime] = None
+    latest_run_id: Optional[str] = None
+    latest_run_status: Optional[str] = None
+    latest_run_date: Optional[str] = None
+    issue_count: int = 0
+    opportunity_count: int = 0
+    open_alerts_count: int = 0
+    critical_alerts_count: int = 0
+    health_status: str = "healthy"  # healthy, warning, critical
+
+
+class PortfolioResponse(BaseModel):
+    total_sites: int
+    total_issues: int
+    total_opportunities: int
+    total_open_alerts: int
+    healthy_sites: int
+    sites: List[SitePortfolioItem]
+
+
+
