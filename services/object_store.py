@@ -198,6 +198,10 @@ class ObjectStorageService:
 
                 full_path = os.path.join(root, file_name)
                 rel_path = os.path.relpath(full_path, output_dir)
+                clean_rel_path = os.path.normpath(rel_path).replace("\\", "/")
+                if ".." in clean_rel_path or clean_rel_path.startswith("/"):
+                    continue
+
                 ext = os.path.splitext(file_name)[1].lower()
 
                 # Determine artifact type
@@ -214,11 +218,11 @@ class ObjectStorageService:
                 else:
                     artifact_type = ext.lstrip(".") or "file"
 
-                # Path keyed strictly by org_id/site_id/run_id/{rel_path}
-                s3_key = f"{org_id}/{site_id}/{run_id}/{rel_path}"
+                # Path keyed strictly by org_id/site_id/run_id/{clean_rel_path}
+                s3_key = f"{org_id}/{site_id}/{run_id}/{clean_rel_path}"
 
                 meta = self.upload_file(full_path, s3_key)
-                artifact_id = f"art_{hashlib.sha256(f'{run_id}:{rel_path}'.encode()).hexdigest()[:16]}"
+                artifact_id = f"art_{hashlib.sha256(f'{run_id}:{clean_rel_path}'.encode()).hexdigest()[:16]}"
 
                 # Synchronize with PostgreSQL artifacts ledger
                 with get_connection() as conn:
@@ -281,7 +285,10 @@ class ObjectStorageService:
                             continue
                         full_path = os.path.join(root, file_name)
                         rel_path = os.path.relpath(full_path, output_dir)
-                        zf.write(full_path, arcname=rel_path)
+                        clean_arcname = os.path.normpath(rel_path).replace("\\", "/")
+                        if ".." in clean_arcname or clean_arcname.startswith("/"):
+                            continue
+                        zf.write(full_path, arcname=clean_arcname)
         else:
             # Fall back to packing objects directly from S3 using artifacts ledger
             with get_connection() as conn:
@@ -294,8 +301,11 @@ class ObjectStorageService:
 
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                 for item in items:
+                    clean_arcname = os.path.normpath(item["filename"]).replace("\\", "/")
+                    if ".." in clean_arcname or clean_arcname.startswith("/"):
+                        continue
                     raw_bytes = self.get_object_bytes(item["s3_key"])
-                    zf.writestr(item["filename"], raw_bytes)
+                    zf.writestr(clean_arcname, raw_bytes)
 
         zip_data = zip_buffer.getvalue()
         zip_key = f"{org_id}/{site_id}/{run_id}/export.zip"

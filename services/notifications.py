@@ -146,6 +146,11 @@ class NotificationDispatcher:
                 }
             ]
         }
+        from services.security import is_safe_url
+        safe, reason = is_safe_url(webhook_url)
+        if not safe:
+            raise ValueError(f"SSRF Protection: Blocked unsafe Slack webhook URL: {reason}")
+
         resp = self.http_client.post(webhook_url, json=payload, headers={"Content-Type": "application/json"})
         if resp.status_code >= 400:
             raise RuntimeError(f"Slack webhook returned HTTP {resp.status_code}: {resp.text}")
@@ -205,6 +210,11 @@ class NotificationDispatcher:
             "User-Agent": "SEOJEV-Notification-Dispatcher/2.0",
             "X-SEOJEV-Event": event_type
         }
+        from services.security import is_safe_url
+        safe, reason = is_safe_url(url)
+        if not safe:
+            raise ValueError(f"SSRF Protection: Blocked unsafe outgoing webhook URL: {reason}")
+
         resp = self.http_client.post(url, json=envelope, headers=headers)
         if resp.status_code >= 400:
             raise RuntimeError(f"Outgoing webhook returned HTTP {resp.status_code}: {resp.text}")

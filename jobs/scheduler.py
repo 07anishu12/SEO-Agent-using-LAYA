@@ -383,3 +383,13 @@ def get_watch_scheduler() -> WatchScheduler:
     if _global_scheduler is None:
         _global_scheduler = WatchScheduler()
     return _global_scheduler
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    scheduler = WatchScheduler()
+    logger.info("SEOJEV WatchScheduler (beat) started. Monitoring watch configs and scheduled audits...")
+    try:
+        scheduler._run_loop()
+    except KeyboardInterrupt:
+        logger.info("WatchScheduler stopped by user.")

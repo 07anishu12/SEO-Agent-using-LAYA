@@ -327,13 +327,18 @@ def import_gsc_data(
 @router.post("/sites/{site_id}/gsc/detect-anomalies")
 def trigger_gsc_anomaly_detection(
     site_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Triggers autonomous statistical anomaly detection across daily GSC metrics.
-    Validates tenant isolation via JWT org_id.
+    Validates tenant isolation via JWT org_id and requires editor or admin role.
     """
     org_id = current_user["org_id"]
+    with ScopedQuery(org_id=org_id) as sq:
+        site = sq.fetch_one("sites", where="id = %(id)s", params={"id": site_id})
+    if not site:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
+
     from services.gsc_anomaly import get_gsc_anomaly_detector
     detector = get_gsc_anomaly_detector()
     res = detector.detect_anomalies(site_id=site_id, org_id=org_id)

@@ -1,10 +1,10 @@
 {
-  "domain": "127.0.0.1:8983",
+  "domain": "127.0.0.1:63348",
   "estimated_pages": 17,
   "page_types": {
     "brand": 9,
-    "category": 4,
+    "category": 6,
     "homepage": 1
   },
-  "templates": 6
+  "templates": 8
 }

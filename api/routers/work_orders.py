@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, status
 from pydantic import BaseModel
 
 from database.connection import get_connection
@@ -365,6 +365,15 @@ def verify_work_order(
     if eval_url and eval_url.startswith("/") and r.get("site_url"):
         eval_url = r["site_url"].rstrip("/") + eval_url
 
+    if live_fetch and eval_url:
+        from services.security import is_safe_url
+        safe, reason = is_safe_url(eval_url)
+        if not safe:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"SSRF Protection: Blocked unsafe evaluation URL: {reason}"
+            )
+
     wo_dict = {
         "work_order_id": r["id"],
         "display_id": r["display_id"],
@@ -448,6 +457,8 @@ class TicketSyncRequest(BaseModel):
 @router.post("/work-orders/ticket-sync")
 def sync_external_ticket_state(
     req: TicketSyncRequest,
+    x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -456,7 +467,41 @@ def sync_external_ticket_state(
     When a ticket is closed, executes the work order's verify_spec and updates status to Verified or Verification failed.
     Idempotent and strictly scoped to current_user's org_id.
     """
+    from services.security import is_safe_url, verify_hmac_signature, record_webhook_idempotency
+    import json
+
     org_id = current_user["org_id"]
+
+    # 1. SSRF check on target_url
+    if req.live_fetch and req.target_url:
+        safe, reason = is_safe_url(req.target_url)
+        if not safe:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"SSRF Protection: Blocked unsafe target URL: {reason}"
+            )
+
+    # 2. Webhook signature verification if secret configured
+    prov = (req.provider or "github").lower().strip()
+    secret = (
+        os.environ.get(f"{prov.upper()}_WEBHOOK_SECRET") or
+        os.environ.get("TICKET_WEBHOOK_SECRET")
+    )
+    if secret:
+        raw_bytes = json.dumps(req.payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        is_valid = False
+        if x_hub_signature_256:
+            is_valid = verify_hmac_signature(raw_bytes, x_hub_signature_256, secret)
+        elif x_webhook_secret:
+            import hmac
+            is_valid = hmac.compare_digest(x_webhook_secret.strip(), secret.strip())
+
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid ticket webhook signature or secret."
+            )
+
     from services.ticket_sync import get_ticket_sync_manager
     manager = get_ticket_sync_manager()
 

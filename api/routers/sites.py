@@ -3,8 +3,8 @@ Sites CRUD Router: Scoped strictly to current_user's org_id.
 """
 import hashlib
 import urllib.parse
-from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from psycopg.types.json import Jsonb
 
 from database.connection import get_connection
@@ -24,6 +24,14 @@ def create_site(
     target_url = req.url.strip()
     if not target_url.startswith(("http://", "https://")):
         target_url = "https://" + target_url
+
+    from services.security import is_safe_url
+    safe, reason = is_safe_url(target_url)
+    if not safe:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"SSRF Protection: Blocked unsafe site URL: {reason}"
+        )
 
     parsed = urllib.parse.urlsplit(target_url)
     domain = (req.domain or parsed.netloc or parsed.path or "unknown.domain").lower()
@@ -226,6 +234,15 @@ def update_site(
     if new_url and not new_url.startswith(("http://", "https://")):
         new_url = "https://" + new_url
 
+    if new_url:
+        from services.security import is_safe_url
+        safe, reason = is_safe_url(new_url)
+        if not safe:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"SSRF Protection: Blocked unsafe site URL: {reason}"
+            )
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -272,19 +289,53 @@ def cicd_deploy_webhook(
     site_id: str,
     payload: Dict[str, Any],
     sync: bool = False,
+    x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
     current_user: dict = Depends(get_current_user)
 ):
     """
     CI/CD Deployment Webhook (Section 6.2):
     Triggers scoped re-crawl, snapshot differ, regression classification, and multi-channel results delivery.
-    Strictly enforces tenant isolation via JWT org_id.
+    Strictly enforces tenant isolation via JWT org_id, webhook signatures, and replay protection.
     """
+    import json
     import time
+    from services.security import verify_hmac_signature, record_webhook_idempotency
+
     org_id = current_user["org_id"]
     with ScopedQuery(org_id=org_id) as sq:
         site = sq.fetch_one("sites", where="id = %(id)s", params={"id": site_id})
     if not site:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Site {site_id} not found in org")
+
+    # 1. Webhook Signature Verification if secret is configured
+    site_cfg = site.get("config_json") or {}
+    webhook_secret = site_cfg.get("webhook_secret") or site_cfg.get("deploy_secret")
+    if webhook_secret:
+        raw_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        is_valid = False
+        if x_hub_signature_256:
+            is_valid = verify_hmac_signature(raw_bytes, x_hub_signature_256, webhook_secret)
+        elif x_webhook_secret:
+            import hmac
+            is_valid = hmac.compare_digest(x_webhook_secret.strip(), webhook_secret.strip())
+
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid webhook signature or secret."
+            )
+
+    # 2. Replay Protection & Idempotency
+    deployment_id = str(payload.get("deployment_id") or payload.get("deploy_id") or "")
+    if deployment_id:
+        idempotency_key = f"deploy:{org_id}:{site_id}:{deployment_id}"
+        if not record_webhook_idempotency(idempotency_key):
+            return {
+                "status": "duplicate",
+                "deployment_id": deployment_id,
+                "message": f"Deployment {deployment_id} has already been processed (duplicate event ignored)."
+            }
 
     from services.cicd import execute_cicd_deploy_check
 
@@ -296,8 +347,8 @@ def cicd_deploy_webhook(
             raise HTTPException(status_code=500, detail=str(e))
     else:
         import threading
-        deployment_id = str(payload.get("deployment_id") or payload.get("deploy_id") or f"dep_{int(time.time())}")
-        run_id = f"crawl_dep_{hashlib.sha256(f'{site_id}:{deployment_id}:{time.time()}'.encode()).hexdigest()[:12]}"
+        dep_id = deployment_id or f"dep_{int(time.time())}"
+        run_id = f"crawl_dep_{hashlib.sha256(f'{site_id}:{dep_id}:{time.time()}'.encode()).hexdigest()[:12]}"
 
         threading.Thread(
             target=execute_cicd_deploy_check,
@@ -308,7 +359,7 @@ def cicd_deploy_webhook(
         return {
             "status": "queued",
             "run_id": run_id,
-            "deployment_id": deployment_id,
+            "deployment_id": dep_id,
             "message": "Deployment regression check queued successfully."
         }
 

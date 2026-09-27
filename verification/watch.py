@@ -44,6 +44,21 @@ class SiteWatcher:
 
     def check_url(self, url: str) -> Dict[str, Any]:
         """Probes a single URL for live accessibility and SEO health."""
+        from services.security import is_safe_url
+        safe, reason = is_safe_url(url)
+        if not safe:
+            return {
+                "url": url,
+                "status": "ALERT",
+                "status_code": 0,
+                "response_time_ms": 0.0,
+                "title": "",
+                "canonical": "",
+                "meta_robots": "",
+                "issues": [f"SSRF Protection: Blocked unsafe watch URL: {reason}"],
+                "checked_at": datetime.datetime.now().isoformat()
+            }
+
         start_t = time.perf_counter()
         issues = []
         try:

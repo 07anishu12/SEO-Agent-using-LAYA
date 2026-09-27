@@ -33,6 +33,13 @@ def get_artifact_signed_url(
             detail="Artifact not found"
         )
 
+    from services.security import is_safe_s3_key
+    if not is_safe_s3_key(artifact["s3_key"], org_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized artifact storage key"
+        )
+
     storage_service = get_storage_service()
     presigned_url = storage_service.generate_presigned_url(
         s3_key=artifact["s3_key"],

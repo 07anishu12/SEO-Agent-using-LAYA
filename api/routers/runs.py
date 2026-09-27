@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone
 from uuid import uuid4
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
 import redis.asyncio as aioredis
@@ -25,11 +25,12 @@ from ..schemas import (
     ArtifactResponse,
     SignedDownloadResponse
 )
+from ..security import rate_limit_runs
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 
-@router.post("", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=RunResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_runs)])
 async def create_and_enqueue_run(
     req: RunCreateRequest,
     sync: bool = False,
@@ -166,8 +167,8 @@ async def create_and_enqueue_run(
 @router.get("", response_model=List[RunResponse])
 def list_runs(
     site_id: Optional[str] = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     current_user: dict = Depends(get_current_user)
 ):
     org_id = current_user["org_id"]

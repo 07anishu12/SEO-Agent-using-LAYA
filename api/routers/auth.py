@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from database.connection import get_connection
 from ..auth import hash_password, verify_password, create_access_token, get_current_user, require_admin, require_editor_or_admin
+from ..security import rate_limit_auth
 from ..schemas import (
     UserRegisterRequest,
     UserLoginRequest,
@@ -24,7 +25,7 @@ from ..schemas import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_auth)])
 def register_user(req: UserRegisterRequest):
     email = req.email.strip().lower()
     if not email or "@" not in email:
@@ -86,7 +87,7 @@ def register_user(req: UserRegisterRequest):
     )
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse, dependencies=[Depends(rate_limit_auth)])
 def login_user(req: UserLoginRequest):
     email = req.email.strip().lower()
     with get_connection() as conn:

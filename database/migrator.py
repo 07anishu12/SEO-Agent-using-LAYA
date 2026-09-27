@@ -39,3 +39,36 @@ class PostgresMigrator:
                         applied.append(version)
             conn.commit()
         return applied
+
+
+def seed_dev_user(db_url: Optional[str] = None):
+    """Idempotently seeds a default admin user for local development."""
+    import bcrypt
+    email = "admin@seojev.local"
+    pw = "Password123!"
+    pw_hash = bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    with get_connection(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO orgs (id, name, slug)
+                VALUES ('org_default', 'Default Organization', 'default-org')
+                ON CONFLICT (id) DO NOTHING;
+            """)
+            cur.execute("""
+                INSERT INTO users (id, org_id, email, password_hash, role)
+                VALUES ('user_default_admin', 'org_default', %s, %s, 'admin')
+                ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+            """, (email, pw_hash))
+        conn.commit()
+
+
+if __name__ == "__main__":
+    migrator = PostgresMigrator()
+    applied = migrator.run_migrations()
+    if applied:
+        print(f"Applied migrations: {', '.join(applied)}")
+    else:
+        print("Database schema is up to date.")
+    seed_dev_user()
+
+

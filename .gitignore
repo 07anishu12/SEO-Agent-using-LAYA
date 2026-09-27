@@ -25,6 +25,11 @@ wheels/
 .venv/
 venv/
 ENV/
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.log
 
 # System / IDE
 .DS_Store

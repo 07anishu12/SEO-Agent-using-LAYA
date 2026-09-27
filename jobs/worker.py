@@ -15,7 +15,7 @@ from api.config import REDIS_URL
 from database.connection import get_connection
 from database.etl import run_etl
 from engine.pipeline import SEOJEVPipeline, PipelineCancelledException
-from .queue import RunQueue
+from .queue import RunQueue, QUEUE_KEY
 
 logger = logging.getLogger("seojev.worker")
 

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from database.connection import get_connection
 from ..auth import get_current_user
+from ..security import rate_limit_search
 
 router = APIRouter(tags=["search"])
 
@@ -342,9 +343,9 @@ def execute_full_text_search(
     )
 
 
-@router.get("/search", response_model=SearchResponse)
+@router.get("/search", response_model=SearchResponse, dependencies=[Depends(rate_limit_search)])
 def search_global(
-    q: str = Query(..., min_length=1, description="Search query string"),
+    q: str = Query(..., min_length=1, max_length=200, description="Search query string"),
     site_id: Optional[str] = Query(None, description="Optional site ID to filter results"),
     category: Optional[str] = Query(None, description="Filter category: all, findings, blueprints, queries"),
     limit: int = Query(20, ge=1, le=100, description="Max results per category"),
@@ -364,10 +365,10 @@ def search_global(
     )
 
 
-@router.get("/sites/{site_id}/search", response_model=SearchResponse)
+@router.get("/sites/{site_id}/search", response_model=SearchResponse, dependencies=[Depends(rate_limit_search)])
 def search_site_scoped(
     site_id: str,
-    q: str = Query(..., min_length=1, description="Search query string"),
+    q: str = Query(..., min_length=1, max_length=200, description="Search query string"),
     category: Optional[str] = Query(None, description="Filter category: all, findings, blueprints, queries"),
     limit: int = Query(20, ge=1, le=100, description="Max results per category"),
     current_user: dict = Depends(get_current_user)

@@ -537,7 +537,42 @@ brew services start minio
 
 ## 10. Running the System
 
-### 1. CLI Audit (Standalone Engine)
+### 1. One-Line Start (Full Local Stack)
+
+Start the entire SEOJEV platform — Docker infra, FastAPI backend, Celery worker, Celery beat scheduler, and Next.js frontend — with a single command:
+
+```bash
+make dev
+# or directly:
+./scripts/dev.sh
+```
+
+This single command will:
+1. Load environment variables from `.env` (automatically copying `.env.example` if `.env` does not exist).
+2. Spin up Postgres, Redis, and MinIO in Docker via `docker compose -f docker-compose.dev.yml up -d postgres redis minio`.
+3. Poll each service until healthy via real TCP/HTTP readiness checks.
+4. Run pending database migrations automatically (`database.migrator`).
+5. Launch the FastAPI backend (with `--reload`), Celery worker, Celery beat scheduler, and Next.js frontend in parallel with color-coded log prefixing (`[backend]`, `[worker]`, `[beat]`, `[frontend]`).
+6. Cleanly trap `Ctrl+C` to terminate all native background processes without leaving orphaned processes behind.
+
+To stop the Docker infra containers when finished:
+```bash
+make down
+# or: ./scripts/dev.sh --full-down
+```
+
+> [!CAUTION]
+> **CRITICAL ARCHITECTURAL CONSTRAINT — APPLE SILICON MLX & DOCKER**:
+> Laya's on-device MLX inference (`aac6fef/laya-mlx`) requires direct native access to Apple Silicon GPU hardware. Docker Desktop on macOS runs containers inside a Linux virtual machine, so if the FastAPI backend or Celery worker are containerized, Apple Silicon MLX silently fails and cannot access the host GPU.
+>
+> **Design Pattern**:
+> - **PostgreSQL, Redis, and MinIO** run in Docker (they do not require MLX).
+> - **FastAPI backend, Celery worker (`jobs.worker`), Celery beat scheduler (`jobs.scheduler`), and Next.js frontend** run **NATIVELY on the host**, keeping Laya MLX operational.
+> - **DO NOT move the backend or worker into Docker containers.**
+
+---
+
+### 2. CLI Audit (Standalone Engine)
 Run a direct crawl and generate reports locally without the API:
 
 ```bash
@@ -553,7 +588,7 @@ python main.py https://example.com/ \
     --output reports/full_audit/
 ```
 
-### 2. Starting the Platform API & Worker
+### 3. Alternative: Starting Services Manually (Multi-Terminal)
 
 ```bash
 # Option A: In-process worker (development)
@@ -567,7 +602,7 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 python -m jobs.worker
 ```
 
-### 3. Starting the Next.js Frontend Dashboard
+### 4. Alternative: Starting Frontend Manually
 
 ```bash
 cd frontend
@@ -581,7 +616,7 @@ npm start
 ```
 Visit `http://localhost:3000` to access the interactive dashboard.
 
-### 4. Running the Comprehensive Test Suite
+### 5. Running the Comprehensive Test Suite
 
 The repository features comprehensive automated test suites covering all architectural layers:
 

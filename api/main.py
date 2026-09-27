@@ -25,12 +25,16 @@ async def lifespan(app: FastAPI):
         worker.stop()
 
 
+from .security import global_exception_handler
+
 app = FastAPI(
     title="SEOJEV Platform API",
     version="2.0.0",
     description="FastAPI Backend for SEOJEV Search Intelligence Platform",
     lifespan=lifespan
 )
+
+app.add_exception_handler(Exception, global_exception_handler)
 
 # CORS Configuration
 app.add_middleware(

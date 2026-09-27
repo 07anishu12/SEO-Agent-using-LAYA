@@ -62,6 +62,17 @@ class ScopedQuery:
         """
         Fetch rows strictly filtered by org_id.
         """
+        from services.security import validate_sql_identifier, validate_sql_select
+
+        if not validate_sql_identifier(table):
+            raise IsolationViolationError(f"Invalid table identifier '{table}'.")
+
+        if select != "*" and not validate_sql_select(select):
+            raise IsolationViolationError(f"Invalid characters in SELECT projection '{select}'.")
+
+        if order_by and (";" in order_by or "--" in order_by or "/*" in order_by):
+            raise IsolationViolationError(f"Invalid characters in ORDER BY clause '{order_by}'.")
+
         q_params = dict(params or {})
         q_params["_scoped_org_id"] = self.org_id
 

@@ -118,6 +118,11 @@ class AsyncFetcher:
         return self._client
 
     async def fetch(self, url: str) -> FetchResult:
+        from services.security import is_safe_url
+        safe, reason = is_safe_url(url)
+        if not safe:
+            return FetchResult(url=url, error=f"SSRF Protection: Blocked unsafe URL: {reason}")
+
         host = urllib.parse.urlsplit(url).netloc
         if not self.circuit_breaker.is_available(host):
             return FetchResult(url=url, error="Circuit breaker tripped: host temporarily paused due to consecutive errors")
@@ -134,7 +139,17 @@ class AsyncFetcher:
 
                 if response.history:
                     for resp in response.history:
-                        redirect_chain.append(str(resp.url))
+                        r_url = str(resp.url)
+                        redirect_chain.append(r_url)
+                        # Validate each intermediate redirect against SSRF
+                        r_safe, r_reason = is_safe_url(r_url)
+                        if not r_safe:
+                            return FetchResult(url=url, error=f"SSRF Protection: Blocked unsafe redirect to {r_url}: {r_reason}")
+
+                # Also validate final destination URL against SSRF
+                final_safe, final_reason = is_safe_url(str(response.url))
+                if not final_safe:
+                    return FetchResult(url=url, error=f"SSRF Protection: Blocked unsafe final redirect to {response.url}: {final_reason}")
 
                 # Handle Rate Limiting (429) & Server Overload (502, 503, 504)
                 if response.status_code in (429, 502, 503, 504):
