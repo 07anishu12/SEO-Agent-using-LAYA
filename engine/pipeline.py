@@ -195,14 +195,21 @@ class SEOJEVPipeline:
                     "current_url": current_url
                 })
 
+            crawler_config = dict(self.config or {})
+            c_cfg = dict(crawler_config.get("crawler", {}))
+            if self.options.get("scope_urls"):
+                c_cfg["scope_urls"] = self.options["scope_urls"]
+                c_cfg["max_pages"] = len(self.options["scope_urls"])
+            crawler_config["crawler"] = c_cfg
+
             crawler = SEOCrawler(
                 target_url=self.target_url,
                 crawl_id=self.crawl_id,
                 storage=self.storage,
-                config=self.config,
+                config=crawler_config,
                 render_enabled=bool(self.options.get("render")),
                 resume=bool(self.options.get("resume")),
-                max_pages=self.options.get("max_pages", 5000),
+                max_pages=len(self.options["scope_urls"]) if self.options.get("scope_urls") else self.options.get("max_pages", 5000),
                 concurrency=self.options.get("concurrency", 10),
                 cancel_check=self.cancel_check,
                 url_progress_callback=url_cb,

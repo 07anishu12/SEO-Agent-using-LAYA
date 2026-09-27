@@ -52,6 +52,7 @@ class SEOCrawler:
         self.show_live_display = show_live_display if show_live_display is not None else sys.stdout.isatty()
 
         crawl_cfg = config.get("crawler", {})
+        self.crawl_cfg = crawl_cfg
         self.max_pages = max_pages or crawl_cfg.get("max_pages", 5000)
         self.concurrency = concurrency or crawl_cfg.get("concurrency", 10)
         self.delay = crawl_cfg.get("delay", 0.05)
@@ -131,6 +132,17 @@ class SEOCrawler:
             self.console.print("[green]✓ Soft-404 detector initialized with site fingerprint.[/green]")
 
         # 3. Add seed & sitemap URLs to scheduler and storage
+        scope_urls = self.crawl_cfg.get("scope_urls") or []
+        if scope_urls:
+            url_tuples = []
+            for s_url in scope_urls:
+                norm_s = self.normalizer.normalize(s_url)
+                if norm_s and self.scheduler.enqueue(norm_s, discovery_source="scope", depth=0):
+                    url_tuples.append((norm_s, "queued", "scope", 0))
+            if url_tuples:
+                self.storage.add_urls(self.crawl_id, url_tuples)
+            return
+
         seed_norm = self.normalizer.normalize(self.target_url)
         url_tuples = []
 
@@ -336,20 +348,21 @@ class SEOCrawler:
                     except Exception:
                         pass
 
-                # Discover new internal links
+                # Discover new internal links (skip if scoped crawl)
                 new_url_tuples = []
-                for link in links:
-                    if link.is_internal and self.normalizer.is_crawlable_page(link.target_url):
-                        is_link_trap, trap_t, trap_r = self.trap_detector.is_trap(link.target_url)
-                        if is_link_trap:
-                            self.trap_detector.record_quarantine(link.target_url, trap_t, trap_r)
-                            continue
+                if not (self.crawl_cfg.get("scope_urls")):
+                    for link in links:
+                        if link.is_internal and self.normalizer.is_crawlable_page(link.target_url):
+                            is_link_trap, trap_t, trap_r = self.trap_detector.is_trap(link.target_url)
+                            if is_link_trap:
+                                self.trap_detector.record_quarantine(link.target_url, trap_t, trap_r)
+                                continue
 
-                        if self.scheduler.enqueue(link.target_url, discovery_source="internal_link", depth=depth + 1):
-                            new_url_tuples.append((link.target_url, "queued", "internal_link", depth + 1))
+                            if self.scheduler.enqueue(link.target_url, discovery_source="internal_link", depth=depth + 1):
+                                new_url_tuples.append((link.target_url, "queued", "internal_link", depth + 1))
 
-                if new_url_tuples:
-                    self.storage.add_urls(self.crawl_id, new_url_tuples)
+                    if new_url_tuples:
+                        self.storage.add_urls(self.crawl_id, new_url_tuples)
             except Exception as e:
                 import traceback
                 self.console.print(f"[bold red]Error in process_item: {e}[/bold red]")

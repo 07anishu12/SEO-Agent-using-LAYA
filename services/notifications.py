@@ -41,8 +41,28 @@ class InMemoryEmailSink:
             self._messages.clear()
 
 
+class InMemoryPRSink:
+    """Thread-safe PR comment sink for tests and local verification."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._comments: List[Dict[str, Any]] = []
+
+    def record(self, comment: Dict[str, Any]):
+        with self._lock:
+            self._comments.append(comment)
+
+    def get_comments(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            return list(self._comments)
+
+    def clear(self):
+        with self._lock:
+            self._comments.clear()
+
+
 # Global in-memory email sink for test verification
 global_test_email_sink = InMemoryEmailSink()
+global_test_pr_sink = InMemoryPRSink()
 
 
 class NotificationDispatcher:
@@ -51,12 +71,14 @@ class NotificationDispatcher:
         db_url: Optional[str] = None,
         http_client: Optional[httpx.Client] = None,
         email_sink: Optional[InMemoryEmailSink] = None,
+        pr_sink: Optional[InMemoryPRSink] = None,
         smtp_host: Optional[str] = None,
         smtp_port: Optional[int] = None
     ):
         self.db_url = db_url
         self.http_client = http_client or httpx.Client(timeout=10.0)
         self.email_sink = email_sink or global_test_email_sink
+        self.pr_sink = pr_sink or global_test_pr_sink
         self.smtp_host = smtp_host or os.environ.get("SMTP_HOST")
         self.smtp_port = smtp_port or int(os.environ.get("SMTP_PORT", "25"))
 
@@ -188,6 +210,63 @@ class NotificationDispatcher:
             raise RuntimeError(f"Outgoing webhook returned HTTP {resp.status_code}: {resp.text}")
         return {"status_code": resp.status_code}
 
+    def _send_pr_comment(self, pr_config: Dict[str, Any], event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Posts structured markdown regression check summary to PR or InMemoryPRSink."""
+        repo = pr_config.get("repo", "unknown/repo")
+        pr_number = pr_config.get("pr_number") or pr_config.get("pull_request_id") or 1
+        provider = pr_config.get("provider", "github")
+        token = pr_config.get("token") or os.environ.get("GITHUB_TOKEN")
+
+        title = data.get("title") or f"SEOJEV CI/CD Check: {event_type}"
+        message = data.get("message") or ""
+        regressions_count = data.get("regressions_count", 0)
+        verdict = "REGRESSION DETECTED" if ("regression" in event_type or regressions_count > 0) else "PASSED"
+        emoji = "🔴" if verdict == "REGRESSION DETECTED" else "🟢"
+
+        markdown_body = (
+            f"### {emoji} SEOJEV CI/CD Regression Check — {verdict}\n\n"
+            f"**Event:** `{event_type}` | **Deployment:** `{data.get('deployment_id', 'N/A')}`\n\n"
+            f"**Verdict:** {verdict} ({regressions_count} critical regressions)\n\n"
+            f"**Summary:** {title}\n\n"
+            f"{message}\n\n"
+        )
+        if "diff_summary" in data:
+            s = data["diff_summary"]
+            markdown_body += (
+                f"- **Regressed:** {s.get('REGRESSED', 0)}\n"
+                f"- **Fixed:** {s.get('FIXED', 0)}\n"
+                f"- **Improved:** {s.get('IMPROVED', 0)}\n"
+                f"- **Unchanged:** {s.get('UNCHANGED', 0)}\n"
+            )
+
+        if "alerts" in data and data["alerts"]:
+            markdown_body += "\n**Detected Issues:**\n"
+            for a in data["alerts"][:5]:
+                markdown_body += f"- `{a.get('alert_type')}` ({str(a.get('severity', 'high')).upper()}): {a.get('title')}\n"
+
+        comment_record = {
+            "repo": repo,
+            "pr_number": pr_number,
+            "provider": provider,
+            "body": markdown_body,
+            "data": data,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        self.pr_sink.record(comment_record)
+
+        # If live GitHub token and repo configured, attempt live GitHub comment
+        if token and repo != "unknown/repo" and pr_number:
+            try:
+                gh_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
+                self.http_client.post(gh_url, json={"body": markdown_body}, headers={
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github.v3+json"
+                })
+            except Exception as gh_err:
+                logger.warning(f"Failed live GitHub PR comment: {gh_err}")
+
+        return {"status": "posted", "repo": repo, "pr_number": pr_number, "body": markdown_body}
+
     def dispatch_event(
         self,
         event_type: str,
@@ -196,7 +275,7 @@ class NotificationDispatcher:
     ) -> Dict[str, Any]:
         """
         Dispatches an event across channels with delivery isolation.
-        Supported events: run.completed, run.failed, regression.detected, watch.alert
+        Supported events: run.completed, run.failed, regression.detected, watch.alert, deploy.verified, deploy.regressed
         """
         org_id = payload.get("org_id", "")
         site_id = payload.get("site_id", "")
@@ -205,7 +284,7 @@ class NotificationDispatcher:
         if not active_channels and org_id and site_id:
             active_channels = self.get_channels_for_site(org_id, site_id)
 
-        results: Dict[str, Any] = {"slack": [], "email": [], "webhook": []}
+        results: Dict[str, Any] = {"slack": [], "email": [], "webhook": [], "pr_comment": []}
         errors: List[str] = []
 
         for ch in (active_channels or []):
@@ -227,6 +306,9 @@ class NotificationDispatcher:
                     if url:
                         res = self._send_webhook(url, event_type, payload)
                         results["webhook"].append({"success": True, "details": res})
+                elif ch_type in ("pr_comment", "pr", "github_pr"):
+                    res = self._send_pr_comment(ch, event_type, payload)
+                    results["pr_comment"].append({"success": True, "details": res})
             except Exception as exc:
                 err_msg = f"{ch_type} channel error: {str(exc)}"
                 logger.error(err_msg)

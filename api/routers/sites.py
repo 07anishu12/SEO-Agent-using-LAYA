@@ -129,3 +129,50 @@ def delete_site(id: str, current_user: dict = Depends(get_current_user)):
         conn.commit()
 
     return {"deleted": True, "id": id}
+
+
+@router.post("/{site_id}/deploy-webhook")
+def cicd_deploy_webhook(
+    site_id: str,
+    payload: Dict[str, Any],
+    sync: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    CI/CD Deployment Webhook (Section 6.2):
+    Triggers scoped re-crawl, snapshot differ, regression classification, and multi-channel results delivery.
+    Strictly enforces tenant isolation via JWT org_id.
+    """
+    import time
+    org_id = current_user["org_id"]
+    with ScopedQuery(org_id=org_id) as sq:
+        site = sq.fetch_one("sites", where="id = %(id)s", params={"id": site_id})
+    if not site:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Site {site_id} not found in org")
+
+    from services.cicd import execute_cicd_deploy_check
+
+    if sync:
+        try:
+            result = execute_cicd_deploy_check(site_id, org_id, payload)
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        import threading
+        deployment_id = str(payload.get("deployment_id") or payload.get("deploy_id") or f"dep_{int(time.time())}")
+        run_id = f"crawl_dep_{hashlib.sha256(f'{site_id}:{deployment_id}:{time.time()}'.encode()).hexdigest()[:12]}"
+
+        threading.Thread(
+            target=execute_cicd_deploy_check,
+            args=(site_id, org_id, payload),
+            daemon=True
+        ).start()
+
+        return {
+            "status": "queued",
+            "run_id": run_id,
+            "deployment_id": deployment_id,
+            "message": "Deployment regression check queued successfully."
+        }
+
