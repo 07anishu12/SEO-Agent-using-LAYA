@@ -61,12 +61,22 @@ class WorkOrderManager:
                 "effort": opp.get("effort", "S")
             }
 
+            laya_action = opp.get("laya_action")
+            laya_conf = opp.get("laya_confidence")
+            laya_dec_id = opp.get("laya_decision_id")
+            if laya_action:
+                evidence["laya_decision_id"] = laya_dec_id
+                evidence["laya_action"] = laya_action
+                evidence["laya_confidence"] = laya_conf
+
             required_change = (
                 f"Action Required: {opp.get('action')}\n\n"
                 f"Target Location: {opp.get('implementation_location')}\n"
                 f"Scope: {scope.capitalize()} ({opp.get('affected_urls_count', 1)} URLs affected)\n"
                 f"Observed Hypothesis: {opp.get('hypothesis')}"
             )
+            if laya_action:
+                required_change += f"\n\nLaya AI Decision: {laya_action} (confidence: {laya_conf})"
 
             acceptance_criteria = (
                 f"- [ ] Implementation updated in `{opp.get('implementation_location')}`.\n"
@@ -88,28 +98,49 @@ class WorkOrderManager:
                 "required_change": required_change,
                 "acceptance_criteria": acceptance_criteria,
                 "verify_spec": opp.get("verification_spec", "status_code == 200"),
-                "file_locations_json": json.dumps([opp.get("implementation_location")])
+                "file_locations_json": json.dumps([opp.get("implementation_location")]),
+                "laya_action": laya_action,
+                "laya_confidence": laya_conf,
+                "laya_decision_id": laya_dec_id
             }
             work_orders.append(wo)
 
         return work_orders
 
     def persist_work_orders(self, work_orders: List[Dict[str, Any]]):
-        """Saves generated work orders to SQLite database."""
+        """Saves generated work orders to SQLite database using batch executemany."""
+        if not work_orders:
+            return
         with sqlite3.connect(self.db_path) as conn:
-            for wo in work_orders:
-                conn.execute("""
-                INSERT OR REPLACE INTO work_orders (
-                    work_order_id, fingerprint, display_id, run_id, order_type,
-                    priority, scope, title, problem, evidence_json, required_change,
-                    acceptance_criteria, verify_spec, file_locations_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            # Ensure laya columns exist if table was created without them
+            try:
+                cur = conn.execute("PRAGMA table_info(work_orders);")
+                cols = {row[1] for row in cur.fetchall()}
+                for col, col_type in [("laya_action", "TEXT"), ("laya_confidence", "REAL"), ("laya_decision_id", "TEXT")]:
+                    if cols and col not in cols:
+                        conn.execute(f"ALTER TABLE work_orders ADD COLUMN {col} {col_type};")
+            except Exception:
+                pass
+            rows = [
+                (
                     wo["work_order_id"], wo["fingerprint"], wo["display_id"], wo["run_id"],
                     wo["order_type"], wo["priority"], wo["scope"], wo["title"],
                     wo["problem"], wo["evidence_json"], wo["required_change"],
-                    wo["acceptance_criteria"], wo["verify_spec"], wo["file_locations_json"]
-                ))
+                    wo["acceptance_criteria"], wo["verify_spec"], wo["file_locations_json"],
+                    wo.get("laya_action"), wo.get("laya_confidence"), wo.get("laya_decision_id")
+                )
+                for wo in work_orders
+            ]
+            conn.executemany("""
+            INSERT OR REPLACE INTO work_orders (
+                work_order_id, fingerprint, display_id, run_id, order_type,
+                priority, scope, title, problem, evidence_json, required_change,
+                acceptance_criteria, verify_spec, file_locations_json,
+                laya_action, laya_confidence, laya_decision_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, rows)
             conn.commit()
 
     def get_work_order_by_display_id(self, display_id: str) -> Optional[Dict[str, Any]]:

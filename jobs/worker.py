@@ -74,6 +74,7 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
     })
 
     def progress_callback(pass_name: str, pct: float, message: str, meta: Optional[Dict[str, Any]] = None):
+        logger.info(f"[worker] run_id={run_id} site_id={site_id} stage={pass_name} pct={pct:.1f}% msg={message[:80]}")
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -197,6 +198,12 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
         except Exception as trend_err:
             logger.warning(f"Failed to record historical trends for run {run_id}: {trend_err}")
 
+        # Stage 9 & 10c: Compare with previous snapshot, record regressions and dispatch alerts
+        try:
+            _check_regressions_and_alert(org_id=org_id, site_id=site_id, run_id=run_id)
+        except Exception as diff_err:
+            logger.warning(f"Failed to calculate regressions/diff for run {run_id}: {diff_err}")
+
         queue.publish_progress(run_id, {
             "run_id": run_id,
             "status": "completed",
@@ -289,6 +296,139 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
                 "message": f"Run failed after retry: {str(exc)}"
             })
             return {"status": "needs_attention", "run_id": run_id, "error": str(exc)}
+
+
+def _check_regressions_and_alert(org_id: str, site_id: str, run_id: str):
+    """
+    Compares the newly completed run with the site's previous completed run.
+    Detects regressions using SnapshotDiffer, creates alerts in PostgreSQL, and dispatches them.
+    """
+    import hashlib
+    from psycopg.types.json import Jsonb
+    from verification.differ import SnapshotDiffer
+    from services.notifications import get_notification_dispatcher
+    from api.routers.diff import _fetch_snapshots_for_run, _fetch_template_map
+
+    prev_run_id = None
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id FROM runs
+                WHERE org_id = %s AND site_id = %s AND status = 'completed' AND id != %s
+                ORDER BY finished_at DESC LIMIT 1
+                """,
+                (org_id, site_id, run_id)
+            )
+            prev_row = cur.fetchone()
+            if prev_row:
+                prev_run_id = prev_row["id"]
+
+    if not prev_run_id:
+        logger.info(f"[worker] run_id={run_id} completed. No previous run found for site {site_id} snapshot diff.")
+        return
+
+    before_snaps = _fetch_snapshots_for_run(prev_run_id, org_id)
+    after_snaps = _fetch_snapshots_for_run(run_id, org_id)
+    tpl_map = _fetch_template_map(run_id, org_id)
+
+    differ = SnapshotDiffer()
+    diff_res = differ.diff_runs(
+        before_run_id=prev_run_id,
+        after_run_id=run_id,
+        before_snapshots=before_snaps,
+        after_snapshots=after_snaps,
+        template_map=tpl_map
+    )
+    regressions_count = diff_res.get("summary", {}).get("REGRESSED", 0)
+
+    if regressions_count > 0:
+        logger.info(f"[worker] run_id={run_id} detected {regressions_count} regressions against previous run {prev_run_id}")
+        now_utc = datetime.now(timezone.utc)
+        regressed_items = diff_res.get("by_category", {}).get("REGRESSED", [])
+        dispatcher = get_notification_dispatcher()
+
+        # Fetch watch config notification channels for site if available
+        channels = []
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT notification_channels_json FROM watch_configs WHERE org_id = %s AND site_id = %s AND is_active = TRUE LIMIT 1",
+                    (org_id, site_id)
+                )
+                wch = cur.fetchone()
+                if wch and wch["notification_channels_json"]:
+                    raw_ch = wch["notification_channels_json"]
+                    channels = raw_ch if isinstance(raw_ch, list) else json.loads(raw_ch)
+
+        for item in regressed_items:
+            reg_url = item.get("url", "")
+            reg_details = item.get("details", {})
+            if isinstance(reg_details, str):
+                try:
+                    reg_details = json.loads(reg_details)
+                except Exception:
+                    reg_details = {}
+            reasons = reg_details.get("regressions", [])
+            if not reasons and "event" in reg_details:
+                reasons = [reg_details["event"]]
+            reasons_str = " ".join(str(r) for r in reasons).lower()
+
+            if "noindex" in reasons_str:
+                alert_type = "NOINDEX_LEAK"
+                severity = "critical"
+                title = f"Critical Noindex Leak on {reg_url}"
+            elif "canonical" in reasons_str:
+                alert_type = "CANONICAL_CHANGE"
+                severity = "high"
+                title = f"Canonical Tag Regression on {reg_url}"
+            elif "500" in reasons_str or "status" in reasons_str:
+                alert_type = "STATUS_5XX_SPIKE"
+                severity = "critical"
+                title = f"Status Code Regression on {reg_url}"
+            elif "sitemap" in reasons_str:
+                alert_type = "SITEMAP_DROP"
+                severity = "high"
+                title = f"Sitemap Regression on {reg_url}"
+            else:
+                alert_type = "REGRESSION_DETECTED"
+                severity = "high"
+                title = f"Regression Detected on {reg_url}"
+
+            alert_fingerprint = hashlib.sha256(f"{site_id}:{alert_type}:{reg_url}".encode()).hexdigest()[:16]
+            alert_id = f"alert_reg_{alert_fingerprint}"
+            msg = f"Audit comparison between {prev_run_id} and {run_id} detected regression: {'; '.join(reasons)}"
+
+            alert_row = None
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO alerts (
+                            id, org_id, site_id, run_id, alert_type, severity, title, message,
+                            source, fingerprint, affected_urls_json, status, detected_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'regression', %s, %s, 'open', %s)
+                        ON CONFLICT (id) DO UPDATE SET
+                            message = EXCLUDED.message,
+                            run_id = EXCLUDED.run_id,
+                            status = 'open',
+                            detected_at = EXCLUDED.detected_at
+                        RETURNING id, org_id, site_id, alert_type, severity, title, message;
+                        """,
+                        (
+                            alert_id, org_id, site_id, run_id, alert_type, severity,
+                            title, msg, alert_fingerprint, Jsonb([reg_url]), now_utc
+                        )
+                    )
+                    alert_row = cur.fetchone()
+                conn.commit()
+
+            if alert_row:
+                try:
+                    dispatcher.dispatch_alert(dict(alert_row), channels=channels)
+                except Exception as disp_err:
+                    logger.warning(f"Failed to dispatch regression alert: {disp_err}")
 
 
 class RunWorker:

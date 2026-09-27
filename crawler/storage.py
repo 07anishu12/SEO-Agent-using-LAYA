@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import time
 import threading
 from typing import List, Dict, Any, Optional, Tuple
 from models.page import PageData, LinkItem, ImageItem, SchemaItem
@@ -11,7 +12,7 @@ class CrawlStorage:
     def __init__(self, db_path: str = "data/seo.db"):
         self.db_path = db_path
         os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
-        self._lock = threading.Lock()
+        self.total_db_write_time: float = 0.0
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -19,10 +20,14 @@ class CrawlStorage:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA cache_size=-32000")
+        conn.execute("PRAGMA mmap_size=268435456")
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
     def _init_db(self):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executescript("""
             CREATE TABLE IF NOT EXISTS crawl_runs (
                 crawl_id TEXT PRIMARY KEY,
@@ -285,7 +290,7 @@ class CrawlStorage:
             """)
 
     def save_crawl_run(self, run: CrawlRun):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("""
             INSERT OR REPLACE INTO crawl_runs 
             (crawl_id, target_url, start_time, end_time, status, max_pages, concurrency, config_json)
@@ -294,12 +299,12 @@ class CrawlStorage:
             conn.commit()
 
     def update_crawl_status(self, crawl_id: str, status: str, end_time: Optional[str] = None):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("UPDATE crawl_runs SET status = ?, end_time = ? WHERE crawl_id = ?", (status, end_time, crawl_id))
             conn.commit()
 
     def get_latest_crawl_run(self, target_url: str) -> Optional[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             row = conn.execute("SELECT * FROM crawl_runs WHERE target_url = ? ORDER BY start_time DESC LIMIT 1", (target_url,)).fetchone()
             return dict(row) if row else None
 
@@ -307,7 +312,7 @@ class CrawlStorage:
         """Batch insert discovered URLs: (url, status, discovery_source, depth). Ignores duplicates."""
         if not url_tuples:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT OR IGNORE INTO urls (crawl_id, url, status, discovery_source, depth, discovered_at)
             VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -315,13 +320,13 @@ class CrawlStorage:
             conn.commit()
 
     def update_url_status(self, crawl_id: str, url: str, status: str):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("UPDATE urls SET status = ?, visited_at = datetime('now') WHERE crawl_id = ? AND url = ?", (status, crawl_id, url))
             conn.commit()
 
     def get_queued_urls(self, crawl_id: str, limit: int = 1000) -> List[Tuple[str, str, int]]:
         """Returns list of (url, discovery_source, depth) for queued/discovered URLs."""
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("""
             SELECT url, discovery_source, depth FROM urls 
             WHERE crawl_id = ? AND status IN ('discovered', 'queued') 
@@ -331,7 +336,7 @@ class CrawlStorage:
 
     def get_crawled_urls(self, crawl_id: str) -> List[str]:
         """Returns list of URLs that have already been crawled."""
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT url FROM urls WHERE crawl_id = ? AND status = 'crawled'", (crawl_id,)).fetchall()
             return [r[0] for r in rows]
 
@@ -347,7 +352,7 @@ class CrawlStorage:
         rendered_store_ref: str = "",
         is_rendered: bool = False
     ):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("""
             INSERT INTO fetches 
             (run_id, url, status_code, headers_json, response_time, content_hash, raw_store_ref, rendered_store_ref, is_rendered, fetched_at)
@@ -356,7 +361,7 @@ class CrawlStorage:
             conn.commit()
 
     def save_page(self, crawl_id: str, page: PageData):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("""
             INSERT OR REPLACE INTO pages (
                 crawl_id, url, final_url, status_code, content_type, response_time, content_length,
@@ -388,7 +393,7 @@ class CrawlStorage:
     def save_links(self, crawl_id: str, links: List[LinkItem]):
         if not links:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT INTO links (crawl_id, source_url, target_url, anchor_text, is_internal, is_nofollow, is_sponsored, is_ugc)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -398,7 +403,7 @@ class CrawlStorage:
     def save_images(self, crawl_id: str, images: List[ImageItem]):
         if not images:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT INTO images (crawl_id, page_url, image_url, alt_text, has_alt, width, height, is_lazy, image_format)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -408,7 +413,7 @@ class CrawlStorage:
     def save_schemas(self, crawl_id: str, schemas: List[SchemaItem]):
         if not schemas:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT INTO schemas (crawl_id, page_url, schema_type, is_valid, raw_json, error_message)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -418,15 +423,163 @@ class CrawlStorage:
     def save_issues(self, crawl_id: str, issues: List[SEOIssue]):
         if not issues:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT INTO issues (crawl_id, url, page_type, template, category, issue, severity, evidence, recommendation, source, laya_category, laya_severity, laya_action, laya_confidence)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, [(crawl_id, i.url, i.page_type, i.template, i.category, i.issue, i.severity, i.evidence, i.recommendation, i.source, i.laya_category, i.laya_severity, i.laya_action, i.laya_confidence) for i in issues])
             conn.commit()
 
+    def save_crawl_batch(self, crawl_id: str, batch_items: List[Dict[str, Any]]):
+        """
+        Persists a batch of crawled pages, fetches, links, images, schemas, issues,
+        and discovered URLs in a single SQLite transaction for maximum throughput.
+        """
+        if not batch_items:
+            return
+
+        t0 = time.monotonic()
+        pages_data = []
+        fetches_data = []
+        links_data = []
+        images_data = []
+        schemas_data = []
+        issues_data = []
+        url_status_data = []
+        discovered_urls_data = []
+
+        for item in batch_items:
+            page = item.get("page")
+            if page:
+                pages_data.append((
+                    crawl_id, page.url, page.final_url, page.status_code, page.content_type, page.response_time,
+                    page.content_length, json.dumps(page.redirect_chain), page.title, page.title_length,
+                    page.title_word_count, page.description, page.description_length, page.h1_count,
+                    page.h1_text, page.h2_count, page.h3_count, page.meta_robots, page.x_robots_tag,
+                    1 if page.is_indexable else 0, 1 if page.is_follow else 0, page.canonical,
+                    page.canonical_status, 1 if page.is_self_canonical else 0, page.word_count,
+                    page.paragraph_count, page.text_html_ratio, page.content_hash,
+                    page.internal_links_count, page.unique_internal_links_count,
+                    page.external_links_count, page.unique_external_links_count,
+                    page.images_count, page.images_missing_alt,
+                    json.dumps(page.schema_types), 1 if page.is_schema_valid else 0,
+                    json.dumps(page.hreflangs), page.page_type, page.template_id,
+                    page.crawl_depth, 1 if page.is_rendered else 0, page.error, page.crawl_timestamp
+                ))
+
+            fetch = item.get("fetch")
+            if fetch:
+                fetches_data.append((
+                    crawl_id, fetch["url"], fetch["status_code"],
+                    json.dumps(fetch.get("headers", {})) if fetch.get("headers") else "{}",
+                    fetch.get("response_time", 0.0), fetch.get("content_hash", ""),
+                    fetch.get("raw_store_ref", ""), fetch.get("rendered_store_ref", ""),
+                    1 if fetch.get("is_rendered") else 0
+                ))
+
+            for l in item.get("links", []):
+                links_data.append((
+                    crawl_id, l.source_url, l.target_url, l.anchor_text,
+                    1 if l.is_internal else 0, 1 if l.is_nofollow else 0,
+                    1 if l.is_sponsored else 0, 1 if l.is_ugc else 0
+                ))
+
+            for img in item.get("images", []):
+                images_data.append((
+                    crawl_id, img.page_url, img.image_url, img.alt_text,
+                    1 if img.has_alt else 0, img.width, img.height,
+                    1 if img.is_lazy else 0, img.image_format
+                ))
+
+            for sc in item.get("schemas", []):
+                schemas_data.append((
+                    crawl_id, sc.page_url, sc.schema_type,
+                    1 if sc.is_valid else 0, json.dumps(sc.raw_json) if sc.raw_json else "{}",
+                    sc.error_message
+                ))
+
+            for iss in item.get("issues", []):
+                issues_data.append((
+                    crawl_id, iss.url, iss.page_type, iss.template, iss.category,
+                    iss.issue, iss.severity, iss.evidence, iss.recommendation,
+                    getattr(iss, "source", "deterministic_rule"),
+                    getattr(iss, "laya_category", None),
+                    getattr(iss, "laya_severity", None),
+                    getattr(iss, "laya_action", None),
+                    getattr(iss, "laya_confidence", None)
+                ))
+
+            if "url_status" in item:
+                u, s = item["url_status"]
+                url_status_data.append((s, crawl_id, u))
+
+            for disc in item.get("discovered_urls", []):
+                discovered_urls_data.append((crawl_id, disc[0], disc[1], disc[2], disc[3]))
+
+        with self._get_connection() as conn:
+            if pages_data:
+                conn.executemany("""
+                INSERT OR REPLACE INTO pages (
+                    crawl_id, url, final_url, status_code, content_type, response_time, content_length,
+                    redirect_chain, title, title_length, title_word_count, description, description_length,
+                    h1_count, h1_text, h2_count, h3_count, meta_robots, x_robots_tag, is_indexable, is_follow,
+                    canonical, canonical_status, is_self_canonical, word_count, paragraph_count,
+                    text_html_ratio, content_hash, internal_links_count, unique_internal_links_count,
+                    external_links_count, unique_external_links_count, images_count, images_missing_alt,
+                    schema_types, is_schema_valid, hreflangs, page_type, template_id, crawl_depth,
+                    is_rendered, error, crawl_timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, pages_data)
+
+            if fetches_data:
+                conn.executemany("""
+                INSERT INTO fetches 
+                (run_id, url, status_code, headers_json, response_time, content_hash, raw_store_ref, rendered_store_ref, is_rendered, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """, fetches_data)
+
+            if links_data:
+                conn.executemany("""
+                INSERT INTO links (crawl_id, source_url, target_url, anchor_text, is_internal, is_nofollow, is_sponsored, is_ugc)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, links_data)
+
+            if images_data:
+                conn.executemany("""
+                INSERT INTO images (crawl_id, page_url, image_url, alt_text, has_alt, width, height, is_lazy, image_format)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, images_data)
+
+            if schemas_data:
+                conn.executemany("""
+                INSERT INTO schemas (crawl_id, page_url, schema_type, is_valid, raw_json, error_message)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, schemas_data)
+
+            if issues_data:
+                conn.executemany("""
+                INSERT INTO issues (crawl_id, url, page_type, template, category, issue, severity, evidence, recommendation, source, laya_category, laya_severity, laya_action, laya_confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, issues_data)
+
+            if url_status_data:
+                conn.executemany("""
+                UPDATE urls SET status = ?, visited_at = datetime('now') WHERE crawl_id = ? AND url = ?
+                """, url_status_data)
+
+            if discovered_urls_data:
+                conn.executemany("""
+                INSERT OR IGNORE INTO urls (crawl_id, url, status, discovery_source, depth, discovered_at)
+                VALUES (?, ?, ?, ?, ?, datetime('now'))
+                """, discovered_urls_data)
+
+            conn.commit()
+
+        elapsed = time.monotonic() - t0
+        self.total_db_write_time += elapsed
+
     def update_issue_laya(self, issue_id: int, laya_category: str, laya_severity: str, laya_action: str, confidence: float):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("""
             UPDATE issues SET laya_category = ?, laya_severity = ?, laya_action = ?, laya_confidence = ?
             WHERE id = ?
@@ -434,7 +587,7 @@ class CrawlStorage:
             conn.commit()
 
     def save_laya_decision(self, crawl_id: str, issue_key: str, prompt_summary: str, response_raw: str, latency_ms: float, decision_category: str, decision_severity: str, decision_action: str, confidence: float):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("""
             INSERT INTO laya_decisions (crawl_id, issue_key, prompt_summary, response_raw, latency_ms, decision_category, decision_severity, decision_action, confidence, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -442,7 +595,7 @@ class CrawlStorage:
             conn.commit()
 
     def save_performance(self, crawl_id: str, perf_data: Dict[str, Any]):
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.execute("""
             INSERT INTO performance (crawl_id, url, page_type, template_id, ttfb, fcp, lcp, cls, inp, speed_index, performance_score, js_size, css_size, img_size, total_size, tested_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -458,7 +611,7 @@ class CrawlStorage:
     def save_templates(self, crawl_id: str, templates: List[Dict[str, Any]]):
         if not templates:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT OR REPLACE INTO templates (crawl_id, template_id, page_count, sample_urls, dominant_page_type, characteristics_json)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -467,7 +620,7 @@ class CrawlStorage:
 
     def get_stats(self, crawl_id: str) -> CrawlStats:
         stats = CrawlStats()
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             row = conn.execute("""
             SELECT 
                 COUNT(*) as discovered,
@@ -534,39 +687,39 @@ class CrawlStorage:
         return stats
 
     def get_all_pages(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM pages WHERE crawl_id = ?", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def get_all_issues(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM issues WHERE crawl_id = ?", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def get_all_links(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM links WHERE crawl_id = ?", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def get_all_templates(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM templates WHERE crawl_id = ?", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def get_all_performance(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM performance WHERE crawl_id = ?", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def get_all_laya_decisions(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM laya_decisions WHERE crawl_id = ?", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def save_issue_clusters(self, crawl_id: str, clusters: List[Dict[str, Any]]):
         if not clusters:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT INTO issue_clusters (
                 crawl_id, cluster_id, issue, category, priority, severity, affected_urls_count,
@@ -583,7 +736,7 @@ class CrawlStorage:
             conn.commit()
 
     def get_all_issue_clusters(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM issue_clusters WHERE crawl_id = ? ORDER BY id ASC", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
@@ -591,7 +744,7 @@ class CrawlStorage:
         if not opps:
             return
         dict_opps = [o.to_dict() if hasattr(o, "to_dict") else dict(o) for o in opps]
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT INTO ranking_opportunities (
                 crawl_id, url, page_type, template, target_query, current_position, impressions,
@@ -628,14 +781,14 @@ class CrawlStorage:
             conn.commit()
 
     def get_all_ranking_opportunities(self, crawl_id: str) -> List[Dict[str, Any]]:
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM ranking_opportunities WHERE crawl_id = ? ORDER BY priority_score DESC", (crawl_id,)).fetchall()
             return [dict(r) for r in rows]
 
     def save_product_pages(self, crawl_id: str, prod_pages: List[Any]):
         if not prod_pages:
             return
-        with self._lock, self._get_connection() as conn:
+        with self._get_connection() as conn:
             conn.executemany("""
             INSERT INTO product_pages (
                 crawl_id, url, brand, model, variant, price_str, ex_showroom_price, on_road_price,

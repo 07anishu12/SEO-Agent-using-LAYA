@@ -638,6 +638,7 @@ async def test_ui_watch_and_alerts_renders_real_data(frontend_server, api_server
 
         # Verify page header
         await page.wait_for_selector("h1:has-text('Watch & Alerts Center')", timeout=8000)
+        await page.wait_for_selector(f"text={site['domain']}", timeout=8000)
         assert await page.is_visible(f"text={site['domain']}")
 
         # Verify Alert History Ledger renders the planted real alert from DB

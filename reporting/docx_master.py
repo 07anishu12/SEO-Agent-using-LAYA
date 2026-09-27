@@ -115,6 +115,11 @@ class MasterDocxReportGenerator:
             total_wos = conn.execute("SELECT COUNT(*) FROM work_orders").fetchone()[0]
             top_wos = [dict(r) for r in conn.execute("SELECT * FROM work_orders ORDER BY priority ASC LIMIT 10").fetchall()]
             top_opps = [dict(r) for r in conn.execute("SELECT * FROM opportunities ORDER BY priority_score DESC LIMIT 10").fetchall()]
+            laya_decs = []
+            try:
+                laya_decs = [dict(r) for r in conn.execute("SELECT * FROM laya_decisions ORDER BY confidence DESC LIMIT 10").fetchall()]
+            except Exception:
+                pass
 
         # Record provenance for report metrics
         self.prov.record_metric(run_id, "total_pages_crawled", total_pages, "COUNT(*)", "pages", "SELECT COUNT(*) FROM pages")
@@ -271,24 +276,42 @@ class MasterDocxReportGenerator:
         self.doc.add_paragraph("YMYL finance and loan disclosures were audited, verifying compliance with required interest rate and EMI calculator disclaimers.")
 
         # Section 27
-        self._add_h1("27. Prioritized Action Matrix (P0/P1/P2/P3 with Effort/Confidence)")
-        self.doc.add_paragraph("Synthesized Opportunity Matrix prioritized by composite impact score:")
+        self._add_h1("27. Prioritized Action Matrix & Laya Decision Engine Integration")
+        self.doc.add_paragraph("Synthesized Opportunity Matrix prioritized by composite impact score with Laya Decision Engine intelligence:")
         opp_table_data = []
         for o in top_opps:
             opp_table_data.append([
                 o.get("display_id"),
                 o.get("type"),
-                o.get("action")[:55] + "...",
+                (o.get("laya_action") or o.get("action", ""))[:55] + "...",
                 o.get("opportunity_tier"),
-                o.get("confidence_tier"),
+                f"{float(o.get('laya_confidence', 0.85)):.2f}" if o.get("laya_confidence") is not None else o.get("confidence_tier"),
                 o.get("effort"),
                 str(o.get("priority_score"))
             ])
         if opp_table_data:
             self._add_table(
-                ["Display ID", "Type", "Recommended Action", "Tier", "Confidence", "Effort", "Score"],
+                ["Display ID", "Type", "Laya Decision Action", "Tier", "Confidence", "Effort", "Score"],
                 opp_table_data,
                 [1.1, 0.9, 2.6, 0.7, 0.8, 0.5, 0.6]
+            )
+
+        if laya_decs:
+            self._add_h2("Laya Decision Provenance Chain (Observation → Evidence → Decision → Action)")
+            laya_table_data = []
+            for d in laya_decs:
+                laya_table_data.append([
+                    str(d.get("decision_id") or d.get("issue_key", "N/A"))[:18],
+                    str(d.get("decision_type", "SEO_DECISION")),
+                    str(d.get("decision_action") or d.get("choice", "investigate")),
+                    f"{float(d.get('confidence', 0.0)):.2f}",
+                    str(d.get("decision_severity", "medium")),
+                    str(d.get("gate", "AUTO_ACCEPT") if float(d.get("confidence", 0.0)) >= 0.85 else "HUMAN_REVIEW")
+                ])
+            self._add_table(
+                ["Decision ID", "Decision Type", "Laya Choice", "Confidence", "Severity", "Route Gate"],
+                laya_table_data,
+                [1.4, 1.4, 1.5, 0.9, 0.9, 1.1]
             )
 
         # Section 28
@@ -300,14 +323,15 @@ class MasterDocxReportGenerator:
                 w.get("display_id"),
                 w.get("order_type"),
                 w.get("priority"),
-                w.get("title")[:50] + "...",
-                w.get("verify_spec")[:35] + "..."
+                w.get("title")[:45] + "...",
+                (w.get("laya_action") or w.get("action_type") or "fix")[:20],
+                w.get("verify_spec")[:30] + "..."
             ])
         if wo_table_data:
             self._add_table(
-                ["Ticket ID", "Type", "Priority", "Title", "Verification Spec"],
+                ["Ticket ID", "Type", "Priority", "Title", "Laya Action", "Verification Spec"],
                 wo_table_data,
-                [1.3, 1.0, 0.7, 2.4, 1.8]
+                [1.1, 0.8, 0.6, 2.2, 1.1, 1.4]
             )
 
         self.doc.save(self.output_path)

@@ -10,3 +10,6 @@ rich>=13.9.0
 mlx>=0.20.0
 laya>=0.3.0
 laya-mlx>=0.2.0
+
+h2
+psutil>=5.9.0

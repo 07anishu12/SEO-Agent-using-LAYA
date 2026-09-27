@@ -432,80 +432,92 @@ class OpportunityEngineV3:
         return "status_code == 200"
 
     def persist_opportunities(self, opportunities: List[Dict[str, Any]]):
-        """Persists synthesized opportunities, actions, and findings into SQLite database."""
+        """Persists synthesized opportunities, actions, and findings into SQLite database using batch executemany."""
         import datetime
+        if not opportunities:
+            return
+
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        severity_map = {
+            "P0": "critical", "P1": "high", "P2": "medium", "P3": "low",
+            "CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low"
+        }
+
+        opp_rows = []
+        action_rows = []
+        finding_rows = []
+
+        for opp in opportunities:
+            opp_rows.append((
+                opp["opportunity_id"], opp["fingerprint"], opp["display_id"], opp["run_id"],
+                opp["type"], opp["observation"], opp["diagnosis"], opp["hypothesis"],
+                opp["action"], opp["implementation_location"], opp["affected_templates_json"],
+                opp["affected_urls_count"], opp["sample_urls_json"], opp["opportunity_tier"],
+                opp["confidence_tier"], opp["effort"], opp["priority_score"],
+                opp["priority_factors_json"], opp["verification_spec"]
+            ))
+
+            act_type = "engineering" if opp["type"] in ("SITE-TECH", "TPL", "ENG") else "content"
+            action_rows.append((
+                f"ACT-{opp['display_id']}", opp["opportunity_id"], opp["fingerprint"],
+                act_type, opp["implementation_location"], "", opp["action"]
+            ))
+
+            opp_tier = opp.get("opportunity_tier", "P2")
+            severity = severity_map.get(opp_tier, "medium")
+            priority = "high" if opp_tier in ("P0", "P1") else "low"
+
+            sample_urls = json.loads(opp.get("sample_urls_json", "[]"))
+            url_val = sample_urls[0] if sample_urls else None
+            template_ids = json.loads(opp.get("affected_templates_json", "[]"))
+            template_id = template_ids[0] if template_ids else None
+            subject = url_val or template_id or opp.get("type", "SITE")
+
+            finding_fp = opp["fingerprint"] + ":finding"
+            finding_rows.append((
+                finding_fp,
+                "FND-" + opp["display_id"],
+                opp["run_id"],
+                opp["type"],
+                opp.get("opportunity_tier", "P2"),
+                subject,
+                "OBSERVED",
+                severity,
+                priority,
+                template_id,
+                url_val,
+                opp["observation"],
+                json.dumps([opp["fingerprint"]]),
+                opp["action"],
+                now
+            ))
+
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
-            for opp in opportunities:
-                conn.execute("""
-                INSERT OR REPLACE INTO opportunities (
-                    opportunity_id, fingerprint, display_id, run_id, type,
-                    observation, diagnosis, hypothesis, action, implementation_location,
-                    affected_templates_json, affected_urls_count, sample_urls_json,
-                    opportunity_tier, confidence_tier, effort, priority_score,
-                    priority_factors_json, verification_spec
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    opp["opportunity_id"], opp["fingerprint"], opp["display_id"], opp["run_id"],
-                    opp["type"], opp["observation"], opp["diagnosis"], opp["hypothesis"],
-                    opp["action"], opp["implementation_location"], opp["affected_templates_json"],
-                    opp["affected_urls_count"], opp["sample_urls_json"], opp["opportunity_tier"],
-                    opp["confidence_tier"], opp["effort"], opp["priority_score"],
-                    opp["priority_factors_json"], opp["verification_spec"]
-                ))
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.executemany("""
+            INSERT OR REPLACE INTO opportunities (
+                opportunity_id, fingerprint, display_id, run_id, type,
+                observation, diagnosis, hypothesis, action, implementation_location,
+                affected_templates_json, affected_urls_count, sample_urls_json,
+                opportunity_tier, confidence_tier, effort, priority_score,
+                priority_factors_json, verification_spec
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, opp_rows)
 
-                # Also record an action entry
-                act_type = "engineering" if opp["type"] in ("SITE-TECH", "TPL", "ENG") else "content"
-                conn.execute("""
-                INSERT OR REPLACE INTO actions (
-                    action_id, opportunity_id, fingerprint, action_type,
-                    file_location, code_snippet, instructions
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    f"ACT-{opp['display_id']}", opp["opportunity_id"], opp["fingerprint"],
-                    act_type, opp["implementation_location"], "", opp["action"]
-                ))
+            conn.executemany("""
+            INSERT OR REPLACE INTO actions (
+                action_id, opportunity_id, fingerprint, action_type,
+                file_location, code_snippet, instructions
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, action_rows)
 
-                # FIX-10: Persist to findings table (was always empty before)
-                # Map opportunity back to a V3 finding record with evidence refs
-                now = datetime.datetime.utcnow().isoformat()
-                severity_map = {
-                    "P0": "critical", "P1": "high", "P2": "medium", "P3": "low",
-                    "CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low"
-                }
-                opp_tier = opp.get("opportunity_tier", "P2")
-                severity = severity_map.get(opp_tier, "medium")
-                priority = "high" if opp_tier in ("P0", "P1") else "low"
-
-                sample_urls = json.loads(opp.get("sample_urls_json", "[]"))
-                url_val = sample_urls[0] if sample_urls else None
-                template_ids = json.loads(opp.get("affected_templates_json", "[]"))
-                template_id = template_ids[0] if template_ids else None
-                subject = url_val or template_id or opp.get("type", "SITE")
-
-                finding_fp = opp["fingerprint"] + ":finding"
-                conn.execute("""
-                INSERT OR REPLACE INTO findings (
-                    fingerprint, display_id, run_id, rule_id, scope_key, subject,
-                    claim_type, severity, priority, template_id, url,
-                    message, evidence_refs_json, recommended_action, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    finding_fp,
-                    "FND-" + opp["display_id"],
-                    opp["run_id"],
-                    opp["type"],
-                    opp.get("opportunity_tier", "P2"),
-                    subject,
-                    "OBSERVED",
-                    severity,
-                    priority,
-                    template_id,
-                    url_val,
-                    opp["observation"],
-                    json.dumps([opp["fingerprint"]]),  # evidence ref = parent opportunity fingerprint
-                    opp["action"],
-                    now
-                ))
+            conn.executemany("""
+            INSERT OR REPLACE INTO findings (
+                fingerprint, display_id, run_id, rule_id, scope_key, subject,
+                claim_type, severity, priority, template_id, url,
+                message, evidence_refs_json, recommended_action, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, finding_rows)
             conn.commit()
 

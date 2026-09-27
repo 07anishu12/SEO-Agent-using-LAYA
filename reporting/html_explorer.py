@@ -156,6 +156,7 @@ class HTMLExplorerGenerator:
             </div>
             <div class="card-body"><strong>Problem:</strong> ${{w.problem}}</div>
             <div class="card-body"><strong>Required Change:</strong> ${{w.required_change}}</div>
+            ${{w.laya_action ? `<div class="card-body"><strong>Laya Decision:</strong> <span style="color:#0F3870; font-weight:600;">${{w.laya_action}}</span> (Confidence: ${{w.laya_confidence != null ? Number(w.laya_confidence).toFixed(2) : '0.85'}})</div>` : ''}}
             <div class="card-body"><strong>Verification Spec:</strong></div>
             <div class="spec-box">${{w.verify_spec}}</div>
           `;
@@ -163,9 +164,10 @@ class HTMLExplorerGenerator:
         }});
       }} else if (currentTab === 'opportunities') {{
         const filtered = DATA.opportunities.filter(o => 
-          o.action.toLowerCase().includes(query) ||
-          o.observation.toLowerCase().includes(query) ||
-          o.type.toLowerCase().includes(query)
+          (o.action || '').toLowerCase().includes(query) ||
+          (o.observation || '').toLowerCase().includes(query) ||
+          (o.type || '').toLowerCase().includes(query) ||
+          (o.laya_action || '').toLowerCase().includes(query)
         );
         filtered.forEach(o => {{
           const card = document.createElement('div');
@@ -178,6 +180,7 @@ class HTMLExplorerGenerator:
             <div class="card-body"><strong>Observation:</strong> ${{o.observation}}</div>
             <div class="card-body"><strong>Diagnosis:</strong> ${{o.diagnosis}}</div>
             <div class="card-body"><strong>Hypothesis:</strong> ${{o.hypothesis}}</div>
+            ${{o.laya_action ? `<div class="card-body"><strong>Laya Decision:</strong> <span style="color:#0F3870; font-weight:600;">${{o.laya_action}}</span> (Confidence: ${{o.laya_confidence != null ? Number(o.laya_confidence).toFixed(2) : '0.85'}})</div>` : ''}}
             <div class="card-body"><strong>Location:</strong> ${{o.implementation_location}} (${{o.affected_urls_count}} URLs affected)</div>
           `;
           container.appendChild(card);

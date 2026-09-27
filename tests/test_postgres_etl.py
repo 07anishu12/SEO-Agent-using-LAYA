@@ -19,8 +19,9 @@ from engine.pipeline import SEOJEVPipeline
 
 
 TEST_DB_NAME = "seojev_test"
-TEST_DB_URL = f"postgresql:///{TEST_DB_NAME}"
-ADMIN_DB_URL = "postgresql:///postgres"
+TEST_DB_URL = os.environ.get("DATABASE_URL") or f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
+ADMIN_DB_URL = os.environ.get("ADMIN_DB_URL") or "postgresql://postgres:postgres@localhost:5432/postgres"
+
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -46,7 +47,7 @@ def test_migration_fresh_postgres_instance():
     Asserts all 18 tables and org_id isolation columns exist.
     """
     fresh_db = "seojev_fresh_mig_temp"
-    fresh_url = f"postgresql:///{fresh_db}"
+    fresh_url = f"postgresql://postgres:postgres@localhost:5432/{fresh_db}"
 
     # Create fresh database
     with psycopg.connect(ADMIN_DB_URL, autocommit=True) as admin_conn:

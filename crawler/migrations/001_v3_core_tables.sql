@@ -277,7 +277,10 @@ CREATE TABLE IF NOT EXISTS work_orders (
     required_change TEXT NOT NULL,
     acceptance_criteria TEXT NOT NULL,
     verify_spec TEXT NOT NULL,
-    file_locations_json TEXT
+    file_locations_json TEXT,
+    laya_action TEXT,
+    laya_confidence REAL,
+    laya_decision_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_wo_run ON work_orders (run_id, display_id);
 

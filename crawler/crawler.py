@@ -4,6 +4,7 @@ import time
 import signal
 import sys
 import os
+import urllib.parse
 from typing import List, Dict, Any, Optional
 from rich.console import Console
 from rich.live import Live
@@ -83,6 +84,7 @@ class SEOCrawler:
         self.console = Console()
         self.stats = CrawlStats()
         self._shutdown_requested = False
+        self._redirect_map: Dict[str, str] = {}
 
         # Live stats
         self.total_issues_found = 0
@@ -205,9 +207,23 @@ class SEOCrawler:
         return Panel(table, title="[bold green]SEOJEV Engine Live Crawl Monitor[/bold green]", border_style="cyan")
 
     async def crawl(self):
-        """Main async crawl loop."""
+        """Main async crawl loop with batch persistence and redirect alias tracking."""
         self.start_time = time.monotonic()
         busy_workers = 0
+
+        batch_buffer: List[Dict[str, Any]] = []
+        batch_lock = asyncio.Lock()
+        BATCH_SIZE = 200
+
+        async def flush_batch(force: bool = False):
+            async with batch_lock:
+                if not batch_buffer:
+                    return
+                if not force and len(batch_buffer) < BATCH_SIZE:
+                    return
+                items = list(batch_buffer)
+                batch_buffer.clear()
+            await asyncio.to_thread(self.storage.save_crawl_batch, self.crawl_id, items)
 
         async def process_item(item):
             nonlocal busy_workers
@@ -227,7 +243,12 @@ class SEOCrawler:
                     return
 
                 # Check memory guard periodically
+                # Check memory guard periodically
                 self.memory_guard.check_and_enforce()
+
+                # Redirect learning
+                if url in self._redirect_map:
+                    url = self._redirect_map[url]
 
                 # Check trap detector before fetch
                 is_trap, trap_type, trap_reason = self.trap_detector.is_trap(url)
@@ -239,14 +260,30 @@ class SEOCrawler:
 
                 await self.scheduler.throttle(self.fetcher.adaptive_delay_multiplier)
 
-                # Fetch page via HTTP
-                fetch_res = await self.fetcher.fetch(url)
+                host = urllib.parse.urlsplit(url).netloc
+                self.scheduler.mark_host_active(host)
+                try:
+                    # Fetch page via HTTP
+                    fetch_res = await self.fetcher.fetch(url)
+                finally:
+                    self.scheduler.mark_host_done(host)
 
                 if fetch_res.status_code >= 400:
                     if 400 <= fetch_res.status_code < 500:
                         self.total_4xx += 1
                     elif fetch_res.status_code >= 500:
                         self.total_5xx += 1
+
+                # Dynamic host alias registration for cross-subdomain/domain redirects
+                if fetch_res.final_url and fetch_res.final_url != url:
+                    self._redirect_map[url] = fetch_res.final_url
+                    try:
+                        p_final = urllib.parse.urlsplit(fetch_res.final_url)
+                        p_orig = urllib.parse.urlsplit(url)
+                        if p_final.netloc and p_orig.netloc and p_final.netloc.lower() != p_orig.netloc.lower():
+                            self.normalizer.add_host_alias(p_orig.netloc, canonical_host=p_final.netloc)
+                    except Exception:
+                        pass
 
                 html_content = fetch_res.text
                 is_rendered = False
@@ -264,18 +301,6 @@ class SEOCrawler:
                 rendered_ref = ""
                 if is_rendered:
                     _, rendered_ref = self.content_store.put(html_content)
-
-                self.storage.save_fetch(
-                    run_id=self.crawl_id,
-                    url=url,
-                    status_code=fetch_res.status_code,
-                    headers=fetch_res.headers,
-                    response_time=fetch_res.response_time,
-                    content_hash=content_hash,
-                    raw_store_ref=raw_ref,
-                    rendered_store_ref=rendered_ref,
-                    is_rendered=is_rendered
-                )
 
                 # Deduce page type and template ID
                 page_type = infer_page_type(url)
@@ -324,30 +349,6 @@ class SEOCrawler:
 
                 self.total_issues_found += len(issues)
 
-                # Persist results in SQLite
-                self.storage.save_page(self.crawl_id, page_data)
-                self.storage.save_links(self.crawl_id, links)
-                self.storage.save_images(self.crawl_id, images)
-                self.storage.save_schemas(self.crawl_id, schemas)
-                self.storage.save_issues(self.crawl_id, issues)
-
-                if fetch_res.is_success and not is_soft_404:
-                    self.scheduler.mark_crawled(url)
-                    self.storage.update_url_status(self.crawl_id, url, "crawled")
-                else:
-                    self.scheduler.mark_failed(url)
-                    self.storage.update_url_status(self.crawl_id, url, "failed")
-
-                if self.url_progress_callback:
-                    try:
-                        self.url_progress_callback(
-                            self.scheduler.crawled_count,
-                            self.scheduler.discovered_count,
-                            url
-                        )
-                    except Exception:
-                        pass
-
                 # Discover new internal links (skip if scoped crawl)
                 new_url_tuples = []
                 if not (self.crawl_cfg.get("scope_urls")):
@@ -361,8 +362,48 @@ class SEOCrawler:
                             if self.scheduler.enqueue(link.target_url, discovery_source="internal_link", depth=depth + 1):
                                 new_url_tuples.append((link.target_url, "queued", "internal_link", depth + 1))
 
-                    if new_url_tuples:
-                        self.storage.add_urls(self.crawl_id, new_url_tuples)
+                new_status = "crawled" if (fetch_res.is_success and not is_soft_404) else "failed"
+                if new_status == "crawled":
+                    self.scheduler.mark_crawled(url)
+                else:
+                    self.scheduler.mark_failed(url)
+
+                batch_entry = {
+                    "page": page_data,
+                    "fetch": {
+                        "url": url,
+                        "status_code": fetch_res.status_code,
+                        "headers": fetch_res.headers,
+                        "response_time": fetch_res.response_time,
+                        "content_hash": content_hash,
+                        "raw_store_ref": raw_ref,
+                        "rendered_store_ref": rendered_ref,
+                        "is_rendered": is_rendered
+                    },
+                    "links": links,
+                    "images": images,
+                    "schemas": schemas,
+                    "issues": issues,
+                    "url_status": (url, new_status),
+                    "discovered_urls": new_url_tuples
+                }
+
+                async with batch_lock:
+                    batch_buffer.append(batch_entry)
+
+                if len(batch_buffer) >= BATCH_SIZE:
+                    await flush_batch(force=False)
+
+                if self.url_progress_callback:
+                    try:
+                        self.url_progress_callback(
+                            self.scheduler.crawled_count,
+                            self.scheduler.discovered_count,
+                            url
+                        )
+                    except Exception:
+                        pass
+
             except Exception as e:
                 import traceback
                 self.console.print(f"[bold red]Error in process_item: {e}[/bold red]")
@@ -386,22 +427,26 @@ class SEOCrawler:
                 await process_item(item)
 
         # Launch worker pool
-        if self.show_live_display:
-            with Live(self._render_progress_panel(), refresh_per_second=2, console=self.console) as live:
-                workers = [asyncio.create_task(worker()) for _ in range(self.concurrency)]
+        try:
+            if self.show_live_display:
+                with Live(self._render_progress_panel(), refresh_per_second=2, console=self.console) as live:
+                    workers = [asyncio.create_task(worker()) for _ in range(self.concurrency)]
 
-                async def monitor():
-                    while any(not w.done() for w in workers):
+                    async def monitor():
+                        while any(not w.done() for w in workers):
+                            live.update(self._render_progress_panel())
+                            await asyncio.sleep(0.5)
                         live.update(self._render_progress_panel())
-                        await asyncio.sleep(0.5)
-                    live.update(self._render_progress_panel())
 
-                monitor_task = asyncio.create_task(monitor())
+                    monitor_task = asyncio.create_task(monitor())
+                    await asyncio.gather(*workers, return_exceptions=True)
+                    await monitor_task
+            else:
+                workers = [asyncio.create_task(worker()) for _ in range(self.concurrency)]
                 await asyncio.gather(*workers, return_exceptions=True)
-                await monitor_task
-        else:
-            workers = [asyncio.create_task(worker()) for _ in range(self.concurrency)]
-            await asyncio.gather(*workers, return_exceptions=True)
+        finally:
+            # Always flush remaining batch items to SQLite
+            await flush_batch(force=True)
 
         if self.cancel_check and self.cancel_check():
             self.storage.update_crawl_status(self.crawl_id, "cancelled", datetime.datetime.now().isoformat())

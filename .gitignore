@@ -50,6 +50,8 @@ logs/*.log
 reports/baseline/csv/
 reports/crawl_*/
 reports/test_*/
+reports/bench_*/
+data/bench_*.db*
 data/site-profile.json
 store/
 frontend/node_modules/

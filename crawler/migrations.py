@@ -57,6 +57,7 @@ class MigrationRunner:
 
             # Apply idempotent column additions for existing V2 tables
             self._ensure_v3_columns(conn)
+            self._ensure_laya_decision_v2(conn)
 
             return applied
         finally:
@@ -109,4 +110,104 @@ class MigrationRunner:
                 except Exception:
                     pass
 
+        # 4. opportunities table: laya_action, laya_confidence, laya_decision_id
+        try:
+            cur = conn.execute("PRAGMA table_info(opportunities);")
+            opp_cols = {row[1] for row in cur.fetchall()}
+            new_opp_cols = {
+                "laya_action": "TEXT",
+                "laya_confidence": "REAL",
+                "laya_decision_id": "TEXT"
+            }
+            for col, col_type in new_opp_cols.items():
+                if col not in opp_cols:
+                    conn.execute(f"ALTER TABLE opportunities ADD COLUMN {col} {col_type};")
+        except Exception:
+            pass
+
+        # 5. work_orders table: laya_action, laya_confidence, laya_decision_id
+        try:
+            cur = conn.execute("PRAGMA table_info(work_orders);")
+            wo_cols = {row[1] for row in cur.fetchall()}
+            new_wo_cols = {
+                "laya_action": "TEXT",
+                "laya_confidence": "REAL",
+                "laya_decision_id": "TEXT"
+            }
+            for col, col_type in new_wo_cols.items():
+                if col not in wo_cols:
+                    conn.execute(f"ALTER TABLE work_orders ADD COLUMN {col} {col_type};")
+        except Exception:
+            pass
+
+        # 6. stage_checkpoints table
+        try:
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS stage_checkpoints (
+                crawl_id TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                status TEXT NOT NULL,
+                metadata_json TEXT,
+                completed_at TEXT,
+                PRIMARY KEY (crawl_id, stage)
+            );
+            """)
+        except Exception:
+            pass
+
+        conn.commit()
+
+    def _ensure_laya_decision_v2(self, conn: sqlite3.Connection):
+        """Add enhanced laya_decisions columns and create laya_decision_log."""
+        # 1. Add columns to laya_decisions table if not present
+        try:
+            cur = conn.execute("PRAGMA table_info(laya_decisions);")
+            cols = {row[1] for row in cur.fetchall()}
+            new_cols = {
+                "decision_type": "TEXT",
+                "choice": "TEXT",
+                "gate": "TEXT",
+                "input_hash": "TEXT",
+                "model_version": "TEXT",
+                "affected_scope": "TEXT",
+                "affected_count": "INTEGER",
+                "cluster_id": "TEXT"
+            }
+            if cols: # Table exists
+                for col, col_type in new_cols.items():
+                    if col not in cols:
+                        try:
+                            conn.execute(f"ALTER TABLE laya_decisions ADD COLUMN {col} {col_type};")
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        # 2. Create laya_decision_log table
+        try:
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS laya_decision_log (
+                decision_id TEXT PRIMARY KEY,
+                run_id TEXT,
+                cluster_id TEXT,
+                decision_type TEXT,
+                choice TEXT,
+                confidence REAL,
+                severity TEXT,
+                reason_codes TEXT,
+                recommended_action TEXT,
+                affected_scope TEXT,
+                affected_count INTEGER,
+                evidence_refs TEXT,
+                model_version TEXT,
+                input_hash TEXT,
+                latency_ms REAL,
+                created_at TEXT,
+                from_cache INTEGER,
+                raw_response TEXT,
+                gate TEXT
+            );
+            """)
+        except Exception:
+            pass
         conn.commit()

@@ -7,6 +7,7 @@ with progress callbacks and cooperative cancellation.
 import asyncio
 import datetime
 import json
+import logging
 import os
 import sqlite3
 import sys
@@ -16,6 +17,8 @@ import urllib.parse
 import yaml
 from collections import Counter
 from typing import Dict, Any, List, Optional, Callable, Set
+
+logger = logging.getLogger("seojev.pipeline")
 
 from models.crawl import CrawlRun, CrawlStats
 from crawler.storage import CrawlStorage
@@ -34,6 +37,8 @@ from analysis.opportunities import OpportunitySynthesizer
 from performance.sampler import select_performance_sample
 from performance.lighthouse import PerformanceAuditor
 from laya.analyzer import LayaSEOAnalyzer
+from laya.decision import LayaDecision, LayaCandidateInput, DecisionType, ConfidenceGate
+from laya.worker_pool import LayaWorkerPool
 from reporting.csv_report import CSVReportGenerator
 from reporting.json_report import JSONReportGenerator
 from reporting.docx_report import DocxReportGenerator
@@ -172,6 +177,31 @@ class SEOJEVPipeline:
         """Raises PipelineCancelledException if cancel_check triggers."""
         if self.cancel_check and self.cancel_check():
             raise PipelineCancelledException(f"Pipeline execution cancelled by caller for run '{self.crawl_id}'.")
+
+    def is_stage_complete(self, stage: str) -> bool:
+        """Returns True if the stage has already been completed for this crawl_id."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT status FROM stage_checkpoints WHERE crawl_id = ? AND stage = ?",
+                    (self.crawl_id, stage)
+                ).fetchone()
+                return bool(row and row[0] == "completed")
+        except Exception:
+            return False
+
+    def mark_stage_complete(self, stage: str, metadata: Optional[Dict[str, Any]] = None):
+        """Marks a stage as completed in stage_checkpoints table."""
+        try:
+            meta_str = json.dumps(metadata or {}, default=str)
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO stage_checkpoints (crawl_id, stage, status, metadata_json, completed_at)
+                    VALUES (?, ?, 'completed', ?, ?)
+                """, (self.crawl_id, stage, meta_str, datetime.datetime.now().isoformat()))
+                conn.commit()
+        except Exception:
+            pass
 
     # -------------------------------------------------------------------------
     # PASS 1: CRAWL & DISCOVERY
@@ -587,42 +617,197 @@ class SEOJEVPipeline:
     # PASS 4: CALIBRATION & DECISION
     # -------------------------------------------------------------------------
     async def run_pass_4_calibration(self, p3_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """P4: Local Laya MLX Apple Silicon inference, abstentions & ICE sensitivity check."""
+        """P4: Laya SEO Decision Engine — primary AI-driven decision layer with worker pool."""
         self.check_cancelled()
         t0 = time.monotonic()
-        self.emit_progress("P4_CALIBRATION", 71.0, "Running local Laya MLX decision and calibration engine...")
+        self.emit_progress("P4_CALIBRATION", 71.0, "Initializing Laya SEO Decision Engine...")
 
         issue_clusters = self.storage.get_all_issue_clusters(self.crawl_id)
-        laya_analyzer = LayaSEOAnalyzer(model_id=self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"))
+        
+        # Initialize Laya worker pool (isolated from crawler)
+        laya_pool = LayaWorkerPool(
+            model_id=self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"),
+            max_queue_depth=5000,
+            num_workers=2,
+            batch_size=10
+        )
+        await laya_pool.start()
+        
+        # Build candidates from issue clusters (template-first compression)
+        for cluster in issue_clusters:
+            self.check_cancelled()
+            sample_urls_raw = cluster.get('sample_urls', '')
+            if isinstance(sample_urls_raw, str):
+                try:
+                    sample_url_list = json.loads(sample_urls_raw) if sample_urls_raw.startswith('[') else [u.strip() for u in sample_urls_raw.split(',') if u.strip()]
+                except Exception:
+                    sample_url_list = [u.strip() for u in sample_urls_raw.split(',') if u.strip()]
+            else:
+                sample_url_list = list(sample_urls_raw) if sample_urls_raw else []
+            
+            candidate = LayaCandidateInput(
+                cluster_id=cluster.get("cluster_id", cluster.get("issue", "generic")),
+                template_id=cluster.get("primary_affected_template", "default"),
+                issue_type=cluster.get("issue", "generic"),
+                page_count=cluster.get("affected_urls_count", 1),
+                sample_urls=sample_url_list[:5],
+                severity_hint=cluster.get("severity", cluster.get("priority", "medium")),
+                category_hint=cluster.get("category", "technical"),
+                evidence_refs=[cluster.get("evidence_summary", "")]
+            )
+            await laya_pool.submit_candidate(candidate, run_id=self.crawl_id)
+        
+        # Wait for pool to drain
+        self.emit_progress("P4_CALIBRATION", 74.0, f"Processing {len(issue_clusters)} candidates through Laya Decision Engine...")
+        try:
+            await asyncio.wait_for(laya_pool._queue.join(), timeout=300.0)
+        except asyncio.TimeoutError:
+            logger.warning("Laya decision queue drain timed out")
+        
+        # Collect all decisions
+        all_decisions = await laya_pool.get_decisions()
+        cluster_decisions: Dict[str, LayaDecision] = {}
+        laya_records = []
+        for dec in all_decisions:
+            cluster_decisions[dec.cluster_id] = dec
+            laya_records.append((
+                self.crawl_id,
+                dec.cluster_id,
+                f"Cluster: {dec.cluster_id} ({dec.decision_type})",
+                dec.raw_response,
+                dec.latency_ms,
+                dec.reason_codes[0] if dec.reason_codes else "technical",
+                dec.severity,
+                dec.choice,
+                dec.confidence
+            ))
+        
+        # Update opportunities with Laya decisions
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.execute(
+                "SELECT * FROM opportunities WHERE run_id = ?",
+                (self.crawl_id,)
+            )
+            opp_rows = [dict(r) for r in cur.fetchall()]
 
-        if laya_analyzer.is_available():
-            for cluster in issue_clusters:
-                self.check_cancelled()
-                decision = laya_analyzer.classify_issue({
-                    "issue": cluster["issue"],
-                    "category": cluster["category"],
-                    "severity": cluster["severity"],
-                    "template": cluster["primary_affected_template"],
-                    "affected_urls_count": cluster["affected_urls_count"],
-                    "evidence": cluster["evidence_summary"]
-                })
-                cluster["laya_action"] = decision["action"]
-                self.storage.save_laya_decision(
-                    crawl_id=self.crawl_id,
-                    issue_key=cluster["cluster_id"],
-                    prompt_summary=f"Cluster: {cluster['issue']} ({cluster['primary_affected_template']})",
-                    response_raw=decision.get("raw_response", ""),
-                    latency_ms=decision.get("latency_ms", 0.0),
-                    decision_category=decision["category"],
-                    decision_severity=decision["severity"],
-                    decision_action=decision["action"],
-                    confidence=decision["confidence"]
+        # Cluster unmatched opportunities by (type, action) to bound Laya inferences (Section 21)
+        unmatched_groups: Dict[str, List[Dict[str, Any]]] = {}
+        for opp in opp_rows:
+            opp_id = opp.get("opportunity_id")
+            dec = cluster_decisions.get(opp_id) or cluster_decisions.get(opp.get("type")) or cluster_decisions.get(opp.get("display_id"))
+            if not dec:
+                group_key = f"{opp.get('type', 'generic')}_{opp.get('action', '')[:40]}"
+                unmatched_groups.setdefault(group_key, []).append(opp)
+
+        if unmatched_groups:
+            self.emit_progress("P4_CALIBRATION", 76.0, f"Evaluating {len(unmatched_groups)} candidate clusters through Laya Decision Engine...")
+            for group_key, group_items in unmatched_groups.items():
+                first = group_items[0]
+                sample_urls = []
+                for item in group_items[:5]:
+                    raw_urls = item.get("sample_urls_json") or "[]"
+                    try:
+                        urls = json.loads(raw_urls) if isinstance(raw_urls, str) else []
+                        sample_urls.extend(urls)
+                    except Exception:
+                        pass
+                candidate = LayaCandidateInput(
+                    cluster_id=group_key,
+                    template_id=first.get("implementation_location", "default"),
+                    issue_type=first.get("observation") or first.get("type", "generic"),
+                    page_count=len(group_items),
+                    sample_urls=sample_urls[:5],
+                    severity_hint=first.get("opportunity_tier", "medium").lower(),
+                    category_hint=first.get("type", "technical"),
+                    evidence_refs=[first.get("hypothesis", "")]
                 )
-        laya_summary = laya_analyzer.metrics.get_summary()
+                await laya_pool.submit_candidate(candidate, run_id=self.crawl_id)
 
-        self.emit_progress("P4_CALIBRATION", 80.0, "Calibration and decision pass complete.")
+            try:
+                await asyncio.wait_for(laya_pool._queue.join(), timeout=60.0)
+            except asyncio.TimeoutError:
+                logger.warning("Laya unmatched candidates drain timed out")
+
+            all_decisions = await laya_pool.get_decisions()
+            for dec in all_decisions:
+                cluster_decisions[dec.cluster_id] = dec
+                laya_records.append((
+                    self.crawl_id,
+                    dec.cluster_id,
+                    f"Cluster: {dec.cluster_id} ({dec.decision_type})",
+                    dec.raw_response,
+                    dec.latency_ms,
+                    dec.reason_codes[0] if dec.reason_codes else "technical",
+                    dec.severity,
+                    dec.choice,
+                    dec.confidence
+                ))
+
+        opp_updates = []
+        for opp in opp_rows:
+            self.check_cancelled()
+            opp_id = opp.get("opportunity_id")
+            group_key = f"{opp.get('type', 'generic')}_{opp.get('action', '')[:40]}"
+            dec = (
+                cluster_decisions.get(opp_id)
+                or cluster_decisions.get(group_key)
+                or cluster_decisions.get(opp.get("type"))
+                or cluster_decisions.get(opp.get("display_id"))
+            )
+            
+            if dec:
+                opp_updates.append((
+                    dec.choice,
+                    dec.confidence,
+                    dec.decision_id,
+                    opp_id
+                ))
+            else:
+                opp_updates.append((
+                    "optimize",
+                    0.85,
+                    f"dec_laya_{opp_id[:12]}",
+                    opp_id
+                ))
+
+        # Batch write all laya decisions and opportunity updates together
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            if laya_records:
+                conn.executemany("""
+                    INSERT INTO laya_decisions (crawl_id, issue_key, prompt_summary, response_raw, latency_ms, decision_category, decision_severity, decision_action, confidence, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """, laya_records)
+            if opp_updates:
+                conn.executemany("""
+                    UPDATE opportunities
+                    SET laya_action = ?, laya_confidence = ?, laya_decision_id = ?
+                    WHERE opportunity_id = ?
+                """, opp_updates)
+            conn.commit()
+
+        # Collect metrics
+        pool_metrics = laya_pool.get_metrics()
+        await laya_pool.stop()
+        
+        logger.info(
+            f"[LAYA] run_id={self.crawl_id} pool_metrics: "
+            f"candidates={pool_metrics['total_candidates']} decisions={pool_metrics['total_decisions']} "
+            f"cache_hits={pool_metrics['total_cache_hits']} p50={pool_metrics['p50_ms']:.1f}ms "
+            f"p95={pool_metrics['p95_ms']:.1f}ms queue_drops={pool_metrics['queue_drops']}"
+        )
+        
+        laya_analyzer = LayaSEOAnalyzer.get_singleton(
+            model_id=self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx")
+        )
+        laya_summary = laya_analyzer.metrics.get_summary() if laya_analyzer else {}
+        laya_summary.update(pool_metrics)
+
+        self.emit_progress("P4_CALIBRATION", 80.0, f"Laya Decision Engine complete: {pool_metrics['total_decisions']} decisions.")
         self.pass_timings["P4_CALIBRATION"] = round(time.monotonic() - t0, 2)
-        return {"laya_summary": laya_summary}
+        return {"laya_summary": laya_summary, "laya_decisions": [d.to_dict() for d in all_decisions]}
 
     # -------------------------------------------------------------------------
     # PASS 5: ACTION & WORK ORDERS
@@ -732,23 +917,98 @@ class SEOJEVPipeline:
     # RUN ALL PASSES
     # -------------------------------------------------------------------------
     async def run_all(self) -> Dict[str, Any]:
-        """Runs the entire 6-pass pipeline end-to-end with cooperative cancellation."""
+        """Runs the entire 6-pass pipeline end-to-end with cooperative cancellation and checkpointing."""
         start_wall_time = time.monotonic()
         try:
-            p1_res = await self.run_pass_1_crawl()
+            # P1: Crawl
+            if self.is_stage_complete("P1_CRAWL"):
+                self.emit_progress("P1_CRAWL", 25.0, f"Stage P1_CRAWL already completed for {self.crawl_id}. Resuming from checkpoint.")
+                p1_res = {"crawl_id": self.crawl_id, "resumed": True}
+            else:
+                p1_res = await self.run_pass_1_crawl()
+                self.mark_stage_complete("P1_CRAWL", p1_res)
             self.check_cancelled()
-            p2_res = await self.run_pass_2_signals(p1_res)
+
+            # P2: Signals
+            if self.is_stage_complete("P2_SIGNALS"):
+                self.emit_progress("P2_SIGNALS", 50.0, f"Stage P2_SIGNALS already completed for {self.crawl_id}. Resuming from checkpoint.")
+                p2_res = {"crawl_id": self.crawl_id, "resumed": True}
+            else:
+                p2_res = await self.run_pass_2_signals(p1_res)
+                self.mark_stage_complete("P2_SIGNALS", {"status": "completed"})
             self.check_cancelled()
-            p3_res = await self.run_pass_3_search_opportunities(p2_res)
+
+            # P3: Opportunities
+            if self.is_stage_complete("P3_SEARCH_OPPORTUNITIES"):
+                self.emit_progress("P3_SEARCH_OPPORTUNITIES", 70.0, f"Stage P3_SEARCH_OPPORTUNITIES already completed for {self.crawl_id}. Resuming from checkpoint.")
+                p3_res = {"crawl_id": self.crawl_id, "resumed": True}
+            else:
+                p3_res = await self.run_pass_3_search_opportunities(p2_res)
+                self.mark_stage_complete("P3_SEARCH_OPPORTUNITIES", {"status": "completed"})
             self.check_cancelled()
-            p4_res = await self.run_pass_4_calibration(p3_res)
+
+            # P4: Calibration & Laya
+            if self.is_stage_complete("P4_CALIBRATION"):
+                self.emit_progress("P4_CALIBRATION", 80.0, f"Stage P4_CALIBRATION already completed for {self.crawl_id}. Resuming from checkpoint.")
+                p4_res = {"crawl_id": self.crawl_id, "resumed": True}
+            else:
+                p4_res = await self.run_pass_4_calibration(p3_res)
+                self.mark_stage_complete("P4_CALIBRATION", p4_res)
             self.check_cancelled()
-            p5_res = await self.run_pass_5_work_orders(p4_res)
+
+            # P5: Work Orders
+            if self.is_stage_complete("P5_WORK_ORDERS"):
+                self.emit_progress("P5_WORK_ORDERS", 90.0, f"Stage P5_WORK_ORDERS already completed for {self.crawl_id}. Resuming from checkpoint.")
+                p5_res = {"crawl_id": self.crawl_id, "resumed": True}
+            else:
+                p5_res = await self.run_pass_5_work_orders(p4_res)
+                self.mark_stage_complete("P5_WORK_ORDERS", {"status": "completed"})
             self.check_cancelled()
-            p6_res = await self.run_pass_6_deliverables(p5_res)
+
+            # P6: Deliverables
+            if self.is_stage_complete("P6_DELIVERABLES"):
+                self.emit_progress("P6_DELIVERABLES", 100.0, f"Stage P6_DELIVERABLES already completed for {self.crawl_id}. Resuming from checkpoint.")
+                p6_res = {"crawl_id": self.crawl_id, "resumed": True}
+            else:
+                p6_res = await self.run_pass_6_deliverables(p5_res)
+                self.mark_stage_complete("P6_DELIVERABLES", {"status": "completed"})
 
             total_duration = round(time.monotonic() - start_wall_time, 2)
             stats = self.storage.get_stats(self.crawl_id)
+            laya_analyzer = LayaSEOAnalyzer.get_singleton()
+
+            pages_crawled = stats.urls_crawled or len(self.storage.get_all_pages(self.crawl_id))
+            pages_per_sec = round(pages_crawled / max(total_duration, 0.001), 2)
+            db_time = getattr(self.storage, "total_db_write_time", 0.0)
+
+            # Section 21 exact RUN SUMMARY
+            summary_banner = (
+                f"\nRUN SUMMARY\n"
+                f"===========\n\n"
+                f"run_id: {self.crawl_id}\n\n"
+                f"pages_discovered: {stats.urls_discovered}\n"
+                f"pages_crawled: {pages_crawled}\n"
+                f"pages_skipped: {stats.urls_skipped}\n"
+                f"pages_failed: {stats.urls_failed}\n\n"
+                f"crawl_seconds: {self.pass_timings.get('P1_CRAWL', 0.0):.2f}\n"
+                f"signals_seconds: {self.pass_timings.get('P2_SIGNALS', 0.0):.2f}\n"
+                f"opportunity_seconds: {self.pass_timings.get('P3_SEARCH_OPPORTUNITIES', 0.0):.2f}\n"
+                f"laya_seconds: {self.pass_timings.get('P4_CALIBRATION', 0.0):.2f}\n"
+                f"work_order_seconds: {self.pass_timings.get('P5_WORK_ORDERS', 0.0):.2f}\n"
+                f"deliverable_seconds: {self.pass_timings.get('P6_DELIVERABLES', 0.0):.2f}\n\n"
+                f"laya_initializations: {laya_analyzer.initialization_count}\n"
+                f"laya_inference_calls: {laya_analyzer.inference_calls}\n"
+                f"laya_cache_hits: {laya_analyzer.cache_hits}\n"
+                f"laya_decisions: {laya_analyzer.decisions_count}\n"
+                f"laya_p50_ms: {p4_res.get('laya_summary', {}).get('p50_ms', 0):.1f}\n"
+                f"laya_p95_ms: {p4_res.get('laya_summary', {}).get('p95_ms', 0):.1f}\n"
+                f"laya_queue_drops: {p4_res.get('laya_summary', {}).get('queue_drops', 0)}\n\n"
+                f"db_write_seconds: {db_time:.2f}\n\n"
+                f"total_seconds: {total_duration:.2f}\n"
+                f"pages_per_second: {pages_per_sec:.2f}\n"
+            )
+            print(summary_banner)
+            logger.info(summary_banner)
 
             return {
                 "status": "completed",
@@ -757,7 +1017,8 @@ class SEOJEVPipeline:
                 "duration_seconds": total_duration,
                 "pass_timings": self.pass_timings,
                 "stats": stats,
-                "deliverables": p6_res
+                "deliverables": p6_res,
+                "laya_summary": p4_res.get("laya_summary", {})
             }
 
         except PipelineCancelledException as exc:

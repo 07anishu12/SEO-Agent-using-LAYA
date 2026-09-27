@@ -52,6 +52,26 @@ async def create_and_enqueue_run(
     target_url = site["url"]
     crawl_id = req.crawl_id or f"crawl_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
 
+    # Idempotency check: if run is already running, queued, or completed without fresh=True, return it
+    if req.crawl_id:
+        with ScopedQuery(org_id=org_id) as sq:
+            existing_run = sq.fetch_one("runs", where="id = %(id)s", params={"id": req.crawl_id})
+            if existing_run and (existing_run["status"] in ("running", "queued") or (existing_run["status"] == "completed" and not req.fresh)):
+                return RunResponse(
+                    id=existing_run["id"],
+                    org_id=existing_run["org_id"],
+                    site_id=existing_run["site_id"],
+                    status=existing_run["status"],
+                    started_at=existing_run.get("started_at"),
+                    finished_at=existing_run.get("finished_at"),
+                    progress_pct=float(existing_run.get("progress_pct") or (100.0 if existing_run["status"] == "completed" else 0.0)),
+                    current_pass=existing_run.get("current_pass") or ("COMPLETED" if existing_run["status"] == "completed" else "QUEUED"),
+                    urls_discovered=existing_run.get("urls_discovered") or 0,
+                    urls_crawled=existing_run.get("urls_crawled") or 0,
+                    urls_failed=existing_run.get("urls_failed") or 0,
+                    total_issues=existing_run.get("total_issues") or 0
+                )
+
     options = {
         "max_pages": req.max_pages or 50,
         "concurrency": req.concurrency or 2,

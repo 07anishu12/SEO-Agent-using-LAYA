@@ -23,6 +23,22 @@ class URLNormalizer:
         self.base_netloc = parsed.netloc.lower()
         # Handle www vs non-www
         self.clean_domain = re.sub(r"^www\.", "", self.base_netloc)
+        self.canonical_host: str = self.base_netloc
+        self.host_aliases: Set[str] = {self.base_netloc, self.clean_domain, f"www.{self.clean_domain}"}
+
+    def set_canonical_host(self, host: str):
+        """Sets canonical host and records previous host as alias."""
+        clean = host.lower().strip()
+        self.host_aliases.add(self.canonical_host)
+        self.host_aliases.add(clean)
+        self.canonical_host = clean
+
+    def add_host_alias(self, alias: str, canonical_host: Optional[str] = None):
+        """Registers a host alias to avoid redirect duplication."""
+        clean_alias = alias.lower().strip()
+        self.host_aliases.add(clean_alias)
+        if canonical_host:
+            self.set_canonical_host(canonical_host)
 
     def is_same_domain(self, url: str) -> bool:
         try:
@@ -30,6 +46,8 @@ class URLNormalizer:
             if not parsed.netloc:
                 return True  # relative url is same domain
             netloc = parsed.netloc.lower()
+            if netloc in self.host_aliases:
+                return True
             clean_netloc = re.sub(r"^www\.", "", netloc)
             return clean_netloc == self.clean_domain or clean_netloc.endswith("." + self.clean_domain)
         except Exception:
@@ -82,6 +100,8 @@ class URLNormalizer:
 
         scheme = parsed.scheme.lower()
         netloc = parsed.netloc.lower()
+        if netloc in self.host_aliases and self.canonical_host:
+            netloc = self.canonical_host
 
         # Path normalization: collapse multiple slashes
         path = parsed.path or "/"

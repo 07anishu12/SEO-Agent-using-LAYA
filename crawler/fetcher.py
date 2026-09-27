@@ -4,6 +4,7 @@ import random
 import urllib.parse
 from typing import List, Dict, Any, Optional
 import httpx
+from collections import deque
 
 class FetchResult:
     def __init__(
@@ -17,7 +18,8 @@ class FetchResult:
         redirect_chain: Optional[List[str]] = None,
         headers: Optional[Dict[str, str]] = None,
         text: str = "",
-        error: str = ""
+        error: str = "",
+        not_modified: bool = False
     ):
         self.url = url
         self.final_url = final_url or url
@@ -29,6 +31,7 @@ class FetchResult:
         self.headers = headers or {}
         self.text = text
         self.error = error
+        self.not_modified = not_modified
 
     @property
     def is_success(self) -> bool:
@@ -84,8 +87,8 @@ class AsyncFetcher:
         max_retries: int = 3,
         backoff_factor: float = 1.5,
         verify_ssl: bool = True,
-        max_connections: int = 20,
-        max_keepalive_connections: int = 15
+        max_connections: int = 100,
+        max_keepalive_connections: int = 80
     ):
         self.user_agent = user_agent
         self.timeout = timeout
@@ -100,6 +103,34 @@ class AsyncFetcher:
         self.circuit_breaker = CircuitBreaker()
         self.adaptive_delay_multiplier = 1.0
 
+        self._host_latencies: Dict[str, deque] = {}
+        self._host_concurrency: Dict[str, int] = {}
+        self._host_max_concurrency: Dict[str, int] = {}
+        self._etag_cache: Dict[str, str] = {}
+        self._last_modified_cache: Dict[str, str] = {}
+
+    def adjust_host_concurrency(self, host: str, latency_ms: float, status_code: int):
+        if host not in self._host_latencies:
+            self._host_latencies[host] = deque(maxlen=20)
+        self._host_latencies[host].append((latency_ms, status_code))
+        
+        if host not in self._host_max_concurrency:
+            self._host_max_concurrency[host] = min(self.limits.max_connections or 50, 30)
+            
+        if status_code == 429:
+            self._host_max_concurrency[host] = 1
+            return
+            
+        latencies = self._host_latencies[host]
+        if len(latencies) >= 5:
+            avg_latency = sum(l[0] for l in latencies) / len(latencies)
+            error_rate = sum(1 for l in latencies if l[1] >= 400) / len(latencies)
+            
+            if avg_latency < 200.0 and error_rate == 0:
+                self._host_max_concurrency[host] = min(self.limits.max_connections or 50, self._host_max_concurrency[host] + 2)
+            elif avg_latency > 1000.0 or error_rate > 0.2:
+                self._host_max_concurrency[host] = max(2, self._host_max_concurrency[host] - 2)
+
     async def get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             headers = {
@@ -113,7 +144,8 @@ class AsyncFetcher:
                 timeout=httpx.Timeout(self.timeout, connect=10.0),
                 limits=self.limits,
                 verify=self.verify_ssl,
-                follow_redirects=True
+                follow_redirects=True,
+                http2=True
             )
         return self._client
 
@@ -130,12 +162,28 @@ class AsyncFetcher:
         client = await self.get_client()
         redirect_chain: List[str] = []
 
+        req_headers = {}
+        if url in self._etag_cache:
+            req_headers["If-None-Match"] = self._etag_cache[url]
+        if url in self._last_modified_cache:
+            req_headers["If-Modified-Since"] = self._last_modified_cache[url]
+
         retries = 0
         while retries <= self.max_retries:
             start_time = time.monotonic()
             try:
-                response = await client.get(url)
+                response = await client.get(url, headers=req_headers)
                 duration = time.monotonic() - start_time
+                self.adjust_host_concurrency(host, duration * 1000, response.status_code)
+                
+                if response.status_code == 304:
+                    return FetchResult(
+                        url=url,
+                        final_url=url,
+                        status_code=304,
+                        response_time=round(duration, 3),
+                        not_modified=True
+                    )
 
                 if response.history:
                     for resp in response.history:
@@ -176,6 +224,12 @@ class AsyncFetcher:
 
                 content_type = response.headers.get("content-type", "").lower()
                 content_len = len(response.content) if response.content else 0
+
+                if response.status_code == 200:
+                    if "etag" in response.headers:
+                        self._etag_cache[url] = response.headers["etag"]
+                    if "last-modified" in response.headers:
+                        self._last_modified_cache[url] = response.headers["last-modified"]
 
                 return FetchResult(
                     url=url,

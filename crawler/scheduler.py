@@ -3,6 +3,7 @@ import time
 import heapq
 from typing import Set, Tuple, Optional, Dict, List
 from collections import deque
+import urllib.parse
 
 class CrawlScheduler:
     """Priority frontier scheduler with politeness rate limiting and adaptive throttling."""
@@ -20,6 +21,10 @@ class CrawlScheduler:
         # Priority min-heap storing (-priority_score, sequence_id, (url, discovery_source, depth))
         self._priority_heap: List[Tuple[float, int, Tuple[str, str, int]]] = []
         self._seq = 0
+        self._host_queues: Dict[str, deque] = {}
+        self._host_active: Dict[str, int] = {}
+        self._host_max_concurrency: Dict[str, int] = {}
+        self._dispatched: Set[str] = set()
 
         self.discovered_urls: Set[str] = set()
         self.crawled_urls: Set[str] = set()
@@ -72,31 +77,65 @@ class CrawlScheduler:
         score = self.calculate_priority(discovery_source, depth)
         
         self._seq += 1
+        item = (url, discovery_source, depth)
+        
+        host = urllib.parse.urlsplit(url).netloc
+        if host not in self._host_queues:
+            self._host_queues[host] = deque()
+        self._host_queues[host].append(item)
+        
         # Store negative score so heapq behaves as max-heap
-        heapq.heappush(self._priority_heap, (-score, self._seq, (url, discovery_source, depth)))
+        heapq.heappush(self._priority_heap, (-score, self._seq, item))
         return True
 
+    def mark_host_active(self, host: str):
+        self._host_active[host] = self._host_active.get(host, 0) + 1
+
+    def mark_host_done(self, host: str):
+        if self._host_active.get(host, 0) > 0:
+            self._host_active[host] -= 1
+
     def dequeue(self) -> Optional[Tuple[str, str, int]]:
-        """Dequeues highest priority URL."""
+        """Dequeues highest priority URL while respecting per-host active concurrency."""
         if not self.has_capacity():
             return None
 
-        if self._priority_heap:
-            _, _, item = heapq.heappop(self._priority_heap)
-            return item
-        return None
+        deferred = []
+        try:
+            # Check up to a bounded number of candidates to avoid thrashing the heap on busy hosts
+            max_checks = min(len(self._priority_heap), max(self.concurrency, 20))
+            for _ in range(max_checks):
+                if not self._priority_heap:
+                    break
+                score, seq, item = heapq.heappop(self._priority_heap)
+                url = item[0]
+                if url in self._dispatched:
+                    continue
+                host = urllib.parse.urlsplit(url).netloc
+                max_host_c = self._host_max_concurrency.get(host, min(self.concurrency, 40))
+                if host and self._host_active.get(host, 0) >= max_host_c:
+                    deferred.append((score, seq, item))
+                    continue
+                self._dispatched.add(url)
+                return item
+            return None
+        finally:
+            for d in deferred:
+                heapq.heappush(self._priority_heap, d)
 
     async def throttle(self, multiplier: float = 1.0):
-        """Cooperative rate limiter respecting adaptive multiplier."""
+        """Cooperative non-blocking rate limiter respecting adaptive multiplier and concurrency."""
         actual_delay = self.delay_seconds * max(multiplier, 1.0)
-        if actual_delay <= 0:
+        if actual_delay <= 0.001:
             return
         async with self._rate_lock:
             now = time.monotonic()
-            elapsed = now - self._last_request_time
-            if elapsed < actual_delay:
-                await asyncio.sleep(actual_delay - elapsed)
-            self._last_request_time = time.monotonic()
+            target_time = max(now, self._last_request_time + (actual_delay / max(self.concurrency, 1)))
+            wait_time = target_time - now
+            self._last_request_time = target_time
+
+        if wait_time > 0:
+            await asyncio.sleep(wait_time)
 
     def mark_crawled(self, url: str):
         self.crawled_urls.add(url)
