@@ -62,11 +62,15 @@ class SEOCrawler:
         self.normalizer = URLNormalizer(target_url)
         self.robots = RobotsParser(target_url, user_agent=crawl_cfg.get("user_agent", "SEOJEV-Bot"))
         self.sitemap_parser = SitemapParser(self.normalizer)
+        conn_limit = max(self.concurrency * 2, crawl_cfg.get("max_connections", 100))
+        keepalive_limit = max(int(self.concurrency * 1.5), crawl_cfg.get("max_keepalive_connections", 80))
         self.fetcher = AsyncFetcher(
             user_agent=crawl_cfg.get("user_agent", "SEOJEV-Bot/1.0"),
             timeout=crawl_cfg.get("timeout", 15.0),
             max_retries=crawl_cfg.get("max_retries", 3),
-            verify_ssl=crawl_cfg.get("verify_ssl", True)
+            verify_ssl=crawl_cfg.get("verify_ssl", True),
+            max_connections=conn_limit,
+            max_keepalive_connections=keepalive_limit
         )
         self.renderer = PlaywrightRenderer() if self.render_enabled else None
         self.scheduler = CrawlScheduler(
