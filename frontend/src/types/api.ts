@@ -100,3 +100,153 @@ export interface SSEProgressEvent {
   urls_discovered?: number;
   issues_found?: number;
 }
+
+// ---------------------------------------------------------------------------
+// Stage 7: Opportunities Models
+// ---------------------------------------------------------------------------
+export interface IceFactors {
+  visibility?: number;
+  gap?: number;
+  page_importance?: number;
+  template_scope?: number;
+  technical_severity?: number;
+  ctr_headroom?: number;
+  link_gap?: number;
+  [key: string]: any;
+}
+
+export interface Opportunity {
+  id: string;
+  org_id: string;
+  run_id: string;
+  site_id: string;
+  fingerprint: string;
+  display_id: string;
+  type?: string;
+  tier?: string;
+  confidence?: string;
+  effort?: string;
+  priority_score?: number;
+  factors_json?: IceFactors;
+  evidence_refs?: any[];
+  observation?: string;
+  diagnosis?: string;
+  hypothesis?: string;
+  action?: string;
+  implementation_location?: string;
+  affected_templates?: any[];
+  affected_urls_count: number;
+  sample_urls?: string[];
+  verification_spec?: string;
+  feedback?: "fixed" | "false_positive" | "accepted" | "wont_fix" | string | null;
+  created_at?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7: Templates Models
+// ---------------------------------------------------------------------------
+export interface TemplateSummary {
+  id: string;
+  org_id: string;
+  run_id: string;
+  site_id: string;
+  template_id: string;
+  page_type?: string;
+  page_count: number;
+  issue_count: number;
+  avg_word_count?: number;
+  avg_inlinks?: number;
+  structural_signature?: string;
+  sample_urls: string[];
+}
+
+export interface TemplateDetail {
+  template: TemplateSummary;
+  member_urls: string[];
+  associated_findings: Array<{
+    display_id: string;
+    rule_id?: string;
+    severity?: string;
+    priority?: string;
+    url?: string;
+    message?: string;
+    recommended_action?: string;
+  }>;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7: Blueprints Models
+// ---------------------------------------------------------------------------
+export interface BlueprintPage {
+  url: string;
+  template_id?: string;
+  page_type?: string;
+  status_code: number;
+  title?: string;
+  inlinks_count: number;
+  word_count: number;
+}
+
+export interface BlueprintDetail {
+  url: string;
+  run_id: string;
+  blueprint: Record<string, any>;
+  markdown?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7: GSC & Search Performance Models
+// ---------------------------------------------------------------------------
+export interface StrikingDistanceQuery {
+  query: string;
+  url: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface CannibalizationPage {
+  url: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface CannibalizationQuery {
+  query: string;
+  pages_count: number;
+  total_impressions: number;
+  total_clicks: number;
+  pages: CannibalizationPage[];
+}
+
+export interface QueryCluster {
+  cluster_name: string;
+  query_count: number;
+  clicks: number;
+  impressions: number;
+  avg_position: number;
+}
+
+export interface TrendBracket {
+  bracket: string;
+  impressions?: number;
+  clicks?: number;
+  query_count: number;
+}
+
+export interface GscData {
+  has_data: boolean;
+  total_queries: number;
+  total_clicks: number;
+  total_impressions: number;
+  avg_position: number;
+  striking_distance_count: number;
+  striking_distance_queries: StrikingDistanceQuery[];
+  cannibalization_queries: CannibalizationQuery[];
+  query_clusters: QueryCluster[];
+  impression_trends: TrendBracket[];
+  click_trends: TrendBracket[];
+}

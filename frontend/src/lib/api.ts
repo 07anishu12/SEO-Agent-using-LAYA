@@ -11,6 +11,12 @@ import {
   SignedDownloadResponse,
   SSEProgressEvent,
   User,
+  Opportunity,
+  TemplateSummary,
+  TemplateDetail,
+  BlueprintPage,
+  BlueprintDetail,
+  GscData,
 } from "@/types/api";
 
 const TOKEN_KEY = "seojev_access_token";
@@ -190,6 +196,97 @@ export async function getArtifactDownloadUrl(artifactId: string): Promise<Signed
 
 export async function getRunExportZipUrl(runId: string): Promise<SignedDownloadResponse> {
   return request<SignedDownloadResponse>(`/runs/${runId}/export.zip`);
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7: Opportunities & Feedback API
+// ---------------------------------------------------------------------------
+export interface OpportunityFilterParams {
+  tier?: string;
+  confidence?: string;
+  type?: string;
+  search?: string;
+  sort_by?: string;
+  order?: "asc" | "desc";
+}
+
+export async function getRunOpportunities(
+  runId: string,
+  filters: OpportunityFilterParams = {}
+): Promise<Opportunity[]> {
+  const params = new URLSearchParams();
+  if (filters.tier) params.set("tier", filters.tier);
+  if (filters.confidence) params.set("confidence", filters.confidence);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.sort_by) params.set("sort_by", filters.sort_by);
+  if (filters.order) params.set("order", filters.order);
+
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return request<Opportunity[]>(`/runs/${runId}/opportunities${query}`);
+}
+
+export async function getOpportunity(id: string): Promise<Opportunity> {
+  return request<Opportunity>(`/opportunities/${id}`);
+}
+
+export async function submitOpportunityFeedback(
+  opportunityId: string,
+  verdict: "fixed" | "false_positive" | "accepted" | "wont_fix",
+  note?: string
+): Promise<{ success: boolean; verdict: string }> {
+  return request<{ success: boolean; verdict: string }>(`/opportunities/${opportunityId}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({ verdict, note }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7: Templates API
+// ---------------------------------------------------------------------------
+export async function getRunTemplates(runId: string, search?: string): Promise<TemplateSummary[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  return request<TemplateSummary[]>(`/runs/${runId}/templates${query}`);
+}
+
+export async function getTemplateDetail(runId: string, templateId: string): Promise<TemplateDetail> {
+  return request<TemplateDetail>(`/runs/${runId}/templates/${encodeURIComponent(templateId)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7: Blueprints API
+// ---------------------------------------------------------------------------
+export async function getRunBlueprintPages(
+  runId: string,
+  search?: string,
+  templateId?: string
+): Promise<BlueprintPage[]> {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (templateId) params.set("template_id", templateId);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return request<BlueprintPage[]>(`/runs/${runId}/blueprints${query}`);
+}
+
+export async function getBlueprintDetail(runId: string, url: string): Promise<BlueprintDetail> {
+  return request<BlueprintDetail>(`/runs/${runId}/blueprints/detail?url=${encodeURIComponent(url)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7: Query / GSC API
+// ---------------------------------------------------------------------------
+export async function getRunGsc(runId: string): Promise<GscData> {
+  return request<GscData>(`/runs/${runId}/gsc`);
+}
+
+export async function importRunGsc(
+  runId: string,
+  payload: { csv_content?: string; generate_synthetic?: boolean; rows?: any[] }
+): Promise<any> {
+  return request<any>(`/runs/${runId}/gsc`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 // ---------------------------------------------------------------------------

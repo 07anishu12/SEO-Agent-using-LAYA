@@ -36,7 +36,7 @@ SEOJEV is structured across decoupled architectural layers that bridge high-thro
 flowchart TD
     subgraph Clients["Clients & Interfaces"]
         CLI["CLI Tool (main.py)"]
-        WebClient["Web UI & API Clients"]
+        NextJS["Next.js 14 Dashboard\n(Overview, Opportunities, Templates, Blueprints, GSC)"]
     end
 
     subgraph API["FastAPI Platform Service"]
@@ -45,6 +45,10 @@ flowchart TD
         SitesRouter["Sites Router (/sites)"]
         RunsRouter["Runs Router (/runs)"]
         ArtifactsRouter["Artifacts Router (/artifacts)"]
+        OppsRouter["Opportunities Router (/runs/{id}/opportunities)"]
+        TplsRouter["Templates Router (/runs/{id}/templates)"]
+        BpsRouter["Blueprints Router (/runs/{id}/blueprints)"]
+        GscRouter["Search Console Router (/runs/{id}/gsc)"]
     end
 
     subgraph Messaging["Redis Queue & Pub/Sub"]
@@ -70,15 +74,20 @@ flowchart TD
 
     subgraph Storage["Persistence & Object Storage"]
         Postgres[("PostgreSQL Multi-Tenant Database")]
+        SQLite[("Per-Run SQLite Store data/{id}.db")]
         MinIO[("MinIO / AWS S3 Object Storage")]
     end
 
     CLI --> CoreEngine
-    WebClient -->|HTTP / SSE| FastAPIApp
+    NextJS -->|HTTP / SSE| FastAPIApp
     FastAPIApp --> AuthModule
     FastAPIApp --> SitesRouter
     FastAPIApp --> RunsRouter
     FastAPIApp --> ArtifactsRouter
+    FastAPIApp --> OppsRouter
+    FastAPIApp --> TplsRouter
+    FastAPIApp --> BpsRouter
+    FastAPIApp --> GscRouter
 
     RunsRouter -->|Enqueue Run| Queue
     RunsRouter -->|Set Cancel Flag| CancelFlag
@@ -90,11 +99,16 @@ flowchart TD
     Worker -->|Execute Pipeline| CoreEngine
 
     CoreEngine -->|Post-Run ETL| Postgres
+    CoreEngine -->|Run-level State| SQLite
     Worker -->|Upload Artifacts| MinIO
     Worker -->|Record Metadata| Postgres
     ArtifactsRouter -->|Query Metadata| Postgres
     ArtifactsRouter -->|Generate Presigned URL| MinIO
-    WebClient -.->|Direct Download via Signed URL| MinIO
+    NextJS -.->|Direct Download via Signed URL| MinIO
+    OppsRouter -->|Read Opps & Save Feedback| Postgres
+    TplsRouter -->|Read Clusters & Findings| Postgres
+    BpsRouter -->|20-Dimension Generator| SQLite
+    GscRouter -->|Striking Distance & Cannibalization| SQLite
 ```
 
 ```
@@ -233,6 +247,13 @@ flowchart TD
    - `jira_import.json` & `jira_issues.csv`: Configured with Jira standard issue fields.
    - `linear_import.json`: Formatted for Linear batch import.
 
+### Use Case 5: Deep Diagnostic Exploration & Human Feedback Loop (Stage 7)
+1. **Root-Cause Diagnostic Exploration**: Analysts navigate to `/runs/[id]/opportunities` to view sortable, filterable opportunities. Expanding any card reveals the strict 6-phase reasoning chain (`Observation -> Evidence -> Diagnosis -> Hypothesis -> Action -> Verification`) alongside 7 numeric ICE factors (Visibility, Gap, Page Importance, Template Scope, Tech Severity, CTR Headroom, Link Gap).
+2. **Human-in-the-Loop Feedback**: Users submit feedback verdicts (`Fixed`, `False Positive`, `Accepted`, `Won't Fix`) directly from the UI, persisting into PostgreSQL `feedback` with tenant isolation and surviving browser reloads.
+3. **SimHash Template Architecture**: Users inspect clustered structural templates at `/runs/[id]/templates`, drilling into template detail views showing real affected member URLs and associated systemic findings.
+4. **20-Dimension Blueprint Inspector**: Users drill down into crawled URLs at `/runs/[id]/blueprints` and `/runs/[id]/blueprints/detail`, inspecting the engine's 20 diagnostic dimensions (Query Fit, Entity Coverage, Structured Data Schema, Internal Links, AEO/GEO readiness) or viewing rendered raw Markdown.
+5. **Search Performance & GSC Intelligence**: Users analyze striking-distance opportunities (positions 11–20), multi-page cannibalization risks, query topic clusters, and position bracket trend distributions at `/runs/[id]/gsc`, with explicit empty states when Search Console data is unconnected.
+
 ---
 
 ## 6. End-to-End Request Lifecycle & Data Flow
@@ -298,7 +319,11 @@ seojev/
 │   │   ├── auth.py         # /auth/register, /auth/login, /auth/api-keys
 │   │   ├── sites.py        # /sites CRUD (multi-tenant org-scoped)
 │   │   ├── runs.py         # /runs trigger, status, SSE progress, cancel, resume
-│   │   └── artifacts.py    # /artifacts/{id}/download (direct presigned URLs)
+│   │   ├── artifacts.py    # /artifacts/{id}/download (direct presigned URLs)
+│   │   ├── opportunities.py# /runs/{id}/opportunities & /opportunities/{id}/feedback
+│   │   ├── templates.py    # /runs/{id}/templates clustered templates & details
+│   │   ├── blueprints.py   # /runs/{id}/blueprints & 20-dimension blueprint generator
+│   │   └── gsc.py          # /runs/{id}/gsc query intelligence, striking distance, cannibalization
 │   ├── auth.py             # JWT bearer & API-key authentication dependencies
 │   ├── config.py           # Platform settings (PostgreSQL, Redis, S3/MinIO, JWT)
 │   ├── main.py             # FastAPI entrypoint with lifespan background worker
@@ -346,6 +371,20 @@ seojev/
 │   ├── csv_generator.py    # 26+ CSV audit inventory compiler
 │   ├── docx_generator.py   # 28-section Master Word audit report compiler
 │   └── html_explorer.py    # Single-file offline interactive HTML audit explorer
+├── frontend/               # Next.js 14 App Router Web Client (TypeScript + Tailwind)
+│   ├── src/app/            # App Router pages & navigation
+│   │   ├── login/          # /login authenticated sign-in
+│   │   ├── register/       # /register agency & user account registration
+│   │   ├── sites/          # /sites multi-tenant target site directory & modal
+│   │   ├── runs/           # /runs history & /runs/new audit run configuration
+│   │   └── runs/[id]/      # /runs/[id] run detail & real-data exploration suite
+│   │       ├── opportunities/ # Root-cause diagnostic chain & ICE factors
+│   │       ├── templates/     # Clustered templates & affected member URLs
+│   │       ├── blueprints/    # 20-dimension blueprint inspector & raw markdown
+│   │       └── gsc/           # Striking distance, cannibalization, & search trends
+│   ├── src/components/     # UI components (RunNavTabs, ProtectedRoute, etc.)
+│   ├── src/context/        # AuthContext session management
+│   └── src/lib/api.ts      # Authenticated API client & SSE subscriber
 ├── services/               # Platform services
 │   └── object_store.py     # S3 / MinIO client, presigned URLs, zip bundler
 ├── tests/                  # Automated test suites
@@ -353,7 +392,9 @@ seojev/
 │   ├── test_postgres_etl.py# Stage 2: PostgreSQL schema, ETL, idempotency, isolation
 │   ├── test_api_stage3.py  # Stage 3: FastAPI auth, sites CRUD, synchronous runs
 │   ├── test_stage4_queue.py# Stage 4: Redis queue, SSE stream, cancel, resume, retry
-│   └── test_stage5_artifacts.py # Stage 5: S3 upload, presigned URLs, expiry, zip bundle
+│   ├── test_stage5_artifacts.py # Stage 5: S3 upload, presigned URLs, expiry, zip bundle
+│   ├── test_stage6_frontend.py  # Stage 6: Next.js Frontend E2E Playwright tests
+│   └── test_stage7_exploration.py # Stage 7: Real-data exploration Playwright tests
 ├── main.py                 # CLI entrypoint supporting all audit & analysis flags
 └── requirements.txt        # Python package dependencies
 ```
@@ -379,7 +420,8 @@ seojev/
 | **Frontier Resumption** | **Implemented** | Clean resumption of cancelled crawls from SQLite queued URLs without recrawling or data loss. |
 | **Object Storage (S3 / MinIO)** | **Implemented** | Deliverables uploaded to `{org}/{site}/{run}/...`, direct presigned download URLs, `export.zip`. |
 | **Web Frontend (Next.js)** | **Implemented** | Next.js 14 App Router (TypeScript + Tailwind), JWT session auth, Sites CRUD, New Run Wizard, Live SSE telemetry, direct artifact downloads. |
-| **GSC / Live SERP Live Fetching** | *Partial* | GSC data schemas and simulated query integration implemented; live OAuth token sync planned. |
+| **Real-Data Exploration Suite** | **Implemented** | Stage 7 exploration screens: Opportunities with 6-stage diagnostic chains & ICE factors, Human-in-the-loop verdict persistence, SimHash Templates explorer with member URLs & findings, 20-Dimension Page Optimization Blueprint inspector, and Search Console intelligence with striking-distance targets, cannibalization detection, query clusters, and trend charts. |
+| **GSC / Live SERP Live Fetching** | *Partial* | Ingests real GSC CSV performance data, calculates striking distance/cannibalization/clusters/trends, generates synthetic datasets; live Google OAuth token sync planned. |
 
 ---
 
@@ -502,8 +544,8 @@ The repository features comprehensive automated test suites covering all archite
 # Increase file descriptor limit for concurrent crawler/browser tests on macOS
 ulimit -n 4096
 
-# Run all 28 platform and browser tests (Stages 1 through 6)
-PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py -v
+# Run all platform and browser tests (Stages 1 through 7)
+PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py tests/test_stage7_exploration.py -v
 
 # Run individual stage test suites
 PYTHONPATH=. pytest tests/test_pipeline.py -v         # Stage 1: Pipeline & cancellation
@@ -512,6 +554,7 @@ PYTHONPATH=. pytest tests/test_api_stage3.py -v       # Stage 3: Auth & Sites AP
 PYTHONPATH=. pytest tests/test_stage4_queue.py -v     # Stage 4: Redis Queue & SSE
 PYTHONPATH=. pytest tests/test_stage5_artifacts.py -v # Stage 5: Object Storage & Presigned URLs
 PYTHONPATH=. pytest tests/test_stage6_frontend.py -v  # Stage 6: Next.js Frontend E2E Playwright tests
+PYTHONPATH=. pytest tests/test_stage7_exploration.py -v # Stage 7: Real-data Exploration Playwright tests
 ```
 
 ---

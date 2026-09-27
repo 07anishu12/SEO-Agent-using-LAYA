@@ -13,6 +13,7 @@ import {
   subscribeRunProgress,
 } from "@/lib/api";
 import { Run, Artifact, SSEProgressEvent } from "@/types/api";
+import RunNavTabs from "@/components/RunNavTabs";
 import {
   ArrowLeft,
   Play,
@@ -328,6 +329,10 @@ export default function RunDetailPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="mt-6">
+            <RunNavTabs runId={runId} />
           </div>
         </div>
 
