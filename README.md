@@ -378,7 +378,7 @@ seojev/
 | **Server-Sent Events (SSE)** | **Implemented** | Real-time progress broadcasting via Redis pub/sub channel `run:{id}:progress`. |
 | **Frontier Resumption** | **Implemented** | Clean resumption of cancelled crawls from SQLite queued URLs without recrawling or data loss. |
 | **Object Storage (S3 / MinIO)** | **Implemented** | Deliverables uploaded to `{org}/{site}/{run}/...`, direct presigned download URLs, `export.zip`. |
-| **Web Frontend (Next.js)** | *Planned (Stage 6)* | Browser-based interactive dashboard, run monitoring, and visual graph exploration. |
+| **Web Frontend (Next.js)** | **Implemented** | Next.js 14 App Router (TypeScript + Tailwind), JWT session auth, Sites CRUD, New Run Wizard, Live SSE telemetry, direct artifact downloads. |
 | **GSC / Live SERP Live Fetching** | *Partial* | GSC data schemas and simulated query integration implemented; live OAuth token sync planned. |
 
 ---
@@ -387,10 +387,11 @@ seojev/
 
 ### Prerequisites
 * **Python 3.12+**
+* **Node.js 18+ & npm** (for Next.js frontend)
 * **PostgreSQL 14+** running locally or in Docker
 * **Redis 6+** running locally (`brew services start redis` or Docker)
 * **MinIO / AWS S3** running locally (`brew services start minio` or Docker)
-* **Playwright Browsers** (for client-side JavaScript rendering)
+* **Playwright Browsers** (for client-side JavaScript rendering & browser tests)
 
 ### Environment Variables
 Configure `.env` or export in your shell:
@@ -425,16 +426,22 @@ cd seojev
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 3. Install dependencies
+# 3. Install Python dependencies
 pip install -r requirements.txt
 pip install boto3 moto
 playwright install chromium
 
-# 4. Initialize PostgreSQL database and apply migrations
+# 4. Install Frontend dependencies & build
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 5. Initialize PostgreSQL database and apply migrations
 createdb seojev_test
 python -c "from database.migrator import PostgresMigrator; PostgresMigrator().run_migrations()"
 
-# 5. Start supporting services (macOS / Homebrew example)
+# 6. Start supporting services (macOS / Homebrew example)
 brew services start redis
 brew services start minio
 ```
@@ -473,13 +480,30 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 python -m jobs.worker
 ```
 
-### 3. Running the Comprehensive Test Suite
+### 3. Starting the Next.js Frontend Dashboard
+
+```bash
+cd frontend
+
+# Development server
+npm run dev
+
+# Production build and server
+npm run build
+npm start
+```
+Visit `http://localhost:3000` to access the interactive dashboard.
+
+### 4. Running the Comprehensive Test Suite
 
 The repository features comprehensive automated test suites covering all architectural layers:
 
 ```bash
-# Run all 23 platform regression tests (Stages 1 through 5)
-PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py -v
+# Increase file descriptor limit for concurrent crawler/browser tests on macOS
+ulimit -n 4096
+
+# Run all 28 platform and browser tests (Stages 1 through 6)
+PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py -v
 
 # Run individual stage test suites
 PYTHONPATH=. pytest tests/test_pipeline.py -v         # Stage 1: Pipeline & cancellation
@@ -487,6 +511,7 @@ PYTHONPATH=. pytest tests/test_postgres_etl.py -v     # Stage 2: Postgres ETL & 
 PYTHONPATH=. pytest tests/test_api_stage3.py -v       # Stage 3: Auth & Sites API
 PYTHONPATH=. pytest tests/test_stage4_queue.py -v     # Stage 4: Redis Queue & SSE
 PYTHONPATH=. pytest tests/test_stage5_artifacts.py -v # Stage 5: Object Storage & Presigned URLs
+PYTHONPATH=. pytest tests/test_stage6_frontend.py -v  # Stage 6: Next.js Frontend E2E Playwright tests
 ```
 
 ---
