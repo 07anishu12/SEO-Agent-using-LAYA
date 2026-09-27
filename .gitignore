@@ -44,4 +44,6 @@ data/*.db-shm
 logs/*.log
 reports/baseline/csv/
 reports/crawl_*/
+reports/test_*/
+data/site-profile.json
 store/

@@ -208,7 +208,8 @@ def test_e2e_site_run_pipeline_and_etl(client):
             "crawl_id": crawl_id,
             "max_pages": 50,
             "concurrency": 2,
-            "fresh": True
+            "fresh": True,
+            "sync": True
         }
         run_res = client.post("/runs", headers=headers, json=run_payload)
         assert run_res.status_code == 201, run_res.text

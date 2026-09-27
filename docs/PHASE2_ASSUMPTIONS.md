@@ -39,9 +39,11 @@
 ---
 
 ## 4. Job Queue & Orchestration (Stage 4)
-- **Assumption 4.1 (In-Process Library Invocation):** Celery/RQ workers import `SEOJEVPipeline` directly in Python. No shell subprocesses or CLI text scraping are used.
-- **Assumption 4.2 (Redis Pub/Sub SSE):** Progress events emitted by `progress_callback` publish directly to Redis channel `run:{run_id}:progress`, which the FastAPI SSE endpoint streams to the browser.
-- **Assumption 4.3 (Object Storage):** Deliverables (`.docx`, `.csv`, `.html`, `.zip`) are stored in S3/MinIO. Downloads are served via pre-signed expiring URLs rather than streaming large binaries through the API process.
+- **Assumption 4.1 (Redis Job Queue & In-Process Worker Architecture):** Background execution employs a Redis queue (`seojev:queue:runs`) with atomic `blpop` dequeueing managed by `RunQueue` and `RunWorker`. Crawls can be processed via dedicated standalone worker processes (`python -m jobs.worker`) or via FastAPI background lifespan tasks (`ENABLE_WORKER=true`), importing `SEOJEVPipeline` directly in Python without shell subprocesses or CLI scraping.
+- **Assumption 4.2 (Redis Pub/Sub SSE Streaming):** Progress events emitted by the pipeline `progress_callback` are published to Redis channel `run:{run_id}:progress` and stored in `run:{run_id}:last_progress`. The Server-Sent Events endpoint `GET /runs/{id}/progress` subscribes to this channel and streams chronological events to the client until a terminal state (`completed`, `cancelled`, `failed`, `needs_attention`) is reached.
+- **Assumption 4.3 (Cooperative Cancellation & Zero Partial ETL Guarantee):** Cancellation is triggered via `POST /runs/{id}/cancel` by setting the Redis key `run:{run_id}:cancel`. The crawler and pipeline check this cooperative flag between URLs and between passes. When cancelled mid-crawl, the crawler halts immediately, the pipeline exits via `PipelineCancelledException`, Postgres run status is set to `cancelled`, and ETL is skipped entirely—guaranteeing that 0 partial or corrupted records are written to PostgreSQL.
+- **Assumption 4.4 (Frontier Resumption Parity):** `POST /runs/{id}/resume` re-enqueues the job with `resume=True, fresh=False`. The crawler inspects the SQLite database, loads already crawled URLs into the scheduler's discovered set, and loads the remaining queued URLs from `storage.get_queued_urls`. When completed, the resumed run executes Stage-2 ETL and produces identical fingerprints and counts (e.g. 48 findings, 48 opportunities, 48 work orders, 6 templates) matching an uninterrupted run.
+- **Assumption 4.5 (Retry Policy & Failure Handling):** Transient execution failures trigger a single retry with a 1.0s backoff (`retrying`). If a run fails a second time, its status is permanently marked `needs_attention` with the error recorded, preventing indefinite retry loops.
 
 ---
 

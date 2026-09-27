@@ -1,14 +1,21 @@
 """
-Runs Router: Synchronous Pipeline Execution and Postgres Run Queries.
+Runs Router: Async Queue Enqueuing, SSE Progress Streaming, Cancellation, and Resume.
 """
-from datetime import datetime
+import asyncio
+import json
+import time
+from datetime import datetime, timezone
 from uuid import uuid4
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 
+import redis.asyncio as aioredis
+from api.config import REDIS_URL
+from database.connection import get_connection
 from database.scoped_query import ScopedQuery
-from database.etl import run_etl
-from engine.pipeline import SEOJEVPipeline
+from jobs.queue import RunQueue
+from jobs.worker import execute_run_task
 from ..auth import get_current_user
 from ..schemas import RunCreateRequest, RunResponse
 
@@ -16,14 +23,17 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 
 
 @router.post("", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
-async def create_and_execute_run(
+async def create_and_enqueue_run(
     req: RunCreateRequest,
+    sync: bool = False,
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Synchronously triggers a pipeline crawl run, runs Stage-2 ETL, and stores results in Postgres.
+    Enqueues an asynchronous crawl run job in the Redis queue and returns immediately with status 'queued'.
+    If sync=True (or req.sync=True), executes synchronously and returns the completed run.
     """
     org_id = current_user["org_id"]
+    is_sync = sync or bool(req.sync)
 
     # 1. Fetch site strictly scoped to org_id
     with ScopedQuery(org_id=org_id) as sq:
@@ -33,58 +43,116 @@ async def create_and_execute_run(
 
     target_url = site["url"]
     crawl_id = req.crawl_id or f"crawl_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
-    db_path = f"data/{crawl_id}.db"
-    reports_dir = f"reports/{crawl_id}/"
 
-    # 2. Synchronous Stage-1 pipeline invocation
-    pipeline = SEOJEVPipeline(
-        target_url=target_url,
-        crawl_id=crawl_id,
-        db_path=db_path,
-        output_dir=reports_dir,
-        options={
-            "max_pages": req.max_pages or 50,
-            "concurrency": req.concurrency or 2,
-            "render": req.render or False,
-            "fresh": req.fresh if req.fresh is not None else True,
-            "show_live_display": False
+    options = {
+        "max_pages": req.max_pages or 50,
+        "concurrency": req.concurrency or 2,
+        "render": req.render or False,
+        "fresh": req.fresh if req.fresh is not None else True,
+        "show_live_display": False
+    }
+    if req.options:
+        options.update(req.options)
+
+    queue = RunQueue(redis_url=REDIS_URL)
+
+    if is_sync:
+        # Record run as 'running' in Postgres
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO runs (
+                        id, org_id, site_id, status, progress_pct, current_pass,
+                        urls_discovered, urls_crawled, urls_failed, total_issues
+                    )
+                    VALUES (%s, %s, %s, 'running', 0.0, 'P1_CRAWL', 0, 0, 0, 0)
+                    ON CONFLICT (id) DO UPDATE SET
+                        status = 'running',
+                        progress_pct = 0.0,
+                        current_pass = 'P1_CRAWL'
+                    RETURNING id, org_id, site_id, status, started_at, finished_at,
+                              progress_pct, current_pass, urls_discovered, urls_crawled,
+                              urls_failed, total_issues;
+                    """,
+                    (crawl_id, org_id, req.site_id)
+                )
+            conn.commit()
+
+        job_data = {
+            "run_id": crawl_id,
+            "org_id": org_id,
+            "site_id": req.site_id,
+            "target_url": target_url,
+            "options": options
         }
-    )
-    pipeline_res = await pipeline.run_all()
+        task_res = await execute_run_task(job_data, queue)
 
-    # 3. Stage-2 ETL into PostgreSQL
-    etl_res = run_etl(
-        sqlite_db_path=db_path,
-        crawl_id=crawl_id,
-        org_id=org_id,
-        site_id=req.site_id
-    )
+        with ScopedQuery(org_id=org_id) as sq:
+            run_row = sq.fetch_one("runs", where="id = %(id)s", params={"id": crawl_id})
 
-    # 4. Fetch the newly populated run record from Postgres
-    with ScopedQuery(org_id=org_id) as sq:
-        run_row = sq.fetch_one("runs", where="id = %(id)s", params={"id": crawl_id})
-
-    if not run_row:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve completed run record from database"
+        return RunResponse(
+            id=run_row["id"],
+            org_id=run_row["org_id"],
+            site_id=run_row["site_id"],
+            status=run_row["status"],
+            started_at=run_row["started_at"],
+            finished_at=run_row["finished_at"],
+            progress_pct=float(run_row["progress_pct"] or 100.0),
+            current_pass=run_row["current_pass"],
+            urls_discovered=run_row["urls_discovered"] or 0,
+            urls_crawled=run_row["urls_crawled"] or 0,
+            urls_failed=run_row["urls_failed"] or 0,
+            total_issues=run_row["total_issues"] or 0,
+            counts=task_res.get("counts"),
+            deliverables=task_res.get("deliverables")
         )
 
+    # 2. Record run as 'queued' in Postgres
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO runs (
+                    id, org_id, site_id, status, progress_pct, current_pass,
+                    urls_discovered, urls_crawled, urls_failed, total_issues
+                )
+                VALUES (%s, %s, %s, 'queued', 0.0, 'QUEUED', 0, 0, 0, 0)
+                ON CONFLICT (id) DO UPDATE SET
+                    status = 'queued',
+                    progress_pct = 0.0,
+                    current_pass = 'QUEUED'
+                RETURNING id, org_id, site_id, status, started_at, finished_at,
+                          progress_pct, current_pass, urls_discovered, urls_crawled,
+                          urls_failed, total_issues;
+                """,
+                (crawl_id, org_id, req.site_id)
+            )
+            row = cur.fetchone()
+        conn.commit()
+
+    # 3. Enqueue job into Redis
+    queue.enqueue_run(
+        run_id=crawl_id,
+        org_id=org_id,
+        site_id=req.site_id,
+        target_url=target_url,
+        options=options
+    )
+
     return RunResponse(
-        id=run_row["id"],
-        org_id=run_row["org_id"],
-        site_id=run_row["site_id"],
-        status=run_row["status"],
-        started_at=run_row["started_at"],
-        finished_at=run_row["finished_at"],
-        progress_pct=float(run_row["progress_pct"] or 100.0),
-        current_pass=run_row["current_pass"],
-        urls_discovered=run_row["urls_discovered"] or 0,
-        urls_crawled=run_row["urls_crawled"] or 0,
-        urls_failed=run_row["urls_failed"] or 0,
-        total_issues=run_row["total_issues"] or 0,
-        counts=etl_res.get("counts"),
-        deliverables=pipeline_res.get("deliverables")
+        id=row["id"],
+        org_id=row["org_id"],
+        site_id=row["site_id"],
+        status="queued",
+        started_at=row["started_at"],
+        finished_at=row["finished_at"],
+        progress_pct=0.0,
+        current_pass="QUEUED",
+        urls_discovered=0,
+        urls_crawled=0,
+        urls_failed=0,
+        total_issues=0
     )
 
 
@@ -165,3 +233,187 @@ def get_run(
             "templates": tpls_cnt
         }
     )
+
+
+@router.get("/{id}/progress")
+async def stream_run_progress(
+    id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Server-Sent Events endpoint subscribing to Redis pub/sub channel run:{id}:progress.
+    Streams events until the run reaches a terminal state.
+    """
+    org_id = current_user["org_id"]
+    with ScopedQuery(org_id=org_id) as sq:
+        run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+    if not run:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+    async def event_generator():
+        r = aioredis.from_url(REDIS_URL, decode_responses=True)
+        pubsub = r.pubsub()
+        await pubsub.subscribe(f"run:{id}:progress")
+
+        try:
+            # Check if run already finalized
+            with ScopedQuery(org_id=org_id) as sq:
+                current_run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+            curr_status = current_run["status"] if current_run else "unknown"
+
+            if curr_status in ("completed", "cancelled", "failed", "needs_attention"):
+                payload = {
+                    "run_id": id,
+                    "status": curr_status,
+                    "pct": float(current_run.get("progress_pct") or 100.0),
+                    "message": f"Run is already in terminal state '{curr_status}'"
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+                return
+
+            init_payload = {
+                "run_id": id,
+                "status": curr_status,
+                "pct": float(current_run.get("progress_pct") or 0.0),
+                "message": f"Subscribed to progress stream for run {id}"
+            }
+            yield f"data: {json.dumps(init_payload)}\n\n"
+
+            # Stream incoming events from pub/sub
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message and message.get("data"):
+                    raw = message["data"]
+                    yield f"data: {raw}\n\n"
+                    try:
+                        parsed = json.loads(raw)
+                        if parsed.get("status") in ("completed", "cancelled", "failed", "needs_attention"):
+                            break
+                    except Exception:
+                        pass
+                else:
+                    # Check DB state periodically to guard against missed events
+                    with ScopedQuery(org_id=org_id) as sq:
+                        check_run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+                    if check_run and check_run["status"] in ("completed", "cancelled", "failed", "needs_attention"):
+                        terminal_payload = {
+                            "run_id": id,
+                            "status": check_run["status"],
+                            "pct": float(check_run.get("progress_pct") or 100.0),
+                            "message": f"Run reached terminal state '{check_run['status']}'"
+                        }
+                        yield f"data: {json.dumps(terminal_payload)}\n\n"
+                        break
+                    yield ": ping\n\n"
+        finally:
+            try:
+                await pubsub.unsubscribe(f"run:{id}:progress")
+                await r.aclose()
+            except Exception:
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/{id}/cancel")
+async def cancel_run(
+    id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Sets the cooperative cancellation flag in Redis and confirms the run has stopped.
+    """
+    org_id = current_user["org_id"]
+    with ScopedQuery(org_id=org_id) as sq:
+        run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+    if not run:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+    queue = RunQueue(redis_url=REDIS_URL)
+    queue.request_cancellation(id)
+
+    if run["status"] == "queued":
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE runs SET status = 'cancelled', finished_at = %s WHERE id = %s",
+                    (datetime.now(timezone.utc), id)
+                )
+            conn.commit()
+        queue.publish_progress(id, {
+            "run_id": id,
+            "status": "cancelled",
+            "pct": 0.0,
+            "message": "Run cancelled while queued."
+        })
+        return {"status": "cancelled", "run_id": id}
+
+    # Poll for terminal state confirmation
+    final_status = run["status"]
+    poll_start = time.time()
+    while time.time() - poll_start < 10.0:
+        with ScopedQuery(org_id=org_id) as sq:
+            current_run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+        if current_run and current_run["status"] in ("cancelled", "completed", "failed", "needs_attention"):
+            final_status = current_run["status"]
+            break
+        await asyncio.sleep(0.1)
+
+    return {"status": final_status, "run_id": id}
+
+
+@router.post("/{id}/resume")
+async def resume_run(
+    id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Re-enqueues a run using the existing resumable frontier.
+    """
+    org_id = current_user["org_id"]
+    with ScopedQuery(org_id=org_id) as sq:
+        run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+        if not run:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+        site = sq.fetch_one("sites", where="id = %(id)s", params={"id": run["site_id"]})
+        if not site:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
+
+    # Clear cancellation flag
+    queue = RunQueue(redis_url=REDIS_URL)
+    queue.clear_cancellation(id)
+
+    # Re-enqueue with resumable options
+    options = {
+        "resume": True,
+        "fresh": False,
+        "max_pages": 50,
+        "concurrency": 2,
+        "show_live_display": False
+    }
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE runs SET status = 'queued', current_pass = 'RESUMING' WHERE id = %s",
+                (id,)
+            )
+        conn.commit()
+
+    queue.enqueue_run(
+        run_id=id,
+        org_id=org_id,
+        site_id=run["site_id"],
+        target_url=site["url"],
+        options=options
+    )
+
+    return {"status": "queued", "run_id": id, "resumed": True}

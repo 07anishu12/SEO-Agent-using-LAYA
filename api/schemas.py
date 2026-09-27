@@ -81,6 +81,8 @@ class RunCreateRequest(BaseModel):
     concurrency: Optional[int] = 2
     render: Optional[bool] = False
     fresh: Optional[bool] = True
+    sync: Optional[bool] = False
+    options: Optional[Dict[str, Any]] = None
 
 
 class RunResponse(BaseModel):

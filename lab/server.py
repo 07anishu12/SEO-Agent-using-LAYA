@@ -3,6 +3,7 @@ Local HTTP Server serving the synthetic defect testbench site for testing and re
 """
 import threading
 import urllib.parse
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Optional
 from lab.site_generator import SyntheticSiteGenerator
@@ -10,12 +11,15 @@ from lab.site_generator import SyntheticSiteGenerator
 
 class SyntheticSiteHandler(BaseHTTPRequestHandler):
     generator: Optional[SyntheticSiteGenerator] = None
+    delay_sec: float = 0.0
 
     def log_message(self, format, *args):
         # Silence console log noise during test and crawler execution
         pass
 
     def do_GET(self):
+        if self.delay_sec > 0:
+            time.sleep(self.delay_sec)
         if not self.generator:
             self.send_response(500)
             self.end_headers()
@@ -119,9 +123,10 @@ class SyntheticSiteHandler(BaseHTTPRequestHandler):
 
 
 class SyntheticSiteServer:
-    def __init__(self, host: str = "127.0.0.1", port: int = 8899):
+    def __init__(self, host: str = "127.0.0.1", port: int = 8899, delay_sec: float = 0.0):
         self.host = host
         self.port = port
+        self.delay_sec = delay_sec
         self.base_url = f"http://{host}:{port}"
         self.generator = SyntheticSiteGenerator(base_url=self.base_url)
         self.server: Optional[HTTPServer] = None
@@ -130,6 +135,7 @@ class SyntheticSiteServer:
     def start(self):
         handler = SyntheticSiteHandler
         handler.generator = self.generator
+        handler.delay_sec = self.delay_sec
         self.server = HTTPServer((self.host, self.port), handler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()

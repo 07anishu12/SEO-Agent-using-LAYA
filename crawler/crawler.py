@@ -155,10 +155,14 @@ class SEOCrawler:
 
         # If resume mode, load previously queued URLs from database
         if self.resume:
+            crawled_db = self.storage.get_crawled_urls(self.crawl_id)
+            for u in crawled_db:
+                self.scheduler.discovered_urls.add(u)
+                self.scheduler.crawled_urls.add(u)
             queued_db = self.storage.get_queued_urls(self.crawl_id, limit=self.max_pages)
             for u, src, d in queued_db:
                 self.scheduler.enqueue(u, discovery_source=src, depth=d)
-            self.console.print(f"[cyan]Resuming crawl: loaded {len(queued_db)} queued URLs from database.[/cyan]")
+            self.console.print(f"[cyan]Resuming crawl: loaded {len(queued_db)} queued URLs from database ({len(crawled_db)} already crawled).[/cyan]")
 
     def _render_progress_panel(self) -> Panel:
         elapsed = max(time.monotonic() - self.start_time, 0.1)

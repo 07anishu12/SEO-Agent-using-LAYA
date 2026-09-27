@@ -327,6 +327,14 @@ class CrawlStorage:
             WHERE crawl_id = ? AND status IN ('discovered', 'queued') 
             ORDER BY depth ASC, rowid ASC LIMIT ?
             """, (crawl_id, limit)).fetchall()
+            return [(r[0], r[1], r[2]) for r in rows]
+
+    def get_crawled_urls(self, crawl_id: str) -> List[str]:
+        """Returns list of URLs that have already been crawled."""
+        with self._lock, self._get_connection() as conn:
+            rows = conn.execute("SELECT url FROM urls WHERE crawl_id = ? AND status = 'crawled'", (crawl_id,)).fetchall()
+            return [r[0] for r in rows]
+
     def save_fetch(
         self,
         run_id: str,

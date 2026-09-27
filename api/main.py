@@ -1,15 +1,28 @@
-"""
-FastAPI Main Application Entrypoint for SEOJEV Platform.
-"""
+import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from jobs.worker import RunWorker
 from .routers import auth, sites, runs
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    worker = None
+    if os.environ.get("ENABLE_WORKER", "true").lower() in ("true", "1", "yes"):
+        worker = RunWorker()
+        worker.start_background()
+    yield
+    if worker:
+        worker.stop()
+
 
 app = FastAPI(
     title="SEOJEV Platform API",
     version="2.0.0",
-    description="FastAPI Backend for SEOJEV Search Intelligence Platform"
+    description="FastAPI Backend for SEOJEV Search Intelligence Platform",
+    lifespan=lifespan
 )
 
 # CORS Configuration
