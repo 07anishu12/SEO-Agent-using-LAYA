@@ -185,6 +185,18 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
         except Exception as notify_err:
             logger.warning(f"Failed to dispatch run.completed notification: {notify_err}")
 
+        # Stage 10a: Record Historical Trends
+        try:
+            from services.trends import record_run_trends
+            record_run_trends(
+                org_id=org_id,
+                site_id=site_id,
+                run_id=run_id,
+                counts_override=etl_result.get("counts")
+            )
+        except Exception as trend_err:
+            logger.warning(f"Failed to record historical trends for run {run_id}: {trend_err}")
+
         queue.publish_progress(run_id, {
             "run_id": run_id,
             "status": "completed",

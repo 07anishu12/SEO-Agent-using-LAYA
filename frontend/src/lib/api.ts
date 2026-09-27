@@ -26,6 +26,8 @@ import {
   WatchConfigRequest,
   Alert,
   AlertListResponse,
+  SiteTrendsResponse,
+  TrendPoint,
 } from "@/types/api";
 
 const TOKEN_KEY = "seojev_access_token";
@@ -485,5 +487,21 @@ export async function resolveAlert(siteId: string, alertId: string): Promise<Ale
     body: JSON.stringify({ status: "resolved" }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Stage 10a: Historical Trends API
+// ---------------------------------------------------------------------------
+export async function getSiteTrends(
+  siteId: string,
+  params?: { metric?: string; start_date?: string; end_date?: string }
+): Promise<SiteTrendsResponse> {
+  const query = new URLSearchParams();
+  if (params?.metric) query.set("metric", params.metric);
+  if (params?.start_date) query.set("start_date", params.start_date);
+  if (params?.end_date) query.set("end_date", params.end_date);
+  const qs = query.toString();
+  return request<SiteTrendsResponse>(`/sites/${siteId}/trends${qs ? `?${qs}` : ""}`);
+}
+
 
 

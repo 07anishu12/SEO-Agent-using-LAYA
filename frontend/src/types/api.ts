@@ -401,4 +401,25 @@ export interface AlertListResponse {
   total: number;
 }
 
+// ---------------------------------------------------------------------------
+// Stage 10a: Historical Trend Models
+// ---------------------------------------------------------------------------
+export interface TrendPoint {
+  id: string;
+  run_id?: string;
+  date: string;
+  value: number;
+  created_at?: string;
+}
+
+export interface SiteTrendsResponse {
+  site_id: string;
+  trends: {
+    issue_count?: TrendPoint[];
+    opportunity_count?: TrendPoint[];
+    [metric: string]: TrendPoint[] | undefined;
+  };
+}
+
+
 

@@ -187,3 +187,20 @@ class AlertListResponse(BaseModel):
 class AlertUpdateRequest(BaseModel):
     status: str = "resolved"
 
+
+# ---------------------------------------------------------------------------
+# Stage 10a: Historical Trends Schemas
+# ---------------------------------------------------------------------------
+class TrendPoint(BaseModel):
+    id: str
+    run_id: Optional[str] = None
+    date: str
+    value: float
+    created_at: Optional[str] = None
+
+
+class SiteTrendsResponse(BaseModel):
+    site_id: str
+    trends: Dict[str, List[TrendPoint]]
+
+

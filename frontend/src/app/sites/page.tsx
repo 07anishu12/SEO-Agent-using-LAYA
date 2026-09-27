@@ -15,6 +15,7 @@ import {
   Layers,
   Calendar,
   Bell,
+  TrendingUp,
 } from "lucide-react";
 
 export default function SitesPage() {
@@ -181,29 +182,29 @@ export default function SitesPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between gap-2">
+                <div className="mt-6 pt-4 border-t border-slate-800 grid grid-cols-3 gap-2">
+                  <Link
+                    href={`/sites/${site.id}/trends`}
+                    className="flex items-center justify-center space-x-1 py-2 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold border border-slate-700/60 transition"
+                  >
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    <span>Trends</span>
+                  </Link>
+
                   <Link
                     href={`/sites/${site.id}/watch`}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-semibold border border-slate-700/60 transition"
+                    className="flex items-center justify-center space-x-1 py-2 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-semibold border border-slate-700/60 transition"
                   >
                     <Bell className="w-3.5 h-3.5" />
-                    <span>Watch & Alerts</span>
+                    <span>Watch</span>
                   </Link>
 
                   <Link
                     href={`/runs?site_id=${site.id}`}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition"
+                    className="flex items-center justify-center space-x-1 py-2 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition"
                   >
                     <History className="w-3.5 h-3.5" />
                     <span>Runs</span>
-                  </Link>
-
-                  <Link
-                    href={`/runs/new?site_id=${site.id}`}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-sm transition"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>New Run</span>
                   </Link>
                 </div>
               </div>

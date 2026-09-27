@@ -1,7 +1,7 @@
 """
 API Routers Package.
 """
-from . import auth, sites, runs, artifacts, opportunities, templates, blueprints, gsc, work_orders, diff, watch, alerts
+from . import auth, sites, runs, artifacts, opportunities, templates, blueprints, gsc, work_orders, diff, watch, alerts, trends
 
 __all__ = [
     "auth",
@@ -15,5 +15,6 @@ __all__ = [
     "work_orders",
     "diff",
     "watch",
-    "alerts"
+    "alerts",
+    "trends"
 ]
