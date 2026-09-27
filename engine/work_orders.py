@@ -173,27 +173,34 @@ class WorkOrderManager:
             "labels": ["seo", wo['order_type'], f"priority-{wo['priority'].lower()}"],
         }
 
-    def export_jira_issue(self, wo: Dict[str, Any]) -> Dict[str, Any]:
-        """Formats work order for Jira Cloud API."""
+    def export_jira_issue(self, wo: Dict[str, Any], project_key: str = "SEO") -> Dict[str, Any]:
+        """Formats work order for Jira Cloud REST API (POST /rest/api/2/issue or /rest/api/3/issue)."""
+        p_name = "Highest" if wo['priority'] == "P0" else ("High" if wo['priority'] == "P1" else "Medium")
+        itype = "Task" if wo['order_type'] == "engineering" else "Story"
         return {
             "fields": {
-                "project": {"key": "SEO"},
+                "project": {"key": project_key},
                 "summary": f"[{wo['display_id']}] {wo['title']}",
                 "description": self.export_markdown(wo),
-                "issuetype": {"name": "Task" if wo['order_type'] == "engineering" else "Story"},
-                "priority": {"name": "Highest" if wo['priority'] == "P0" else ("High" if wo['priority'] == "P1" else "Medium")},
-                "labels": ["seojev", wo['order_type'], wo['priority']]
+                "issuetype": {"name": itype},
+                "priority": {"name": p_name},
+                "labels": ["seojev", wo['order_type'], wo['priority'].lower()]
             }
         }
 
-    def export_linear_issue(self, wo: Dict[str, Any]) -> Dict[str, Any]:
-        """Formats work order for Linear API."""
+    def export_linear_issue(self, wo: Dict[str, Any], team_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Formats work order for Linear GraphQL issue creation mutation:
+        mutation IssueCreate($input: IssueCreateInput!)
+        Requires teamId (UUID or team key) and integer priority scale (1=Urgent..4=Low).
+        """
         p_map = {"P0": 1, "P1": 2, "P2": 3, "P3": 4}
+        resolved_team_id = team_id or os.getenv("LINEAR_TEAM_ID", "SEO")
         return {
+            "teamId": resolved_team_id,
             "title": f"[{wo['display_id']}] {wo['title']}",
             "description": self.export_markdown(wo),
-            "priority": p_map.get(wo['priority'], 3),
-            "labels": ["SEO", wo['order_type'].capitalize()]
+            "priority": p_map.get(wo['priority'], 3)
         }
 
     def export_all_tickets(self, run_id: str, output_dir: str) -> Dict[str, int]:

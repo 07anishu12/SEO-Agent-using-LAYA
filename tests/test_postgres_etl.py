@@ -182,14 +182,72 @@ async def test_etl_correctness_against_baseline():
                 pass
 
 
+def resolve_populated_crawl(sqlite_db_path="data/seo.db") -> tuple[str, str]:
+    """
+    Resolves a crawl_id with populated work_orders, findings, opportunities, and templates.
+    Fails fast with a clear setup-time precondition assertion (Option 6b) rather than
+    failing deep inside tests. If static file lacks populated data, dynamically generates
+    a self-contained test fixture (Option 6a).
+    """
+    if os.path.exists(sqlite_db_path):
+        with sqlite3.connect(sqlite_db_path) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT w.run_id
+                FROM work_orders w
+                WHERE w.run_id IN (SELECT DISTINCT run_id FROM findings)
+                GROUP BY w.run_id
+                HAVING count(*) > 0
+                ORDER BY count(*) ASC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            if row:
+                crawl_id = row[0]
+                cur.execute("SELECT count(*) FROM work_orders WHERE run_id = ?", (crawl_id,))
+                w_count = cur.fetchone()[0]
+                assert w_count > 0, (
+                    f"Fixture missing expected data: crawl_id '{crawl_id}' in '{sqlite_db_path}' has {w_count} work_orders. "
+                    "Precondition requires populated work_orders."
+                )
+                return sqlite_db_path, crawl_id
+
+    # Option 6a: Generate self-contained populated fixture
+    fixture_db = "data/test_fixture_populated.db"
+    fixture_crawl = "crawl_fixture_auto"
+    import asyncio
+    port = 8913
+    server = SyntheticSiteServer(port=port)
+    server.start()
+    try:
+        pipeline = SEOJEVPipeline(
+            target_url=f"http://127.0.0.1:{port}/",
+            crawl_id=fixture_crawl,
+            db_path=fixture_db,
+            output_dir="reports/fixture_auto/",
+            options={"max_pages": 30, "concurrency": 2, "fresh": True, "show_live_display": False}
+        )
+        asyncio.run(pipeline.run_all())
+    finally:
+        server.stop()
+    return fixture_db, fixture_crawl
+
+
 def test_etl_idempotency():
     """
     Idempotency test: Run ETL twice on the same run_id; assert row counts
     are unchanged the second time.
     """
-    crawl_id = "crawl_20260926_223133"
+    sqlite_db_path, crawl_id = resolve_populated_crawl()
     org_id = "org_test_idempotency"
-    sqlite_db_path = "data/seo.db"
+
+    # Precondition assertion (Option 6b)
+    with sqlite3.connect(sqlite_db_path) as s_conn:
+        pre_wos = s_conn.execute("SELECT count(*) FROM work_orders WHERE run_id = ?", (crawl_id,)).fetchone()[0]
+        assert pre_wos > 0, (
+            f"Fixture missing expected data: '{crawl_id}' in '{sqlite_db_path}' has 0 work_orders. "
+            "Precondition requires populated work_orders table."
+        )
 
     # First ETL run
     res1 = run_etl(
@@ -232,11 +290,17 @@ def test_multi_tenant_isolation():
     Isolation test: Insert two orgs' data, query as org A,
     assert zero rows from org B ever appear.
     """
-    crawl_id_a = "crawl_20260926_223133"
+    sqlite_db_path, crawl_id_a = resolve_populated_crawl()
     crawl_id_b = "crawl_20260923_234236"
     org_a = "org_alpha_tenant"
     org_b = "org_beta_tenant"
-    sqlite_db_path = "data/seo.db"
+
+    # Precondition assertion
+    with sqlite3.connect(sqlite_db_path) as s_conn:
+        pre_wos = s_conn.execute("SELECT count(*) FROM work_orders WHERE run_id = ?", (crawl_id_a,)).fetchone()[0]
+        assert pre_wos > 0, (
+            f"Fixture missing expected data: '{crawl_id_a}' in '{sqlite_db_path}' has 0 work_orders."
+        )
 
     # Ingest distinct dataset runs for each org under their isolated tenant namespaces
     run_etl(sqlite_db_path=sqlite_db_path, crawl_id=crawl_id_a, org_id=org_a, db_url=TEST_DB_URL)

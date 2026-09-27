@@ -30,6 +30,7 @@ import pytest
 from playwright.async_api import async_playwright
 
 from database.migrator import PostgresMigrator
+from engine.ticket_schemas import validate_ticket_export
 from lab.server import SyntheticSiteServer
 from services.object_store import get_storage_service
 
@@ -329,8 +330,8 @@ async def test_snapshot_diff_viewer_with_planted_change(
     base = site_server.generator.base_url.rstrip("/")
     blaze_url = f"{base}/bikes/blaze-125"
 
-    # Step 2: Plant known change on SyntheticSiteServer:
-    # In baseline it was 500. Now fix it: return HTTP 200, proper title, h1 and canonical!
+    # Step 2: Plant known changes on SyntheticSiteServer:
+    # 2a. FIXED: In baseline /bikes/blaze-125 was status 500 with missing title. Fix it to HTTP 200 with title!
     site_server.generator.pages[blaze_url] = {
         "url": blaze_url,
         "status_code": 200,
@@ -342,6 +343,26 @@ async def test_snapshot_diff_viewer_with_planted_change(
         <link rel="canonical" href="{blaze_url}" /></head>
         <body><h1>Blaze 125 Scooter</h1>
         <p>Blaze 125 scooter price starting 85,000. Real-world mileage 50 kmpl with digital instrument cluster.</p>
+        <a href="{base}/">Home</a>
+        <a href="{base}/bikes">Bikes</a>
+        </body></html>
+        """,
+        "page_type": "model",
+    }
+
+    # 2b. IMPROVED: In baseline /bikes/thunder-250 was status 200. Keep status 200 but optimize title and content!
+    thunder_url = f"{base}/bikes/thunder-250"
+    site_server.generator.pages[thunder_url] = {
+        "url": thunder_url,
+        "status_code": 200,
+        "title": "Thunder 250 Cruiser - Updated Optimized Title",
+        "h1": "Thunder 250 Cruiser",
+        "html": f"""
+        <html><head><title>Thunder 250 Cruiser - Updated Optimized Title</title>
+        <meta name="description" content="Updated optimized technical description for Thunder 250 cruiser motorcycle." />
+        <link rel="canonical" href="{thunder_url}" /></head>
+        <body><h1>Thunder 250 Cruiser</h1>
+        <p>Thunder 250 updated cruiser motorcycle details with improved content.</p>
         <a href="{base}/">Home</a>
         <a href="{base}/bikes">Bikes</a>
         </body></html>
@@ -373,16 +394,26 @@ async def test_snapshot_diff_viewer_with_planted_change(
         assert diff_resp.status_code == 200, diff_resp.text
         diff_data = diff_resp.json()
 
-        # Engine must classify the planted change as FIXED
+        # Engine must classify both planted changes
         assert diff_data["summary"]["FIXED"] >= 1, f"Expected at least 1 FIXED change, got {diff_data['summary']}"
+        assert diff_data["summary"]["IMPROVED"] >= 1, f"Expected at least 1 IMPROVED change, got {diff_data['summary']}"
 
-        # Find blaze_url diff entry
         all_diffs = diff_data["differences"]
-        planted_diff = next((d for d in all_diffs if "blaze-125" in d["url"]), None)
-        assert planted_diff is not None, f"Planted change URL not found in diffs: {[d['url'] for d in all_diffs]}"
-        assert planted_diff["category"] == "FIXED", f"Expected category FIXED, got {planted_diff['category']}"
-        assert any("500 to 200" in f or "Title tag" in f for f in planted_diff["details"].get("fixes", [])), (
-            f"Expected fix detail regarding status 500 resolution or title: {planted_diff['details']}"
+
+        # 4a. Verify FIXED entry
+        planted_fixed = next((d for d in all_diffs if "blaze-125" in d["url"]), None)
+        assert planted_fixed is not None, f"Planted FIXED URL not found in diffs: {[d['url'] for d in all_diffs]}"
+        assert planted_fixed["category"] == "FIXED", f"Expected category FIXED, got {planted_fixed['category']}"
+        assert any("500 to 200" in f or "Title tag" in f for f in planted_fixed["details"].get("fixes", [])), (
+            f"Expected fix detail regarding status 500 resolution or title: {planted_fixed['details']}"
+        )
+
+        # 4b. Verify IMPROVED entry
+        planted_improved = next((d for d in all_diffs if "thunder-250" in d["url"]), None)
+        assert planted_improved is not None, f"Planted IMPROVED URL not found in diffs: {[d['url'] for d in all_diffs]}"
+        assert planted_improved["category"] == "IMPROVED", f"Expected category IMPROVED, got {planted_improved['category']}"
+        assert any("Title updated" in imp for imp in planted_improved["details"].get("improvements", [])), (
+            f"Expected improvement detail regarding title update: {planted_improved['details']}"
         )
 
         # Confirm template grouping
@@ -403,13 +434,19 @@ async def test_snapshot_diff_viewer_with_planted_change(
             timeout=10000,
         )
         fixed_card = page.locator("[data-testid='fixed-count']")
-        fixed_count_text = await fixed_card.first.text_content()
-        assert int(fixed_count_text or "0") >= 1
+        assert int(await fixed_card.first.text_content() or "0") >= 1
 
-        # Assert affected URL appears under template section
+        improved_card = page.locator("[data-testid='improved-count']")
+        assert int(await improved_card.first.text_content() or "0") >= 1
+
+        # Assert affected URLs appear under template section
         await page.wait_for_selector("text=blaze-125", timeout=5000)
-        # Assert FIXED badge is rendered
         await page.wait_for_selector("span:has-text('Fixed')", timeout=5000)
+
+        # Filter by IMPROVED and assert improved item renders
+        await improved_card.first.click()
+        await page.wait_for_selector("text=thunder-250", timeout=5000)
+        await page.wait_for_selector("span:has-text('Improved')", timeout=5000)
 
         await browser.close()
 
@@ -532,7 +569,7 @@ async def test_work_order_export_github_jira_linear(
         target_wo = wos[0]
         wo_id = target_wo["id"]
 
-        # 1. GitHub Export
+        # 1. GitHub Export — Validate against GitHub REST API Issue Creation Schema
         gh_resp = await client.post(
             f"{api_server}/work-orders/{wo_id}/export?platform=github",
             headers=headers,
@@ -541,11 +578,10 @@ async def test_work_order_export_github_jira_linear(
         gh_data = gh_resp.json()
         assert gh_data["platform"] == "github"
         assert gh_data["filename"].endswith("_github.json")
-        assert "title" in gh_data["payload"]
-        assert "body" in gh_data["payload"]
-        assert "labels" in gh_data["payload"]
+        gh_valid, gh_err = validate_ticket_export("github", gh_data["payload"])
+        assert gh_valid, f"GitHub payload failed OpenAPI schema validation: {gh_err}"
 
-        # 2. Jira Export
+        # 2. Jira Export — Validate against Jira Cloud REST API Issue Creation Schema
         jira_resp = await client.post(
             f"{api_server}/work-orders/{wo_id}/export?platform=jira",
             headers=headers,
@@ -554,12 +590,10 @@ async def test_work_order_export_github_jira_linear(
         jira_data = jira_resp.json()
         assert jira_data["platform"] == "jira"
         assert jira_data["filename"].endswith("_jira.json")
-        assert "fields" in jira_data["payload"]
-        assert "project" in jira_data["payload"]["fields"]
-        assert "summary" in jira_data["payload"]["fields"]
-        assert "description" in jira_data["payload"]["fields"]
+        jira_valid, jira_err = validate_ticket_export("jira", jira_data["payload"])
+        assert jira_valid, f"Jira payload failed Jira Cloud REST schema validation: {jira_err}"
 
-        # 3. Linear Export
+        # 3. Linear Export — Validate against Linear GraphQL IssueCreateInput Schema
         linear_resp = await client.post(
             f"{api_server}/work-orders/{wo_id}/export?platform=linear",
             headers=headers,
@@ -568,9 +602,8 @@ async def test_work_order_export_github_jira_linear(
         linear_data = linear_resp.json()
         assert linear_data["platform"] == "linear"
         assert linear_data["filename"].endswith("_linear.json")
-        assert "title" in linear_data["payload"]
-        assert "description" in linear_data["payload"]
-        assert "priority" in linear_data["payload"]
+        linear_valid, linear_err = validate_ticket_export("linear", linear_data["payload"])
+        assert linear_valid, f"Linear payload failed Linear GraphQL mutation schema validation: {linear_err}"
 
     # 4. Test UI Export Modal
     async with async_playwright() as p:

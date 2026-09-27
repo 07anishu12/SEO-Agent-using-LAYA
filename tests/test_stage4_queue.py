@@ -336,12 +336,13 @@ def test_resume_frontier(client, bg_worker):
         )
         assert run_res.status_code == 201
 
-        # Wait until running
+        # Wait until crawler has started and partial SQLite DB exists
         t0 = time.time()
-        while time.time() - t0 < 5.0:
-            if client.get(f"/runs/{crawl_id}", headers=headers).json()["status"] == "running":
+        while time.time() - t0 < 8.0:
+            st = client.get(f"/runs/{crawl_id}", headers=headers).json().get("status")
+            if st == "running" and os.path.exists(f"data/{crawl_id}.db"):
                 break
-            time.sleep(0.02)
+            time.sleep(0.05)
 
         # 2. Cancel partway through crawl
         cancel_res = client.post(f"/runs/{crawl_id}/cancel", headers=headers)
@@ -377,13 +378,31 @@ def test_resume_frontier(client, bg_worker):
 
         assert terminal_status == "completed", f"Resumed run did not complete: {terminal_status}"
 
-        # 5. Confirm final result matches baseline
+        # 5. Confirm final result matches baseline counts AND exact fingerprints
         detail = client.get(f"/runs/{crawl_id}", headers=headers).json()
         counts = detail["counts"]
         assert counts["findings"] == 48
         assert counts["opportunities"] == 48
         assert counts["work_orders"] == 48
         assert counts["templates"] == 6
+
+        # Fetch resumed opportunities and verify exact deterministic fingerprints
+        opps_resp = client.get(f"/runs/{crawl_id}/opportunities", headers=headers)
+        assert opps_resp.status_code == 200
+        resumed_opp_fps = {o["fingerprint"] for o in opps_resp.json()}
+        assert len(resumed_opp_fps) == 48
+
+        # Expected baseline fingerprints from docs/PHASE2_BASELINE.md
+        expected_top_fps = {
+            "5ae19bf261054104",
+            "ce9307d2e5a01439",
+            "6143ddca77dabbd0",
+            "8bcb6e79e1295f68",
+            "935a0be56e363b03",
+        }
+        assert expected_top_fps.issubset(resumed_opp_fps), (
+            f"Resumed run missing baseline opportunity fingerprints: {expected_top_fps - resumed_opp_fps}"
+        )
 
     finally:
         server.stop()
