@@ -100,3 +100,28 @@ class RunResponse(BaseModel):
     total_issues: int = 0
     counts: Optional[Dict[str, int]] = None
     deliverables: Optional[Dict[str, Any]] = None
+
+
+# ---------------------------------------------------------------------------
+# Artifact Schemas
+# ---------------------------------------------------------------------------
+class ArtifactResponse(BaseModel):
+    id: str
+    org_id: str
+    site_id: str
+    run_id: str
+    filename: str
+    artifact_type: str
+    size_bytes: int
+    checksum_sha256: Optional[str] = None
+    content_type: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class SignedDownloadResponse(BaseModel):
+    artifact_id: Optional[str] = None
+    filename: str
+    download_url: str
+    expires_in: int
+    size_bytes: Optional[int] = None
+    checksum_sha256: Optional[str] = None

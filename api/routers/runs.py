@@ -3,6 +3,7 @@ Runs Router: Async Queue Enqueuing, SSE Progress Streaming, Cancellation, and Re
 """
 import asyncio
 import json
+import os
 import time
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -16,8 +17,14 @@ from database.connection import get_connection
 from database.scoped_query import ScopedQuery
 from jobs.queue import RunQueue
 from jobs.worker import execute_run_task
+from services.object_store import get_storage_service
 from ..auth import get_current_user
-from ..schemas import RunCreateRequest, RunResponse
+from ..schemas import (
+    RunCreateRequest,
+    RunResponse,
+    ArtifactResponse,
+    SignedDownloadResponse
+)
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -417,3 +424,78 @@ async def resume_run(
     )
 
     return {"status": "queued", "run_id": id, "resumed": True}
+
+
+@router.get("/{id}/artifacts", response_model=List[ArtifactResponse])
+def list_run_artifacts(
+    id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Lists every uploaded artifact with type, size, and ID for a given run.
+    Strictly scoped to the user's organization.
+    """
+    org_id = current_user["org_id"]
+    with ScopedQuery(org_id=org_id) as sq:
+        run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+        if not run:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+        artifacts = sq.fetch_all(
+            "artifacts",
+            where="run_id = %(run_id)s",
+            params={"run_id": id},
+            order_by="created_at ASC, filename ASC"
+        )
+
+    return [
+        ArtifactResponse(
+            id=a["id"],
+            org_id=a["org_id"],
+            site_id=a["site_id"],
+            run_id=a["run_id"],
+            filename=a["filename"],
+            artifact_type=a["artifact_type"],
+            size_bytes=a["size_bytes"],
+            checksum_sha256=a["checksum_sha256"],
+            content_type=a["content_type"],
+            created_at=a["created_at"]
+        )
+        for a in artifacts
+    ]
+
+
+@router.get("/{id}/export.zip", response_model=SignedDownloadResponse)
+def export_run_zip(
+    id: str,
+    expires_in: int = 3600,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Bundles every artifact for that run into a single zip, uploads it to object storage,
+    and returns a direct, time-limited presigned URL.
+    """
+    org_id = current_user["org_id"]
+    with ScopedQuery(org_id=org_id) as sq:
+        run = sq.fetch_one("runs", where="id = %(id)s", params={"id": id})
+        if not run:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+        site_id = run["site_id"]
+
+    output_dir = f"reports/{id}/"
+    storage_service = get_storage_service()
+    zip_res = storage_service.create_and_upload_export_zip(
+        org_id=org_id,
+        site_id=site_id,
+        run_id=id,
+        output_dir=output_dir if os.path.exists(output_dir) else None
+    )
+
+    return SignedDownloadResponse(
+        artifact_id=zip_res["artifact_id"],
+        filename=zip_res["filename"],
+        download_url=zip_res["download_url"],
+        expires_in=zip_res["expires_in"],
+        size_bytes=zip_res["size_bytes"],
+        checksum_sha256=zip_res["checksum_sha256"]
+    )

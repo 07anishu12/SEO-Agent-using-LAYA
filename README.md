@@ -32,6 +32,71 @@ Traditional SEO auditing tools produce thousands of fragmented, repetitive alert
 
 SEOJEV is structured across decoupled architectural layers that bridge high-throughput crawling, analytical graph intelligence, local on-device machine learning, and a multi-tenant cloud backend:
 
+```mermaid
+flowchart TD
+    subgraph Clients["Clients & Interfaces"]
+        CLI["CLI Tool (main.py)"]
+        WebClient["Web UI & API Clients"]
+    end
+
+    subgraph API["FastAPI Platform Service"]
+        FastAPIApp["FastAPI REST Endpoints"]
+        AuthModule["JWT & API Key Auth"]
+        SitesRouter["Sites Router (/sites)"]
+        RunsRouter["Runs Router (/runs)"]
+        ArtifactsRouter["Artifacts Router (/artifacts)"]
+    end
+
+    subgraph Messaging["Redis Queue & Pub/Sub"]
+        Queue["Run Queue (seojev:queue:runs)"]
+        PubSub["Pub/Sub Telemetry (run:id:progress)"]
+        CancelFlag["Cancellation Flag (run:id:cancel)"]
+    end
+
+    subgraph WorkerLayer["Asynchronous Worker"]
+        Worker["Background Task Worker (jobs/worker.py)"]
+    end
+
+    subgraph CoreEngine["SEOJEV 6-Pass Pipeline Engine"]
+        P1["Pass 1: Async Crawler & SQLite WAL"]
+        P2["Pass 2: NetworkX Link Graph & SimHash Templates"]
+        P3["Pass 3: OpportunityEngine V3 (11 Detectors)"]
+        P4["Pass 4: Laya MLX Calibration (Apple Silicon)"]
+        P5["Pass 5: Work Orders & Ticket Exporters"]
+        P6["Pass 6: Word, CSV & HTML Deliverables"]
+        
+        P1 --> P2 --> P3 --> P4 --> P5 --> P6
+    end
+
+    subgraph Storage["Persistence & Object Storage"]
+        Postgres[("PostgreSQL Multi-Tenant Database")]
+        MinIO[("MinIO / AWS S3 Object Storage")]
+    end
+
+    CLI --> CoreEngine
+    WebClient -->|HTTP / SSE| FastAPIApp
+    FastAPIApp --> AuthModule
+    FastAPIApp --> SitesRouter
+    FastAPIApp --> RunsRouter
+    FastAPIApp --> ArtifactsRouter
+
+    RunsRouter -->|Enqueue Run| Queue
+    RunsRouter -->|Set Cancel Flag| CancelFlag
+    RunsRouter -->|Stream SSE Progress| PubSub
+
+    Worker -->|Dequeue Job| Queue
+    Worker -->|Check Cancel Flag| CancelFlag
+    Worker -->|Publish Progress| PubSub
+    Worker -->|Execute Pipeline| CoreEngine
+
+    CoreEngine -->|Post-Run ETL| Postgres
+    Worker -->|Upload Artifacts| MinIO
+    Worker -->|Record Metadata| Postgres
+    ArtifactsRouter -->|Query Metadata| Postgres
+    ArtifactsRouter -->|Generate Presigned URL| MinIO
+    WebClient -.->|Direct Download via Signed URL| MinIO
+```
+
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                          Clients & Interfaces                          │

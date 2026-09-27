@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from jobs.worker import RunWorker
-from .routers import auth, sites, runs
+from .routers import auth, sites, runs, artifacts
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(sites.router)
 app.include_router(runs.router)
+app.include_router(artifacts.router)
 
 
 @app.get("/health", tags=["system"])

@@ -143,6 +143,19 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
             site_id=site_id
         )
 
+        # Stage 5: Upload all artifacts to S3/MinIO object storage
+        try:
+            from services.object_store import get_storage_service
+            storage_service = get_storage_service()
+            storage_service.upload_run_artifacts(
+                org_id=org_id,
+                site_id=site_id,
+                run_id=run_id,
+                output_dir=output_dir
+            )
+        except Exception as upload_err:
+            logger.error(f"Failed to upload artifacts for run {run_id}: {upload_err}", exc_info=True)
+
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(

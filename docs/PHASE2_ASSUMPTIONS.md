@@ -47,7 +47,15 @@
 
 ---
 
-## 5. Frontend & Power Features (Stages 5–11)
-- **Assumption 5.1 (Next.js App):** The web frontend is built as a Next.js (TypeScript + Tailwind CSS) client communicating with FastAPI via REST and SSE.
-- **Assumption 5.2 (Cloud-Portable Laya):** To ensure portability beyond Apple Silicon Macs, an abstraction interface (`laya/backends/`) allows runtime selection between `mlx` (local Apple Silicon), `llama_cpp` (CPU/CUDA), and `api` (hosted endpoint), defaulting to deterministic fallback when no LLM runtime is available.
-- **Assumption 5.3 (Synthetic Lab Generalization):** A held-out synthetic test suite and a hand-labeled sample from a real crawl are added to `lab/` to evaluate real-world false-positive rates beyond planted generator defects.
+## 5. Object Storage & Deliverables Ledger (Stage 5)
+- **Assumption 5.1 (Zero Proxy Direct Presigned URLs):** To avoid buffering large binary deliverables in the FastAPI API process, all downloads (`/artifacts/{id}/download` and `/runs/{id}/export.zip`) return signed, time-limited direct S3/MinIO URLs using AWS SigV4 signatures. Clients fetch bytes directly from object storage.
+- **Assumption 5.2 (Multi-Tenant Key Hierarchy):** All objects in the bucket (`seojev-artifacts`) are strictly prefixed as `{org_id}/{site_id}/{run_id}/{relative_path}`, ensuring clear physical separation matching the database tenant model.
+- **Assumption 5.3 (Metadata Ledger & Integrity Tracking):** Every uploaded artifact (DOCX, CSVs, HTML explorer, ticket JSON/CSVs, summaries) is recorded in the PostgreSQL `artifacts` table with its exact SHA-256 hash, MIME type, and byte size.
+- **Assumption 5.4 (On-Demand Export ZIP):** `GET /runs/{id}/export.zip` creates a single uncorrupted ZIP archive bundling every run artifact, uploads it to S3 under `{org_id}/{site_id}/{run_id}/export.zip`, registers it in the artifacts ledger, and returns a presigned download URL.
+
+---
+
+## 6. Frontend & Power Features (Stages 6–11)
+- **Assumption 6.1 (Next.js App):** The web frontend is built as a Next.js (TypeScript + Tailwind CSS) client communicating with FastAPI via REST and SSE.
+- **Assumption 6.2 (Cloud-Portable Laya):** To ensure portability beyond Apple Silicon Macs, an abstraction interface (`laya/backends/`) allows runtime selection between `mlx` (local Apple Silicon), `llama_cpp` (CPU/CUDA), and `api` (hosted endpoint), defaulting to deterministic fallback when no LLM runtime is available.
+- **Assumption 6.3 (Synthetic Lab Generalization):** A held-out synthetic test suite and a hand-labeled sample from a real crawl are added to `lab/` to evaluate real-world false-positive rates beyond planted generator defects.
