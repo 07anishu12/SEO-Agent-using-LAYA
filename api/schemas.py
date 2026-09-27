@@ -125,3 +125,65 @@ class SignedDownloadResponse(BaseModel):
     expires_in: int
     size_bytes: Optional[int] = None
     checksum_sha256: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Watch & Alert Schemas
+# ---------------------------------------------------------------------------
+class WatchConfigRequest(BaseModel):
+    cron_expression: Optional[str] = "0 0 * * *"
+    is_active: Optional[bool] = True
+    timezone: Optional[str] = "UTC"
+    checks: Optional[List[str]] = ["robots_txt", "sitemap", "top_pages", "template_drift"]
+    top_pages: Optional[List[str]] = []
+    notification_channels: Optional[List[Dict[str, Any]]] = []
+
+
+class WatchConfigResponse(BaseModel):
+    id: str
+    org_id: str
+    site_id: str
+    cron_expression: str = "0 0 * * *"
+    is_active: bool = True
+    timezone: str = "UTC"
+    checks: List[str] = []
+    top_pages: List[str] = []
+    notification_channels: List[Dict[str, Any]] = []
+    last_run_at: Optional[datetime] = None
+    next_run_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class AlertResponse(BaseModel):
+    id: str
+    org_id: str
+    site_id: str
+    run_id: Optional[str] = None
+    alert_type: str
+    severity: str
+    title: Optional[str] = None
+    message: str
+    source: Optional[str] = "watch"
+    fingerprint: Optional[str] = None
+    affected_urls: Optional[List[str]] = []
+    previous_value: Optional[str] = None
+    current_value: Optional[str] = None
+    status: str = "open"
+    is_resolved: bool = False
+    dispatched: bool = False
+    dispatch_status: Optional[str] = "pending"
+    dispatch_error: Optional[str] = None
+    payload_json: Optional[Dict[str, Any]] = None
+    detected_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class AlertListResponse(BaseModel):
+    alerts: List[AlertResponse]
+    total: int
+
+
+class AlertUpdateRequest(BaseModel):
+    status: str = "resolved"
+

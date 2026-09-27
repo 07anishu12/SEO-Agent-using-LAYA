@@ -4,16 +4,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from jobs.worker import RunWorker
-from .routers import auth, sites, runs, artifacts, opportunities, templates, blueprints, gsc, work_orders, diff
+from jobs.scheduler import get_watch_scheduler
+from .routers import auth, sites, runs, artifacts, opportunities, templates, blueprints, gsc, work_orders, diff, watch, alerts
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     worker = None
+    scheduler = None
     if os.environ.get("ENABLE_WORKER", "true").lower() in ("true", "1", "yes"):
         worker = RunWorker()
         worker.start_background()
+    if os.environ.get("ENABLE_SCHEDULER", "false").lower() in ("true", "1", "yes"):
+        scheduler = get_watch_scheduler()
+        scheduler.start()
     yield
+    if scheduler:
+        scheduler.stop()
     if worker:
         worker.stop()
 
@@ -45,6 +52,8 @@ app.include_router(blueprints.router)
 app.include_router(gsc.router)
 app.include_router(work_orders.router)
 app.include_router(diff.router)
+app.include_router(watch.router)
+app.include_router(alerts.router)
 
 
 @app.get("/health", tags=["system"])

@@ -171,6 +171,20 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
                 )
             conn.commit()
 
+        # Stage 9: Dispatch run.completed notification
+        try:
+            from services.notifications import get_notification_dispatcher
+            get_notification_dispatcher().dispatch_event("run.completed", {
+                "run_id": run_id,
+                "org_id": org_id,
+                "site_id": site_id,
+                "status": "completed",
+                "counts": etl_result.get("counts"),
+                "finished_at": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as notify_err:
+            logger.warning(f"Failed to dispatch run.completed notification: {notify_err}")
+
         queue.publish_progress(run_id, {
             "run_id": run_id,
             "status": "completed",
@@ -241,6 +255,20 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
                         (datetime.now(timezone.utc), run_id)
                     )
                 conn.commit()
+
+            # Stage 9: Dispatch run.failed notification
+            try:
+                from services.notifications import get_notification_dispatcher
+                get_notification_dispatcher().dispatch_event("run.failed", {
+                    "run_id": run_id,
+                    "org_id": org_id,
+                    "site_id": site_id,
+                    "status": "failed",
+                    "error": str(exc),
+                    "finished_at": datetime.now(timezone.utc).isoformat()
+                })
+            except Exception as notify_err:
+                logger.warning(f"Failed to dispatch run.failed notification: {notify_err}")
 
             queue.publish_progress(run_id, {
                 "run_id": run_id,

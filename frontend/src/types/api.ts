@@ -337,3 +337,68 @@ export interface SnapshotDiffResponse {
   compare_targets: CompareTarget[];
 }
 
+// ---------------------------------------------------------------------------
+// Stage 9: Watch & Alerts Models
+// ---------------------------------------------------------------------------
+export interface NotificationChannel {
+  type: "slack" | "email" | "webhook" | string;
+  webhook_url?: string;
+  url?: string;
+  recipients?: string[];
+}
+
+export interface WatchConfig {
+  id: string;
+  org_id: string;
+  site_id: string;
+  cron_expression: string;
+  is_active: boolean;
+  timezone: string;
+  checks: string[];
+  top_pages: string[];
+  notification_channels: NotificationChannel[];
+  last_run_at?: string;
+  next_run_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WatchConfigRequest {
+  cron_expression?: string;
+  is_active?: boolean;
+  timezone?: string;
+  checks?: string[];
+  top_pages?: string[];
+  notification_channels?: NotificationChannel[];
+}
+
+export interface Alert {
+  id: string;
+  org_id: string;
+  site_id: string;
+  run_id?: string;
+  alert_type: string;
+  severity: "critical" | "high" | "medium" | "low" | string;
+  title?: string;
+  message: string;
+  source?: string;
+  fingerprint?: string;
+  affected_urls: string[];
+  previous_value?: string;
+  current_value?: string;
+  status: "open" | "resolved" | string;
+  is_resolved: boolean;
+  dispatched: boolean;
+  dispatch_status?: string;
+  dispatch_error?: string;
+  payload_json?: Record<string, any>;
+  detected_at?: string;
+  created_at?: string;
+}
+
+export interface AlertListResponse {
+  alerts: Alert[];
+  total: number;
+}
+
+

@@ -22,6 +22,10 @@ import {
   WorkOrderVerifyResponse,
   SnapshotDiffResponse,
   CompareTarget,
+  WatchConfig,
+  WatchConfigRequest,
+  Alert,
+  AlertListResponse,
 } from "@/types/api";
 
 const TOKEN_KEY = "seojev_access_token";
@@ -446,4 +450,40 @@ export async function getRunDiff(
 export async function getRunCompareTargets(runId: string): Promise<CompareTarget[]> {
   return request<CompareTarget[]>(`/runs/${runId}/compare-targets`);
 }
+
+// ---------------------------------------------------------------------------
+// Stage 9: Watch & Alerts API
+// ---------------------------------------------------------------------------
+export async function getWatchConfig(siteId: string): Promise<WatchConfig> {
+  return request<WatchConfig>(`/sites/${siteId}/watch`);
+}
+
+export async function updateWatchConfig(siteId: string, req: WatchConfigRequest): Promise<WatchConfig> {
+  return request<WatchConfig>(`/sites/${siteId}/watch`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function getSiteAlerts(
+  siteId: string,
+  params?: { severity?: string; alert_type?: string; status?: string; limit?: number; offset?: number }
+): Promise<AlertListResponse> {
+  const query = new URLSearchParams();
+  if (params?.severity) query.set("severity", params.severity);
+  if (params?.alert_type) query.set("alert_type", params.alert_type);
+  if (params?.status) query.set("status", params.status);
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return request<AlertListResponse>(`/sites/${siteId}/alerts${qs ? `?${qs}` : ""}`);
+}
+
+export async function resolveAlert(siteId: string, alertId: string): Promise<Alert> {
+  return request<Alert>(`/sites/${siteId}/alerts/${alertId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "resolved" }),
+  });
+}
+
 

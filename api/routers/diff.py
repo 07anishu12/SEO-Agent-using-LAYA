@@ -318,6 +318,26 @@ def get_snapshot_diff(
 
     summary_obj = SnapshotDiffSummary(**diff_data["summary"])
 
+    if summary_obj.REGRESSED > 0:
+        try:
+            from services.notifications import get_notification_dispatcher
+            regressed_items = diff_data.get("by_category", {}).get("REGRESSED", [])
+            affected_urls = [item.get("url") for item in regressed_items if item.get("url")]
+            get_notification_dispatcher().dispatch_event("regression.detected", {
+                "site_id": site_id,
+                "org_id": org_id,
+                "before_run_id": before_run_id,
+                "after_run_id": run_id,
+                "severity": "critical",
+                "title": f"Regressions Detected ({summary_obj.REGRESSED} issues)",
+                "message": f"Snapshot comparison between {before_run_id} and {run_id} detected {summary_obj.REGRESSED} critical regressions.",
+                "affected_urls": affected_urls,
+                "summary": diff_data["summary"],
+                "detected_at": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception:
+            pass
+
     by_template_obj: Dict[str, List[SnapshotDiffItem]] = {
         tpl: [SnapshotDiffItem(**item) for item in items]
         for tpl, items in diff_data.get("by_template", {}).items()
