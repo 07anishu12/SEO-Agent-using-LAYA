@@ -15,7 +15,7 @@ from database.scoped_query import ScopedQuery
 from lab.gsc_generator import SyntheticGSCGenerator
 from search.gsc_pipeline import GSCPipeline
 from search.fit_analyzer import QueryFitAnalyzer
-from ..auth import get_current_user
+from ..auth import get_current_user, require_editor_or_admin
 
 router = APIRouter(tags=["gsc"])
 
@@ -215,7 +215,7 @@ class GscImportRequest(BaseModel):
 def import_gsc_data(
     run_id: str,
     req: GscImportRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Imports Google Search Console performance data for a completed run from a CSV string

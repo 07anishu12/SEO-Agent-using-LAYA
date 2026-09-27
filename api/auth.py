@@ -93,10 +93,11 @@ def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload"
             )
+        user_role = (payload.get("role") or "viewer").lower()
         return {
             "user_id": user_id,
             "org_id": org_id,
-            "role": payload.get("role", "member"),
+            "role": user_role,
             "email": payload.get("email", ""),
             "auth_method": "jwt"
         }
@@ -112,3 +113,26 @@ def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"}
         )
+
+
+def require_role(allowed_roles: list[str]):
+    """
+    Enforces server-side Role-Based Access Control (RBAC).
+    Allowed roles are typically: ['admin'], ['editor', 'admin'], or ['viewer', 'editor', 'admin'].
+    Raises 403 Forbidden if current_user's role is not authorized.
+    """
+    def dependency(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+        user_role = (current_user.get("role") or "viewer").lower()
+        allowed = [r.lower() for r in allowed_roles]
+        if user_role not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Operation not permitted. Required role: {', '.join(allowed_roles)}; your role: {user_role}"
+            )
+        return current_user
+    return dependency
+
+
+require_admin = require_role(["admin"])
+require_editor_or_admin = require_role(["editor", "admin"])
+

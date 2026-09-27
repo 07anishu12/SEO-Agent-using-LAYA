@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from database.connection import get_connection
 from database.scoped_query import ScopedQuery
-from ..auth import get_current_user
+from ..auth import get_current_user, require_editor_or_admin
 
 router = APIRouter(tags=["opportunities"])
 
@@ -170,7 +170,7 @@ def get_opportunity(
 def submit_opportunity_feedback(
     id: str,
     req: FeedbackRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Persists feedback (fixed, false_positive, accepted, wont_fix) for an opportunity.

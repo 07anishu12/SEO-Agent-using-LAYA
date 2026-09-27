@@ -18,7 +18,7 @@ from database.scoped_query import ScopedQuery
 from jobs.queue import RunQueue
 from jobs.worker import execute_run_task
 from services.object_store import get_storage_service
-from ..auth import get_current_user
+from ..auth import get_current_user, require_editor_or_admin
 from ..schemas import (
     RunCreateRequest,
     RunResponse,
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 async def create_and_enqueue_run(
     req: RunCreateRequest,
     sync: bool = False,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Enqueues an asynchronous crawl run job in the Redis queue and returns immediately with status 'queued'.
@@ -333,7 +333,7 @@ async def stream_run_progress(
 @router.post("/{id}/cancel")
 async def cancel_run(
     id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Sets the cooperative cancellation flag in Redis and confirms the run has stopped.
@@ -380,7 +380,7 @@ async def cancel_run(
 @router.post("/{id}/resume")
 async def resume_run(
     id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Re-enqueues a run using the existing resumable frontier.

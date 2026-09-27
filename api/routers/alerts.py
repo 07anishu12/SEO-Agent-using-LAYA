@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from database.connection import get_connection
 from database.scoped_query import ScopedQuery
-from ..auth import get_current_user
+from ..auth import get_current_user, require_editor_or_admin
 from ..schemas import AlertResponse, AlertListResponse, AlertUpdateRequest
 
 router = APIRouter(prefix="/sites/{id}/alerts", tags=["alerts"])
@@ -112,7 +112,7 @@ def update_alert(
     id: str,
     alert_id: str,
     req: AlertUpdateRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     org_id = current_user["org_id"]
     _verify_site_access(id, org_id)

@@ -15,7 +15,7 @@ from database.connection import get_connection
 from database.scoped_query import ScopedQuery
 from engine.work_orders import WorkOrderManager
 from verification.runner import VerificationRunner
-from ..auth import get_current_user
+from ..auth import get_current_user, require_editor_or_admin
 
 router = APIRouter(tags=["work-orders"])
 
@@ -240,7 +240,7 @@ def export_work_order(
     id: str,
     req: Optional[WorkOrderExportRequest] = None,
     platform: Optional[str] = Query(None),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Exports a work order to a real platform-specific ticket payload (GitHub, Jira, Linear, or Markdown).
@@ -318,7 +318,7 @@ def export_work_order(
 def verify_work_order(
     id: str,
     req: Optional[WorkOrderVerifyRequest] = None,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     """
     Executes automated verification on a work order against real HTTP targets / HTML content.

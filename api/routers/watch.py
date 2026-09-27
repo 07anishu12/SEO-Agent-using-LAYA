@@ -12,7 +12,7 @@ from psycopg.types.json import Jsonb
 
 from database.connection import get_connection
 from database.scoped_query import ScopedQuery
-from ..auth import get_current_user
+from ..auth import get_current_user, require_editor_or_admin
 from ..schemas import WatchConfigRequest, WatchConfigResponse
 
 router = APIRouter(prefix="/sites/{id}/watch", tags=["watch"])
@@ -30,7 +30,7 @@ def _verify_site_access(site_id: str, org_id: str):
 def update_watch_config(
     id: str,
     req: WatchConfigRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     org_id = current_user["org_id"]
     _verify_site_access(id, org_id)

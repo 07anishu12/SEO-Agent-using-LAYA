@@ -9,7 +9,7 @@ from psycopg.types.json import Jsonb
 
 from database.connection import get_connection
 from database.scoped_query import ScopedQuery
-from ..auth import get_current_user
+from ..auth import get_current_user, require_admin, require_editor_or_admin
 from ..schemas import SiteCreateRequest, SiteUpdateRequest, SiteResponse
 
 router = APIRouter(prefix="/sites", tags=["sites"])
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/sites", tags=["sites"])
 @router.post("", response_model=SiteResponse, status_code=status.HTTP_201_CREATED)
 def create_site(
     req: SiteCreateRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     org_id = current_user["org_id"]
     target_url = req.url.strip()
@@ -77,7 +77,7 @@ def get_site(id: str, current_user: dict = Depends(get_current_user)):
 def update_site(
     id: str,
     req: SiteUpdateRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_editor_or_admin)
 ):
     org_id = current_user["org_id"]
     with ScopedQuery(org_id=org_id) as sq:
@@ -96,14 +96,13 @@ def update_site(
                 UPDATE sites
                 SET url = COALESCE(%s, url),
                     vertical = COALESCE(%s, vertical),
-                    config_json = CASE WHEN %s IS NOT NULL THEN %s ELSE config_json END
+                    config_json = COALESCE(%s::jsonb, config_json)
                 WHERE id = %s AND org_id = %s
                 RETURNING id, org_id, domain, url, vertical, config_json, created_at;
                 """,
                 (
                     new_url,
                     req.vertical,
-                    Jsonb(req.config_json) if req.config_json is not None else None,
                     Jsonb(req.config_json) if req.config_json is not None else None,
                     id,
                     org_id
@@ -116,7 +115,7 @@ def update_site(
 
 
 @router.delete("/{id}")
-def delete_site(id: str, current_user: dict = Depends(get_current_user)):
+def delete_site(id: str, current_user: dict = Depends(require_admin)):
     org_id = current_user["org_id"]
     with ScopedQuery(org_id=org_id) as sq:
         existing = sq.fetch_one("sites", where="id = %(id)s", params={"id": id})

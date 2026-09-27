@@ -21,6 +21,16 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
+class UserCreateRequest(BaseModel):
+    email: str
+    password: str
+    role: str = "viewer"  # viewer, editor, admin
+
+
+class UserRoleUpdateRequest(BaseModel):
+    role: str  # viewer, editor, admin
+
+
 class UserInfo(BaseModel):
     id: str
     email: str
