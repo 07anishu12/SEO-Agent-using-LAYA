@@ -347,6 +347,15 @@ class WatchScheduler:
                     except Exception as disp_err:
                         logger.warning(f"Failed to dispatch alert {alert.get('id')}: {disp_err}")
 
+            # 3. GSC Anomaly Detection if configured
+            if "gsc_anomaly" in checks or "search_decay" in checks:
+                try:
+                    from services.gsc_anomaly import get_gsc_anomaly_detector
+                    gsc_detector = get_gsc_anomaly_detector()
+                    gsc_detector.detect_anomalies(site_id=site_id, org_id=org_id, channels=channels)
+                except Exception as gsc_err:
+                    logger.error(f"Error during scheduled GSC anomaly detection for site {site_id}: {gsc_err}", exc_info=True)
+
             # Update final next_run_at
             with get_connection(self.db_url) as conn:
                 with conn.cursor() as cur:

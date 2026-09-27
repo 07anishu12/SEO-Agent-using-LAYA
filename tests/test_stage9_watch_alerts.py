@@ -287,6 +287,9 @@ def test_watch_scheduler_autonomous_execution_writes_alert_row(defect_site_serve
                 "INSERT INTO sites (id, org_id, domain, url, vertical) VALUES (%s, %s, %s, %s, 'generic')",
                 (site_id, org_id, f"127.0.0.1:{SITE_PORT}", target_url)
             )
+            # Deactivate any leftover watch configs to prevent cross-test interference
+            cur.execute("UPDATE watch_configs SET is_active = FALSE WHERE is_active = TRUE")
+
             # Create a watch config with next_run_at in the past so it triggers immediately
             cur.execute(
                 """

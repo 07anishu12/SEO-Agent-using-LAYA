@@ -322,3 +322,19 @@ def import_gsc_data(
         conn.commit()
 
     return {"imported": len(rows), "run_id": run_id}
+
+
+@router.post("/sites/{site_id}/gsc/detect-anomalies")
+def trigger_gsc_anomaly_detection(
+    site_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Triggers autonomous statistical anomaly detection across daily GSC metrics.
+    Validates tenant isolation via JWT org_id.
+    """
+    org_id = current_user["org_id"]
+    from services.gsc_anomaly import get_gsc_anomaly_detector
+    detector = get_gsc_anomaly_detector()
+    res = detector.detect_anomalies(site_id=site_id, org_id=org_id)
+    return res
