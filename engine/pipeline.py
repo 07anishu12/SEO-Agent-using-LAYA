@@ -49,6 +49,7 @@ from reporting.csv_suite import CSVSuiteExporter
 from reporting.html_explorer import HTMLExplorerGenerator
 from engine.opportunity_engine_v3 import OpportunityEngineV3
 from engine.work_orders import WorkOrderManager
+from engine.priority_model import PriorityModel
 from engine.claims_linter import ClaimsLinter
 from engine.evidence import EvidenceLedger
 from engine.content_store import ContentStore
@@ -71,11 +72,11 @@ class SEOJEVPipeline:
     Unified 6-Pass Search Intelligence Operating System Pipeline.
     Passes:
       - P1_CRAWL: Asynchronous crawl, discovery, sitemaps, selective rendering, storage.
-      - P2_SIGNALS: Link graph, templates, duplicates, Core Web Vitals, entity/vertical extraction.
-      - P3_SEARCH_OPPORTUNITIES: GSC/SERP pipelines, AEO/GEO, V3 opportunity synthesis.
-      - P4_CALIBRATION: Local Laya MLX inference, ICE priority sensitivity & calibration.
-      - P5_WORK_ORDERS: Engineering & Content work orders, ticket generation, claims linter.
-      - P6_DELIVERABLES: Word master reports, CSV suite, HTML explorer, JSON summaries.
+      - P2_DETERMINISTIC_EVIDENCE: Link graph, templates, duplicates, and deterministic detectors.
+      - P3_CANDIDATE_REDUCTION: Search context and reduced candidate/opportunity clusters.
+      - P4_LAYA_DECISION_ENGINE: Laya primary semantic SEO decisions.
+      - P5_VALIDATED_OPPORTUNITIES: Validated opportunities, priority, work orders, and claims linting.
+      - P6_REPORTS: Word master reports, CSV suite, HTML explorer, JSON summaries.
     """
 
     def __init__(
@@ -160,6 +161,20 @@ class SEOJEVPipeline:
             try:
                 import inspect
                 sig = inspect.signature(self.progress_callback)
+                # Keep old event consumers readable during rolling upgrades; the
+                # stored/current stage remains the new semantic stage below.
+                legacy_pass = {
+                    "P2_DETERMINISTIC_EVIDENCE": "P2_SIGNALS",
+                    "P3_CANDIDATE_REDUCTION": "P3_SEARCH_OPPORTUNITIES",
+                    "P4_LAYA_DECISION_ENGINE": "P4_CALIBRATION",
+                    "P5_VALIDATED_OPPORTUNITIES": "P5_WORK_ORDERS",
+                    "P6_REPORTS": "P6_DELIVERABLES",
+                }.get(pass_name)
+                if legacy_pass:
+                    if len(sig.parameters) >= 4:
+                        self.progress_callback(legacy_pass, pct, message, meta or {})
+                    else:
+                        self.progress_callback(legacy_pass, pct, message)
                 if len(sig.parameters) >= 4:
                     self.progress_callback(pass_name, pct, message, meta or {})
                 else:
@@ -266,13 +281,13 @@ class SEOJEVPipeline:
         return {"crawl_id": self.crawl_id, "crawl_duration": crawl_duration}
 
     # -------------------------------------------------------------------------
-    # PASS 2: SIGNALS & ARCHITECTURE
+    # PASS 2: DETERMINISTIC EVIDENCE
     # -------------------------------------------------------------------------
     async def run_pass_2_signals(self, p1_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """P2: Link graph, template SimHash, root causes, index funnel, verticals & CWV."""
+        """P2: Generate deterministic evidence and detector candidates."""
         self.check_cancelled()
         t0 = time.monotonic()
-        self.emit_progress("P2_SIGNALS", 26.0, "Retrieving pages and links from storage...")
+        self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 26.0, "Retrieving deterministic crawl evidence...")
 
         pages = self.storage.get_all_pages(self.crawl_id)
         links = self.storage.get_all_links(self.crawl_id)
@@ -280,7 +295,7 @@ class SEOJEVPipeline:
 
         # 2a. NetworkX Link Graph
         self.check_cancelled()
-        self.emit_progress("P2_SIGNALS", 29.0, f"Analyzing link graph across {len(pages):,} pages...")
+        self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 29.0, f"Analyzing link graph across {len(pages):,} pages...")
         node_metrics, link_issues, link_opportunities = build_and_analyze_link_graph(pages, links, self.target_url)
         if link_issues:
             self.storage.save_issues(self.crawl_id, link_issues)
@@ -289,7 +304,7 @@ class SEOJEVPipeline:
 
         # 2b. Templates & Duplicates
         self.check_cancelled()
-        self.emit_progress("P2_SIGNALS", 33.0, "Clustering templates and detecting content duplication...")
+        self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 33.0, "Clustering templates and collecting duplicate evidence...")
         templates, template_issues = analyze_templates(pages, issues)
         self.storage.save_templates(self.crawl_id, templates)
         if template_issues:
@@ -304,7 +319,7 @@ class SEOJEVPipeline:
         all_issues = self.storage.get_all_issues(self.crawl_id)
 
         # 2c. Issue Clusters & Root Causes
-        self.emit_progress("P2_SIGNALS", 37.0, f"Clustering {len(all_issues):,} findings into root-cause groups...")
+        self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 37.0, f"Reducing {len(all_issues):,} detector candidates into evidence clusters...")
         issue_clusters = build_issue_clusters(all_issues)
         self.storage.save_issue_clusters(self.crawl_id, issue_clusters)
 
@@ -312,7 +327,7 @@ class SEOJEVPipeline:
         rc_result = root_cause_clusterer.cluster_root_causes(all_issues)
 
         # 2d. Index Funnel Reconciliation
-        self.emit_progress("P2_SIGNALS", 40.0, "Reconciling index funnel across sitemaps and crawled links...")
+        self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 40.0, "Reconciling index funnel across sitemaps and crawled links...")
         index_reconciler = IndexFunnelReconciler()
         with self.storage._get_connection() as _uconn:
             sitemap_rows = _uconn.execute("SELECT url FROM urls WHERE crawl_id = ? AND discovery_source = 'sitemap'", (self.crawl_id,)).fetchall()
@@ -330,7 +345,7 @@ class SEOJEVPipeline:
         if not perf_db_records:
             perf_sample_size = min(self.options.get("performance_sample", 100), len(pages))
             if perf_sample_size > 0:
-                self.emit_progress("P2_SIGNALS", 43.0, f"Running Core Web Vitals audit on {perf_sample_size} sample pages...")
+                self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 43.0, f"Running Core Web Vitals audit on {perf_sample_size} sample pages...")
                 sample_pages = select_performance_sample(pages, sample_size=perf_sample_size, homepage_url=self.target_url)
                 perf_auditor = PerformanceAuditor(timeout_ms=12000)
                 perf_results = await perf_auditor.audit_pages(sample_pages, max_concurrency=2)
@@ -340,7 +355,7 @@ class SEOJEVPipeline:
 
         # 2f. Vertical Knowledge & Product Intelligence
         self.check_cancelled()
-        self.emit_progress("P2_SIGNALS", 46.0, "Extracting product intelligence and vertical domain attributes...")
+        self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 46.0, "Extracting product intelligence and vertical domain attributes...")
         prod_engine = ProductIntelligenceEngine()
         product_pages_data = []
         product_data_map = {}
@@ -434,8 +449,8 @@ class SEOJEVPipeline:
                     )
                 _ec_conn.commit()
 
-        self.emit_progress("P2_SIGNALS", 50.0, "Signals and architecture extraction complete.")
-        self.pass_timings["P2_SIGNALS"] = round(time.monotonic() - t0, 2)
+        self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 50.0, "Deterministic evidence collection complete.")
+        self.pass_timings["P2_DETERMINISTIC_EVIDENCE"] = round(time.monotonic() - t0, 2)
 
         return {
             "pages": pages,
@@ -452,13 +467,13 @@ class SEOJEVPipeline:
         }
 
     # -------------------------------------------------------------------------
-    # PASS 3: SEARCH & OPPORTUNITY SYNTHESIS
+    # PASS 3: CANDIDATE/TEMPLATE REDUCTION
     # -------------------------------------------------------------------------
     async def run_pass_3_search_opportunities(self, p2_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """P3: Search console pipeline, AEO/GEO readability, V3 OpportunityEngine synthesis."""
+        """P3: Add search context and reduce deterministic candidates into opportunities."""
         self.check_cancelled()
         t0 = time.monotonic()
-        self.emit_progress("P3_SEARCH_OPPORTUNITIES", 51.0, "Ingesting GSC and evaluating search performance...")
+        self.emit_progress("P3_CANDIDATE_REDUCTION", 51.0, "Ingesting search context for candidate reduction...")
 
         pages = p2_data.get("pages") if p2_data else self.storage.get_all_pages(self.crawl_id)
         product_data_map = p2_data.get("product_data_map", {}) if p2_data else {}
@@ -504,7 +519,7 @@ class SEOJEVPipeline:
 
         # 3b. AEO, GEO, and SERP
         self.check_cancelled()
-        self.emit_progress("P3_SEARCH_OPPORTUNITIES", 58.0, "Evaluating AEO/GEO readability and content gap matrices...")
+        self.emit_progress("P3_CANDIDATE_REDUCTION", 58.0, "Evaluating deterministic content and search signals...")
         aeo_analyzer = AEOAnalyzer()
         geo_analyzer = GEOAnalyzer()
         serp_analyzer = SERPAnalyzer(serp_data_path=self.options.get("serp_data"))
@@ -537,7 +552,7 @@ class SEOJEVPipeline:
 
         # 3c. OpportunityEngineV3 Multi-Factor Synthesis
         self.check_cancelled()
-        self.emit_progress("P3_SEARCH_OPPORTUNITIES", 65.0, "Formulating V3 structured opportunities & findings...")
+        self.emit_progress("P3_CANDIDATE_REDUCTION", 65.0, "Reducing candidates into structured opportunity groups...")
         v3_findings = []
         for cluster in issue_clusters:
             sample_urls_raw = cluster.get('sample_urls', '')
@@ -598,8 +613,8 @@ class SEOJEVPipeline:
         )
         opp_engine_v3.persist_opportunities(v3_opps)
 
-        self.emit_progress("P3_SEARCH_OPPORTUNITIES", 70.0, f"Synthesized {len(v3_opps):,} V3 opportunities.")
-        self.pass_timings["P3_SEARCH_OPPORTUNITIES"] = round(time.monotonic() - t0, 2)
+        self.emit_progress("P3_CANDIDATE_REDUCTION", 70.0, f"Reduced candidates to {len(v3_opps):,} opportunity groups.")
+        self.pass_timings["P3_CANDIDATE_REDUCTION"] = round(time.monotonic() - t0, 2)
 
         return {
             "v3_opps": v3_opps,
@@ -614,181 +629,154 @@ class SEOJEVPipeline:
         }
 
     # -------------------------------------------------------------------------
-    # PASS 4: CALIBRATION & DECISION
+    # PASS 4: LAYA PRIMARY SEO DECISION
     # -------------------------------------------------------------------------
-    async def run_pass_4_calibration(self, p3_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """P4: Laya SEO Decision Engine — primary AI-driven decision layer with worker pool."""
+    async def run_pass_4_laya_decision(self, p3_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """P4: Laya is the primary semantic SEO decision layer."""
         self.check_cancelled()
         t0 = time.monotonic()
-        self.emit_progress("P4_CALIBRATION", 71.0, "Initializing Laya SEO Decision Engine...")
+        self.emit_progress("P4_LAYA_DECISION_ENGINE", 71.0, "Initializing Laya SEO Decision Engine...")
 
         issue_clusters = self.storage.get_all_issue_clusters(self.crawl_id)
-        
-        # Initialize Laya worker pool (isolated from crawler)
+        pages = self.storage.get_all_pages(self.crawl_id)
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            conn.row_factory = sqlite3.Row
+            opp_rows = [dict(r) for r in conn.execute(
+                "SELECT * FROM opportunities WHERE run_id = ?", (self.crawl_id,)
+            ).fetchall()]
+
+        def samples(value):
+            if isinstance(value, str):
+                try:
+                    return json.loads(value) if value.startswith("[") else [x.strip() for x in value.split(",") if x.strip()]
+                except json.JSONDecodeError:
+                    return [value]
+            return list(value or [])
+
+        def evidence(template_id, sample_urls):
+            sample_set = set(sample_urls)
+            cohort = [p for p in pages if p.get("template_id") == template_id or p.get("url") in sample_set]
+            cohort = cohort or [p for p in pages if p.get("url") in sample_set]
+            words = [int(p.get("word_count") or 0) for p in cohort]
+            hashes = [p.get("content_hash") for p in cohort if p.get("content_hash")]
+            canonical = {
+                "indexable": sum(bool(p.get("is_indexable")) for p in cohort),
+                "non_indexable": sum(not bool(p.get("is_indexable")) for p in cohort),
+                "canonical_statuses": dict(Counter(p.get("canonical_status") or "unknown" for p in cohort)),
+            }
+            return {
+                "status_distribution": dict(Counter(str(p.get("status_code") or 0) for p in cohort)),
+                "indexability": canonical,
+                "canonical_relationship": canonical,
+                "content_metrics": {
+                    "pages": len(cohort), "min_words": min(words or [0]),
+                    "avg_words": round(sum(words) / max(len(words), 1), 1),
+                    "unique_content_hashes": len(set(hashes)), "duplicate_content_pages": len(hashes) - len(set(hashes)),
+                },
+                "link_metrics": {
+                    "avg_internal_links": round(sum(int(p.get("internal_links_count") or 0) for p in cohort) / max(len(cohort), 1), 1),
+                    "orphan_pages": sum(int(p.get("internal_links_count") or 0) == 0 for p in cohort),
+                },
+            }
+
+        # Template and issue clusters are the only Laya inputs. URLs are samples/evidence, never inference units.
+        candidates: Dict[str, LayaCandidateInput] = {}
+        for cluster in issue_clusters:
+            sample_urls = samples(cluster.get("sample_urls"))[:5]
+            ev = evidence(cluster.get("primary_affected_template", "default"), sample_urls)
+            key = f"cluster:{cluster.get('cluster_id', cluster.get('issue', 'generic'))}"
+            candidates[key] = LayaCandidateInput(
+                cluster_id=key, template_id=cluster.get("primary_affected_template", "default"),
+                issue_type=cluster.get("issue", "generic"), page_count=cluster.get("affected_urls_count", 1),
+                sample_urls=sample_urls, status_distribution=ev["status_distribution"],
+                canonical_relationship=ev["canonical_relationship"], indexability=ev["indexability"],
+                content_metrics=ev["content_metrics"], link_metrics=ev["link_metrics"],
+                severity_hint=cluster.get("severity", cluster.get("priority", "medium")),
+                category_hint=cluster.get("category", "technical"), evidence_refs=[cluster.get("evidence_summary", "")],
+            )
+
+        grouped_opps: Dict[str, List[Dict[str, Any]]] = {}
+        for opp in opp_rows:
+            key = f"opportunity:{opp.get('type', 'generic')}|{opp.get('implementation_location', '')}|{opp.get('action', '')[:80]}"
+            grouped_opps.setdefault(key, []).append(opp)
+        for key, group in grouped_opps.items():
+            first = group[0]
+            sample_urls = []
+            for item in group[:5]:
+                sample_urls.extend(samples(item.get("sample_urls_json")))
+            ev = evidence(first.get("implementation_location", "default"), sample_urls[:5])
+            candidates.setdefault(key, LayaCandidateInput(
+                cluster_id=key, template_id=first.get("implementation_location", "default"),
+                issue_type=first.get("observation") or first.get("type", "generic"), page_count=sum(int(x.get("affected_urls_count") or 1) for x in group),
+                sample_urls=sample_urls[:5], status_distribution=ev["status_distribution"],
+                canonical_relationship=ev["canonical_relationship"], indexability=ev["indexability"],
+                content_metrics=ev["content_metrics"], link_metrics=ev["link_metrics"],
+                severity_hint=first.get("opportunity_tier", "medium").lower(), category_hint=first.get("type", "technical"),
+                evidence_refs=[first.get("hypothesis", "")],
+            ))
+
         laya_pool = LayaWorkerPool(
             model_id=self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"),
-            max_queue_depth=5000,
-            num_workers=2,
-            batch_size=10
+            max_queue_depth=max(5000, len(candidates)), num_workers=2, batch_size=10, cache_db_path=self.db_path
         )
         await laya_pool.start()
-        
-        # Build candidates from issue clusters (template-first compression)
-        for cluster in issue_clusters:
+        for candidate in candidates.values():
             self.check_cancelled()
-            sample_urls_raw = cluster.get('sample_urls', '')
-            if isinstance(sample_urls_raw, str):
-                try:
-                    sample_url_list = json.loads(sample_urls_raw) if sample_urls_raw.startswith('[') else [u.strip() for u in sample_urls_raw.split(',') if u.strip()]
-                except Exception:
-                    sample_url_list = [u.strip() for u in sample_urls_raw.split(',') if u.strip()]
-            else:
-                sample_url_list = list(sample_urls_raw) if sample_urls_raw else []
-            
-            candidate = LayaCandidateInput(
-                cluster_id=cluster.get("cluster_id", cluster.get("issue", "generic")),
-                template_id=cluster.get("primary_affected_template", "default"),
-                issue_type=cluster.get("issue", "generic"),
-                page_count=cluster.get("affected_urls_count", 1),
-                sample_urls=sample_url_list[:5],
-                severity_hint=cluster.get("severity", cluster.get("priority", "medium")),
-                category_hint=cluster.get("category", "technical"),
-                evidence_refs=[cluster.get("evidence_summary", "")]
-            )
             await laya_pool.submit_candidate(candidate, run_id=self.crawl_id)
-        
-        # Wait for pool to drain
-        self.emit_progress("P4_CALIBRATION", 74.0, f"Processing {len(issue_clusters)} candidates through Laya Decision Engine...")
+
+        self.emit_progress("P4_LAYA_DECISION_ENGINE", 74.0, f"Laya is deciding {len(candidates):,} reduced SEO candidates...")
         try:
             await asyncio.wait_for(laya_pool._queue.join(), timeout=300.0)
         except asyncio.TimeoutError:
             logger.warning("Laya decision queue drain timed out")
-        
-        # Collect all decisions
         all_decisions = await laya_pool.get_decisions()
-        cluster_decisions: Dict[str, LayaDecision] = {}
-        laya_records = []
-        for dec in all_decisions:
-            cluster_decisions[dec.cluster_id] = dec
-            laya_records.append((
-                self.crawl_id,
-                dec.cluster_id,
-                f"Cluster: {dec.cluster_id} ({dec.decision_type})",
-                dec.raw_response,
-                dec.latency_ms,
-                dec.reason_codes[0] if dec.reason_codes else "technical",
-                dec.severity,
-                dec.choice,
-                dec.confidence
-            ))
-        
-        # Update opportunities with Laya decisions
-        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-            conn.row_factory = sqlite3.Row
-            cur = conn.execute(
-                "SELECT * FROM opportunities WHERE run_id = ?",
-                (self.crawl_id,)
-            )
-            opp_rows = [dict(r) for r in cur.fetchall()]
+        decisions = {d.cluster_id: d for d in all_decisions}
 
-        # Cluster unmatched opportunities by (type, action) to bound Laya inferences (Section 21)
-        unmatched_groups: Dict[str, List[Dict[str, Any]]] = {}
-        for opp in opp_rows:
-            opp_id = opp.get("opportunity_id")
-            dec = cluster_decisions.get(opp_id) or cluster_decisions.get(opp.get("type")) or cluster_decisions.get(opp.get("display_id"))
-            if not dec:
-                group_key = f"{opp.get('type', 'generic')}_{opp.get('action', '')[:40]}"
-                unmatched_groups.setdefault(group_key, []).append(opp)
-
-        if unmatched_groups:
-            self.emit_progress("P4_CALIBRATION", 76.0, f"Evaluating {len(unmatched_groups)} candidate clusters through Laya Decision Engine...")
-            for group_key, group_items in unmatched_groups.items():
-                first = group_items[0]
-                sample_urls = []
-                for item in group_items[:5]:
-                    raw_urls = item.get("sample_urls_json") or "[]"
-                    try:
-                        urls = json.loads(raw_urls) if isinstance(raw_urls, str) else []
-                        sample_urls.extend(urls)
-                    except Exception:
-                        pass
-                candidate = LayaCandidateInput(
-                    cluster_id=group_key,
-                    template_id=first.get("implementation_location", "default"),
-                    issue_type=first.get("observation") or first.get("type", "generic"),
-                    page_count=len(group_items),
-                    sample_urls=sample_urls[:5],
-                    severity_hint=first.get("opportunity_tier", "medium").lower(),
-                    category_hint=first.get("type", "technical"),
-                    evidence_refs=[first.get("hypothesis", "")]
-                )
-                await laya_pool.submit_candidate(candidate, run_id=self.crawl_id)
-
-            try:
-                await asyncio.wait_for(laya_pool._queue.join(), timeout=60.0)
-            except asyncio.TimeoutError:
-                logger.warning("Laya unmatched candidates drain timed out")
-
-            all_decisions = await laya_pool.get_decisions()
-            for dec in all_decisions:
-                cluster_decisions[dec.cluster_id] = dec
-                laya_records.append((
-                    self.crawl_id,
-                    dec.cluster_id,
-                    f"Cluster: {dec.cluster_id} ({dec.decision_type})",
-                    dec.raw_response,
-                    dec.latency_ms,
-                    dec.reason_codes[0] if dec.reason_codes else "technical",
-                    dec.severity,
-                    dec.choice,
-                    dec.confidence
-                ))
-
+        severity_score = {"critical": 100.0, "high": 80.0, "medium": 55.0, "low": 25.0}
+        priority_model = PriorityModel()
         opp_updates = []
         for opp in opp_rows:
-            self.check_cancelled()
-            opp_id = opp.get("opportunity_id")
-            group_key = f"{opp.get('type', 'generic')}_{opp.get('action', '')[:40]}"
-            dec = (
-                cluster_decisions.get(opp_id)
-                or cluster_decisions.get(group_key)
-                or cluster_decisions.get(opp.get("type"))
-                or cluster_decisions.get(opp.get("display_id"))
-            )
-            
-            if dec:
-                opp_updates.append((
-                    dec.choice,
-                    dec.confidence,
-                    dec.decision_id,
-                    opp_id
-                ))
-            else:
-                opp_updates.append((
-                    "optimize",
-                    0.85,
-                    f"dec_laya_{opp_id[:12]}",
-                    opp_id
-                ))
+            key = f"opportunity:{opp.get('type', 'generic')}|{opp.get('implementation_location', '')}|{opp.get('action', '')[:80]}"
+            dec = decisions.get(key)
+            if not dec:
+                continue
+            factors = json.loads(opp.get("priority_factors_json") or "{}")
+            factors["technical_severity"] = severity_score.get(dec.severity.lower(), 50.0)
+            score, tier = priority_model.calculate_opportunity_score(factors)
+            validated = int(dec.is_real_issue and dec.gate != "SUPPRESS")
+            if not validated:
+                score, tier = 0.0, "Low"
+            opp_updates.append((
+                dec.choice, dec.confidence, dec.decision_id, validated,
+                "SEO_PROBLEM" if dec.is_real_issue else "NOISE", dec.scope, dec.root_cause,
+                json.dumps(dec.canonical_indexability), json.dumps(dec.content_assessment),
+                json.dumps(dec.cannibalization), json.dumps(dec.internal_linking), key,
+                tier, score, json.dumps(factors), opp.get("opportunity_id"),
+            ))
 
-        # Batch write all laya decisions and opportunity updates together
         with sqlite3.connect(self.db_path, timeout=30.0) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            if laya_records:
-                conn.executemany("""
-                    INSERT INTO laya_decisions (crawl_id, issue_key, prompt_summary, response_raw, latency_ms, decision_category, decision_severity, decision_action, confidence, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                """, laya_records)
             if opp_updates:
-                conn.executemany("""
-                    UPDATE opportunities
-                    SET laya_action = ?, laya_confidence = ?, laya_decision_id = ?
-                    WHERE opportunity_id = ?
-                """, opp_updates)
+                conn.executemany("""UPDATE opportunities SET
+                    laya_action=?, laya_confidence=?, laya_decision_id=?, laya_validated=?, laya_verdict=?,
+                    laya_scope=?, laya_root_cause=?, laya_canonical_indexability=?, laya_content_assessment=?,
+                    laya_cannibalization=?, laya_internal_linking=?, laya_candidate_id=?, opportunity_tier=?,
+                    priority_score=?, priority_factors_json=? WHERE opportunity_id=?""", opp_updates)
+            if all_decisions:
+                conn.executemany("""INSERT OR REPLACE INTO laya_decisions
+                    (crawl_id, issue_key, prompt_summary, response_raw, latency_ms, decision_category,
+                     decision_severity, decision_action, confidence, created_at, decision_type, choice, gate,
+                     input_hash, model_version, prompt_version, affected_scope, affected_count, cluster_id,
+                     is_real_issue, scope, root_cause, canonical_indexability, content_assessment,
+                     cannibalization, internal_linking) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [(self.crawl_id, d.cluster_id, f"Reduced candidate {d.cluster_id}", d.raw_response, d.latency_ms,
+                      d.reason_codes[0] if d.reason_codes else "technical", d.severity, d.choice, d.confidence,
+                      d.decision_type, d.choice, d.gate, d.input_hash, d.model_version, "laya-seo-decision-v2",
+                      d.affected_scope, d.affected_count, d.cluster_id, int(d.is_real_issue), d.scope, d.root_cause,
+                      json.dumps(d.canonical_indexability), json.dumps(d.content_assessment),
+                      json.dumps(d.cannibalization), json.dumps(d.internal_linking)) for d in all_decisions])
             conn.commit()
 
-        # Collect metrics
         pool_metrics = laya_pool.get_metrics()
         await laya_pool.stop()
         
@@ -805,23 +793,27 @@ class SEOJEVPipeline:
         laya_summary = laya_analyzer.metrics.get_summary() if laya_analyzer else {}
         laya_summary.update(pool_metrics)
 
-        self.emit_progress("P4_CALIBRATION", 80.0, f"Laya Decision Engine complete: {pool_metrics['total_decisions']} decisions.")
-        self.pass_timings["P4_CALIBRATION"] = round(time.monotonic() - t0, 2)
+        self.emit_progress(
+            "P4_LAYA_DECISION_ENGINE", 80.0,
+            f"Laya SEO Decision Engine complete: {pool_metrics['total_decisions']} decisions.",
+            {"laya_telemetry": pool_metrics}
+        )
+        self.pass_timings["P4_LAYA_DECISION_ENGINE"] = round(time.monotonic() - t0, 2)
         return {"laya_summary": laya_summary, "laya_decisions": [d.to_dict() for d in all_decisions]}
 
     # -------------------------------------------------------------------------
-    # PASS 5: ACTION & WORK ORDERS
+    # PASS 5: VALIDATED OPPORTUNITIES, PRIORITY & WORK ORDERS
     # -------------------------------------------------------------------------
     async def run_pass_5_work_orders(self, p4_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """P5: Generate developer work orders, Jira/Linear/GitHub exports, run Claims Linter."""
+        """P5: Generate work orders only from Laya validated opportunities."""
         self.check_cancelled()
         t0 = time.monotonic()
-        self.emit_progress("P5_WORK_ORDERS", 81.0, "Generating developer work orders and ticket exports...")
+        self.emit_progress("P5_VALIDATED_OPPORTUNITIES", 81.0, "Generating priority-ranked work orders from validated opportunities...")
 
         wo_mgr = WorkOrderManager(db_path=self.db_path)
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute("SELECT * FROM opportunities WHERE run_id = ?", (self.crawl_id,)).fetchall()
+            rows = conn.execute("SELECT * FROM opportunities WHERE run_id = ? AND COALESCE(laya_validated, 0) = 1", (self.crawl_id,)).fetchall()
             v3_opps = [dict(r) for r in rows]
 
         work_orders = wo_mgr.create_work_orders_from_opportunities(self.crawl_id, v3_opps)
@@ -832,7 +824,7 @@ class SEOJEVPipeline:
 
         # Claims Linter Quality Gate
         self.check_cancelled()
-        self.emit_progress("P5_WORK_ORDERS", 86.0, "Executing Claims Linter quality gate against forbidden claims...")
+        self.emit_progress("P5_VALIDATED_OPPORTUNITIES", 86.0, "Executing Claims Linter quality gate against forbidden claims...")
         claims_linter = ClaimsLinter()
         lint_violations = []
         for wo in work_orders:
@@ -841,8 +833,8 @@ class SEOJEVPipeline:
         lint_report_path = os.path.join(self.output_dir, 'lint-report.json')
         claims_linter.export_report(lint_violations, lint_report_path)
 
-        self.emit_progress("P5_WORK_ORDERS", 90.0, f"Work orders generated ({len(work_orders)} tickets, {len(lint_violations)} lint flags).")
-        self.pass_timings["P5_WORK_ORDERS"] = round(time.monotonic() - t0, 2)
+        self.emit_progress("P5_VALIDATED_OPPORTUNITIES", 90.0, f"Validated opportunities prioritized; {len(work_orders)} work orders generated.")
+        self.pass_timings["P5_VALIDATED_OPPORTUNITIES"] = round(time.monotonic() - t0, 2)
         return {
             "work_orders": work_orders,
             "ticket_stats": ticket_stats,
@@ -851,13 +843,13 @@ class SEOJEVPipeline:
         }
 
     # -------------------------------------------------------------------------
-    # PASS 6: DELIVERABLES & REPORTS
+    # PASS 6: REPORTS
     # -------------------------------------------------------------------------
     async def run_pass_6_deliverables(self, p5_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """P6: Render Master Word docx, executive summary, 25+ CSV suite, HTML explorer, and JSON."""
+        """P6: Render reports and deliverables."""
         self.check_cancelled()
         t0 = time.monotonic()
-        self.emit_progress("P6_DELIVERABLES", 91.0, "Rendering Master Word Reports and CSV suites...")
+        self.emit_progress("P6_REPORTS", 91.0, "Rendering reports and CSV suites...")
 
         stats = self.storage.get_stats(self.crawl_id)
         audit_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -880,7 +872,7 @@ class SEOJEVPipeline:
 
         # 6d. Offline Interactive HTML Explorer
         self.check_cancelled()
-        self.emit_progress("P6_DELIVERABLES", 96.0, "Generating offline interactive HTML Explorer dashboard...")
+        self.emit_progress("P6_REPORTS", 96.0, "Generating offline interactive HTML Explorer dashboard...")
         html_explorer_path = os.path.join(self.output_dir, "explorer.html")
         html_explorer_gen = HTMLExplorerGenerator(output_path=html_explorer_path, db_path=self.db_path)
         domain_clean = self.target_url.replace("https://", "").replace("http://", "").strip("/")
@@ -901,8 +893,8 @@ class SEOJEVPipeline:
 
         self.storage.update_crawl_status(self.crawl_id, "completed", datetime.datetime.now().isoformat())
 
-        self.emit_progress("P6_DELIVERABLES", 100.0, "Audit completed successfully. All deliverables compiled.")
-        self.pass_timings["P6_DELIVERABLES"] = round(time.monotonic() - t0, 2)
+        self.emit_progress("P6_REPORTS", 100.0, "Audit completed successfully. Reports compiled.")
+        self.pass_timings["P6_REPORTS"] = round(time.monotonic() - t0, 2)
 
         return {
             "master_docx": master_docx_path,
@@ -917,7 +909,7 @@ class SEOJEVPipeline:
     # RUN ALL PASSES
     # -------------------------------------------------------------------------
     async def run_all(self) -> Dict[str, Any]:
-        """Runs the entire 6-pass pipeline end-to-end with cooperative cancellation and checkpointing."""
+        """Runs Crawl → Evidence → Reduction → Laya → Validation → Reports."""
         start_wall_time = time.monotonic()
         try:
             # P1: Crawl
@@ -929,49 +921,49 @@ class SEOJEVPipeline:
                 self.mark_stage_complete("P1_CRAWL", p1_res)
             self.check_cancelled()
 
-            # P2: Signals
-            if self.is_stage_complete("P2_SIGNALS"):
-                self.emit_progress("P2_SIGNALS", 50.0, f"Stage P2_SIGNALS already completed for {self.crawl_id}. Resuming from checkpoint.")
+            # P2: Deterministic evidence
+            if self.is_stage_complete("P2_DETERMINISTIC_EVIDENCE"):
+                self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 50.0, f"Deterministic evidence already completed for {self.crawl_id}.")
                 p2_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
                 p2_res = await self.run_pass_2_signals(p1_res)
-                self.mark_stage_complete("P2_SIGNALS", {"status": "completed"})
+                self.mark_stage_complete("P2_DETERMINISTIC_EVIDENCE", {"status": "completed"})
             self.check_cancelled()
 
-            # P3: Opportunities
-            if self.is_stage_complete("P3_SEARCH_OPPORTUNITIES"):
-                self.emit_progress("P3_SEARCH_OPPORTUNITIES", 70.0, f"Stage P3_SEARCH_OPPORTUNITIES already completed for {self.crawl_id}. Resuming from checkpoint.")
+            # P3: Candidate/template reduction
+            if self.is_stage_complete("P3_CANDIDATE_REDUCTION"):
+                self.emit_progress("P3_CANDIDATE_REDUCTION", 70.0, f"Candidate reduction already completed for {self.crawl_id}.")
                 p3_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
                 p3_res = await self.run_pass_3_search_opportunities(p2_res)
-                self.mark_stage_complete("P3_SEARCH_OPPORTUNITIES", {"status": "completed"})
+                self.mark_stage_complete("P3_CANDIDATE_REDUCTION", {"status": "completed"})
             self.check_cancelled()
 
-            # P4: Calibration & Laya
-            if self.is_stage_complete("P4_CALIBRATION"):
-                self.emit_progress("P4_CALIBRATION", 80.0, f"Stage P4_CALIBRATION already completed for {self.crawl_id}. Resuming from checkpoint.")
+            # P4: Laya primary SEO decision
+            if self.is_stage_complete("P4_LAYA_DECISION_ENGINE"):
+                self.emit_progress("P4_LAYA_DECISION_ENGINE", 80.0, f"Laya SEO decisions already completed for {self.crawl_id}.")
                 p4_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
-                p4_res = await self.run_pass_4_calibration(p3_res)
-                self.mark_stage_complete("P4_CALIBRATION", p4_res)
+                p4_res = await self.run_pass_4_laya_decision(p3_res)
+                self.mark_stage_complete("P4_LAYA_DECISION_ENGINE", p4_res)
             self.check_cancelled()
 
-            # P5: Work Orders
-            if self.is_stage_complete("P5_WORK_ORDERS"):
-                self.emit_progress("P5_WORK_ORDERS", 90.0, f"Stage P5_WORK_ORDERS already completed for {self.crawl_id}. Resuming from checkpoint.")
+            # P5: Validated opportunities, priority, and work orders
+            if self.is_stage_complete("P5_VALIDATED_OPPORTUNITIES"):
+                self.emit_progress("P5_VALIDATED_OPPORTUNITIES", 90.0, f"Validated opportunities already completed for {self.crawl_id}.")
                 p5_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
                 p5_res = await self.run_pass_5_work_orders(p4_res)
-                self.mark_stage_complete("P5_WORK_ORDERS", {"status": "completed"})
+                self.mark_stage_complete("P5_VALIDATED_OPPORTUNITIES", {"status": "completed"})
             self.check_cancelled()
 
-            # P6: Deliverables
-            if self.is_stage_complete("P6_DELIVERABLES"):
-                self.emit_progress("P6_DELIVERABLES", 100.0, f"Stage P6_DELIVERABLES already completed for {self.crawl_id}. Resuming from checkpoint.")
+            # P6: Reports
+            if self.is_stage_complete("P6_REPORTS"):
+                self.emit_progress("P6_REPORTS", 100.0, f"Reports already completed for {self.crawl_id}.")
                 p6_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
                 p6_res = await self.run_pass_6_deliverables(p5_res)
-                self.mark_stage_complete("P6_DELIVERABLES", {"status": "completed"})
+                self.mark_stage_complete("P6_REPORTS", {"status": "completed"})
 
             total_duration = round(time.monotonic() - start_wall_time, 2)
             stats = self.storage.get_stats(self.crawl_id)
@@ -991,11 +983,11 @@ class SEOJEVPipeline:
                 f"pages_skipped: {stats.urls_skipped}\n"
                 f"pages_failed: {stats.urls_failed}\n\n"
                 f"crawl_seconds: {self.pass_timings.get('P1_CRAWL', 0.0):.2f}\n"
-                f"signals_seconds: {self.pass_timings.get('P2_SIGNALS', 0.0):.2f}\n"
-                f"opportunity_seconds: {self.pass_timings.get('P3_SEARCH_OPPORTUNITIES', 0.0):.2f}\n"
-                f"laya_seconds: {self.pass_timings.get('P4_CALIBRATION', 0.0):.2f}\n"
-                f"work_order_seconds: {self.pass_timings.get('P5_WORK_ORDERS', 0.0):.2f}\n"
-                f"deliverable_seconds: {self.pass_timings.get('P6_DELIVERABLES', 0.0):.2f}\n\n"
+                f"evidence_seconds: {self.pass_timings.get('P2_DETERMINISTIC_EVIDENCE', 0.0):.2f}\n"
+                f"reduction_seconds: {self.pass_timings.get('P3_CANDIDATE_REDUCTION', 0.0):.2f}\n"
+                f"laya_seconds: {self.pass_timings.get('P4_LAYA_DECISION_ENGINE', 0.0):.2f}\n"
+                f"validated_opportunity_seconds: {self.pass_timings.get('P5_VALIDATED_OPPORTUNITIES', 0.0):.2f}\n"
+                f"report_seconds: {self.pass_timings.get('P6_REPORTS', 0.0):.2f}\n\n"
                 f"laya_initializations: {laya_analyzer.initialization_count}\n"
                 f"laya_inference_calls: {laya_analyzer.inference_calls}\n"
                 f"laya_cache_hits: {laya_analyzer.cache_hits}\n"

@@ -117,7 +117,16 @@ class MigrationRunner:
             new_opp_cols = {
                 "laya_action": "TEXT",
                 "laya_confidence": "REAL",
-                "laya_decision_id": "TEXT"
+                "laya_decision_id": "TEXT",
+                "laya_validated": "INTEGER DEFAULT 0",
+                "laya_verdict": "TEXT",
+                "laya_scope": "TEXT",
+                "laya_root_cause": "TEXT",
+                "laya_canonical_indexability": "TEXT",
+                "laya_content_assessment": "TEXT",
+                "laya_cannibalization": "TEXT",
+                "laya_internal_linking": "TEXT",
+                "laya_candidate_id": "TEXT"
             }
             for col, col_type in new_opp_cols.items():
                 if col not in opp_cols:
@@ -171,7 +180,15 @@ class MigrationRunner:
                 "model_version": "TEXT",
                 "affected_scope": "TEXT",
                 "affected_count": "INTEGER",
-                "cluster_id": "TEXT"
+                "cluster_id": "TEXT",
+                "prompt_version": "TEXT",
+                "is_real_issue": "INTEGER DEFAULT 1",
+                "scope": "TEXT",
+                "root_cause": "TEXT",
+                "canonical_indexability": "TEXT",
+                "content_assessment": "TEXT",
+                "cannibalization": "TEXT",
+                "internal_linking": "TEXT"
             }
             if cols: # Table exists
                 for col, col_type in new_cols.items():
@@ -205,7 +222,15 @@ class MigrationRunner:
                 created_at TEXT,
                 from_cache INTEGER,
                 raw_response TEXT,
-                gate TEXT
+                gate TEXT,
+                prompt_version TEXT,
+                is_real_issue INTEGER DEFAULT 1,
+                scope TEXT,
+                root_cause TEXT,
+                canonical_indexability TEXT,
+                content_assessment TEXT,
+                cannibalization TEXT,
+                internal_linking TEXT
             );
             """)
         except Exception:

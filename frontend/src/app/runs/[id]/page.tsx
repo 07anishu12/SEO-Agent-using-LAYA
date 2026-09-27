@@ -35,11 +35,11 @@ import {
 
 const PASS_NAMES = [
   { id: "P1_CRAWL", label: "Pass 1: Discovery & HTTP Crawl" },
-  { id: "P2_SIGNALS", label: "Pass 2: Link Graph & SimHash" },
-  { id: "P3_SEARCH_OPPORTUNITIES", label: "Pass 3: 11 Root-Cause Detectors" },
-  { id: "P4_CALIBRATION", label: "Pass 4: Laya MLX Calibration" },
-  { id: "P5_WORK_ORDERS", label: "Pass 5: Work Orders & Tickets" },
-  { id: "P6_DELIVERABLES", label: "Pass 6: Word, CSV & HTML Reports" },
+  { id: "P2_DETERMINISTIC_EVIDENCE", label: "Pass 2: Deterministic Evidence" },
+  { id: "P3_CANDIDATE_REDUCTION", label: "Pass 3: Candidate & Template Reduction" },
+  { id: "P4_LAYA_DECISION_ENGINE", label: "Pass 4: Laya SEO Decision Engine" },
+  { id: "P5_VALIDATED_OPPORTUNITIES", label: "Pass 5: Validated Opportunities, Priority & Work Orders" },
+  { id: "P6_REPORTS", label: "Pass 6: Reports" },
 ];
 
 export default function RunDetailPage() {
@@ -54,9 +54,10 @@ export default function RunDetailPage() {
   // Live SSE Telemetry state
   const [pct, setPct] = useState<number>(0);
   const [currentPass, setCurrentPass] = useState<string>("QUEUED");
-  const [liveMessage, setLiveMessage] = useState<string>("Initializing telemetry stream...");
+  const [liveMessage, setLiveMessage] = useState<string>("Waiting for run telemetry...");
   const [sseConnected, setSseConnected] = useState<boolean>(false);
   const [terminalReached, setTerminalReached] = useState<boolean>(false);
+  const [layaTelemetry, setLayaTelemetry] = useState<Record<string, any> | null>(null);
 
   // Cancellation state
   const [cancelling, setCancelling] = useState<boolean>(false);
@@ -77,6 +78,12 @@ export default function RunDetailPage() {
       }
       if (["completed", "cancelled", "failed", "needs_attention"].includes(data.status)) {
         setTerminalReached(true);
+        setSseConnected(false);
+        if (data.status === "completed") {
+          setPct(100);
+          setCurrentPass("P6_REPORTS");
+          setLiveMessage("Run completed. Telemetry stream closed.");
+        }
       }
       return data;
     } catch (err: any) {
@@ -123,16 +130,25 @@ export default function RunDetailPage() {
           if (evt.pct !== undefined) {
             setPct((prev) => Math.max(prev, evt.pct || 0));
           }
-          if (evt.pass_name) {
-            setCurrentPass(evt.pass_name);
+          if (evt.pass_name || evt.pass) {
+            setCurrentPass(evt.pass_name || evt.pass || "QUEUED");
           }
           if (evt.message) {
             setLiveMessage(evt.message);
+          }
+          if (evt.meta?.laya_telemetry) {
+            setLayaTelemetry(evt.meta.laya_telemetry);
           }
           if (evt.status) {
             setRun((prev) => (prev ? { ...prev, status: evt.status! } : prev));
             if (["completed", "cancelled", "failed", "needs_attention"].includes(evt.status)) {
               setTerminalReached(true);
+              setSseConnected(false);
+              if (evt.status === "completed") {
+                setPct(100);
+                setCurrentPass("P6_REPORTS");
+                setLiveMessage("Run completed. Telemetry stream closed.");
+              }
               fetchRunData();
               if (evt.status === "completed") {
                 fetchArtifacts();
@@ -388,6 +404,11 @@ export default function RunDetailPage() {
             <p className="text-xs text-slate-400 mt-2 font-mono truncate" title={liveMessage}>
               &gt; {liveMessage}
             </p>
+            {layaTelemetry && (
+              <p className="text-[11px] text-slate-500 mt-2 font-mono">
+                Laya: {layaTelemetry.total_candidates ?? 0} candidates · {layaTelemetry.total_decisions ?? 0} decisions · {layaTelemetry.total_cache_hits ?? 0} cache hits · {layaTelemetry.total_cache_misses ?? 0} misses · {layaTelemetry.decisions_per_sec ?? 0}/s · p50 {Math.round(layaTelemetry.p50_ms ?? 0)}ms · p95 {Math.round(layaTelemetry.p95_ms ?? 0)}ms
+              </p>
+            )}
           </div>
 
           {/* 6-Pass Step Timeline */}

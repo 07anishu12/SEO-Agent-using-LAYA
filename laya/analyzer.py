@@ -5,6 +5,7 @@ import hashlib
 import threading
 from typing import Dict, Any, List, Optional
 from .questions import get_laya_seo_questions
+from .decision import LAYA_PROMPT_VERSION
 from .metrics import LayaMetricsTracker
 from .backends import get_laya_backend, LayaBackend
 
@@ -42,6 +43,7 @@ class LayaSEOAnalyzer:
         self.initialization_count = 0
         self.inference_calls = 0
         self.cache_hits = 0
+        self.cache_misses = 0
         self.decisions_count = 0
 
     @classmethod
@@ -101,12 +103,12 @@ class LayaSEOAnalyzer:
         Computes a stable, normalized SHA-256 feature hash representing
         the structural SEO problem regardless of superficial variation.
         """
-        norm_issue = str(issue_data.get("issue") or issue_data.get("rule_id") or "").strip().lower()
-        norm_template = str(issue_data.get("template") or issue_data.get("template_id") or "default").strip().lower()
-        norm_evidence = str(issue_data.get("evidence") or "")[:150].strip().lower()
-        model_ver = str(self.model_id).strip()
-
-        raw_payload = f"{norm_issue}::{norm_template}::{norm_evidence}::{model_ver}"
+        normalized = {k: issue_data[k] for k in sorted(issue_data) if k not in {"run_id"}}
+        raw_payload = json.dumps({
+            "evidence": normalized,
+            "model_version": str(self.model_id).strip(),
+            "prompt_version": LAYA_PROMPT_VERSION,
+        }, sort_keys=True, default=str)
         return hashlib.sha256(raw_payload.encode("utf-8")).hexdigest()
 
     def classify_issue(
@@ -137,6 +139,8 @@ class LayaSEOAnalyzer:
                 )
                 return cached
 
+        self.cache_misses += 1
+
         # Check backend availability
         if not self.is_available():
             decision = {
@@ -161,11 +165,8 @@ class LayaSEOAnalyzer:
 
         try:
             prompt_state = {
-                "message": (
-                    f"SEO finding: '{issue_data.get('issue')}' on page type '{issue_data.get('page_type', 'generic')}'. "
-                    f"Template: {issue_data.get('template', 'default')}. Affected pages: {issue_data.get('affected_urls_count', 1)}. "
-                    f"Evidence: {str(issue_data.get('evidence', ''))[:150]}"
-                )
+                "message": json.dumps(issue_data, sort_keys=True, default=str)[:12000],
+                "prompt_version": LAYA_PROMPT_VERSION,
             }
 
             res = backend.predict(prompt_state, self.questions)
@@ -177,10 +178,22 @@ class LayaSEOAnalyzer:
             sev_ans = answers.get("severity", {})
             act_ans = answers.get("action", {})
 
-            category = cat_ans.get("choice", issue_data.get("category", "technical"))
+            def answer(name, default):
+                value = answers.get(name, {})
+                return value.get("choice", value.get("value", default)) if isinstance(value, dict) else (value or default)
+
+            verdict = str(answer("verdict", "real_issue")).lower()
+            is_real_issue = verdict not in {"noise", "no_issue", "false_positive", "no_seo_problem"}
+            category = answer("category", issue_data.get("category", "technical"))
             severity = sev_ans.get("choice", issue_data.get("severity", "medium"))
-            action = act_ans.get("choice", "fix_template")
+            action = act_ans.get("choice", answer("action", "fix_template"))
             confidence = round(float(cat_ans.get("confidence", 0.8)), 3)
+            scope = str(answer("scope", issue_data.get("scope", "template" if issue_data.get("affected_urls_count", 1) > 1 else "page")))
+            root_cause = str(answer("root_cause", issue_data.get("root_cause", issue_data.get("issue", ""))))
+            canonical_indexability = answers.get("canonical_indexability", issue_data.get("canonical_indexability", {}))
+            content_assessment = answers.get("content_assessment", issue_data.get("content_metrics", {}))
+            cannibalization = answers.get("cannibalization", issue_data.get("cannibalization", {}))
+            internal_linking = answers.get("internal_linking", issue_data.get("link_metrics", {}))
 
             decision_id = f"dec_{feature_hash[:12]}"
 
@@ -197,6 +210,14 @@ class LayaSEOAnalyzer:
                 "category": category,
                 "severity": severity,
                 "action": action,
+                "verdict": verdict,
+                "is_real_issue": is_real_issue,
+                "scope": scope,
+                "root_cause": root_cause,
+                "canonical_indexability": canonical_indexability,
+                "content_assessment": content_assessment,
+                "cannibalization": cannibalization,
+                "internal_linking": internal_linking,
                 "confidence": confidence,
                 "latency_ms": round(elapsed_ms, 2),
                 "raw_response": json.dumps(res),
@@ -233,6 +254,7 @@ class LayaSEOAnalyzer:
         self.initialization_count = 0
         self.inference_calls = 0
         self.cache_hits = 0
+        self.cache_misses = 0
         self.decisions_count = 0
         with _global_cache_lock:
             _global_decision_cache.clear()

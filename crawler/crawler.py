@@ -167,7 +167,7 @@ class SEOCrawler:
                     url_tuples.append((sm_url, "queued", "sitemap", 1))
             else:
                 self.scheduler.mark_blocked(sm_url)
-                self.storage.update_url_status(self.crawl_id, sm_url, "blocked")
+                url_tuples.append((sm_url, "blocked", "sitemap", 1))
 
         self.storage.add_urls(self.crawl_id, url_tuples)
 
@@ -219,6 +219,12 @@ class SEOCrawler:
         batch_lock = asyncio.Lock()
         BATCH_SIZE = 200
 
+        async def queue_status(url: str, status: str):
+            async with batch_lock:
+                batch_buffer.append({"url_status": (url, status)})
+            if len(batch_buffer) >= BATCH_SIZE:
+                await flush_batch(force=False)
+
         async def flush_batch(force: bool = False):
             async with batch_lock:
                 if not batch_buffer:
@@ -243,7 +249,7 @@ class SEOCrawler:
                 # Check robots.txt
                 if not self.robots.is_allowed(url):
                     self.scheduler.mark_blocked(url)
-                    self.storage.update_url_status(self.crawl_id, url, "blocked")
+                    await queue_status(url, "blocked")
                     return
 
                 # Check memory guard periodically
@@ -259,7 +265,7 @@ class SEOCrawler:
                 if is_trap:
                     self.trap_detector.record_quarantine(url, trap_type, trap_reason)
                     self.scheduler.mark_skipped(url)
-                    self.storage.update_url_status(self.crawl_id, url, "trap_quarantine")
+                    await queue_status(url, "trap_quarantine")
                     return
 
                 await self.scheduler.throttle(self.fetcher.adaptive_delay_multiplier)
@@ -301,17 +307,18 @@ class SEOCrawler:
                             is_rendered = True
 
                 # Content-addressed compression
-                content_hash, raw_ref = self.content_store.put(html_content)
+                content_hash, raw_ref = await asyncio.to_thread(self.content_store.put, html_content)
                 rendered_ref = ""
                 if is_rendered:
-                    _, rendered_ref = self.content_store.put(html_content)
+                    _, rendered_ref = await asyncio.to_thread(self.content_store.put, html_content)
 
                 # Deduce page type and template ID
                 page_type = infer_page_type(url)
                 template_id = derive_template_id(url, page_type)
 
                 # Process SEO rules
-                page_data, links, images, schemas, issues = self.seo_engine.process_page(
+                page_data, links, images, schemas, issues = await asyncio.to_thread(
+                    self.seo_engine.process_page,
                     url=url,
                     final_url=fetch_res.final_url,
                     status_code=fetch_res.status_code,
@@ -363,8 +370,9 @@ class SEOCrawler:
                                 self.trap_detector.record_quarantine(link.target_url, trap_t, trap_r)
                                 continue
 
-                            if self.scheduler.enqueue(link.target_url, discovery_source="internal_link", depth=depth + 1):
-                                new_url_tuples.append((link.target_url, "queued", "internal_link", depth + 1))
+                            normalized_target = self.normalizer.normalize(link.target_url)
+                            if normalized_target and self.scheduler.enqueue(normalized_target, discovery_source="internal_link", depth=depth + 1):
+                                new_url_tuples.append((normalized_target, "queued", "internal_link", depth + 1))
 
                 new_status = "crawled" if (fetch_res.is_success and not is_soft_404) else "failed"
                 if new_status == "crawled":
@@ -412,6 +420,8 @@ class SEOCrawler:
                 import traceback
                 self.console.print(f"[bold red]Error in process_item: {e}[/bold red]")
                 traceback.print_exc()
+                if 'url' in locals():
+                    self.scheduler.mark_failed(url)
             finally:
                 busy_workers -= 1
 
@@ -459,4 +469,3 @@ class SEOCrawler:
         await self.fetcher.close()
         if self.renderer:
             await self.renderer.close()
-

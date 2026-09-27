@@ -203,7 +203,23 @@ class CrawlStorage:
                 decision_severity TEXT,
                 decision_action TEXT,
                 confidence REAL,
-                created_at TEXT
+                created_at TEXT,
+                decision_type TEXT,
+                choice TEXT,
+                gate TEXT,
+                input_hash TEXT,
+                model_version TEXT,
+                prompt_version TEXT,
+                affected_scope TEXT,
+                affected_count INTEGER,
+                cluster_id TEXT,
+                is_real_issue INTEGER DEFAULT 1,
+                scope TEXT,
+                root_cause TEXT,
+                canonical_indexability TEXT,
+                content_assessment TEXT,
+                cannibalization TEXT,
+                internal_linking TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_laya_crawl ON laya_decisions (crawl_id);
 

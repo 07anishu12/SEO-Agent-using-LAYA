@@ -74,7 +74,7 @@ async def create_and_enqueue_run(
 
     options = {
         "max_pages": req.max_pages or 50,
-        "concurrency": req.concurrency or 2,
+        "concurrency": req.concurrency or 10,
         "render": req.render or False,
         "fresh": req.fresh if req.fresh is not None else True,
         "show_live_display": False
@@ -424,7 +424,7 @@ async def resume_run(
         "resume": True,
         "fresh": False,
         "max_pages": 50,
-        "concurrency": 2,
+        "concurrency": 10,
         "show_live_display": False
     }
 

@@ -8,6 +8,9 @@ from enum import Enum
 from typing import Optional, List, Dict, Any
 
 
+LAYA_PROMPT_VERSION = "laya-seo-decision-v2"
+
+
 class DecisionType(Enum):
     """Bounded set of Laya decision types."""
     SEO_PROBLEM = "SEO_PROBLEM"
@@ -50,8 +53,15 @@ class LayaDecision:
     cluster_id: str = ""
     decision_type: str = DecisionType.SEO_PROBLEM.value
     choice: str = ""                    # The specific decision (e.g., SELF_CANONICAL, CONSOLIDATE)
+    is_real_issue: bool = True
     confidence: float = 0.0
     severity: str = "medium"            # critical / high / medium / low
+    scope: str = "page"
+    root_cause: str = ""
+    canonical_indexability: Dict[str, Any] = field(default_factory=dict)
+    content_assessment: Dict[str, Any] = field(default_factory=dict)
+    cannibalization: Dict[str, Any] = field(default_factory=dict)
+    internal_linking: Dict[str, Any] = field(default_factory=dict)
     reason_codes: List[str] = field(default_factory=list)
     recommended_action: str = ""
     affected_scope: str = "page"        # page / template / site
@@ -107,19 +117,14 @@ class LayaCandidateInput:
     candidate_actions: List[str] = field(default_factory=list)
     severity_hint: str = "medium"
     category_hint: str = "technical"
+    prompt_version: str = LAYA_PROMPT_VERSION
 
     def compute_hash(self, model_version: str = "") -> str:
         """Compute stable SHA-256 hash of this candidate input for caching."""
         payload = json.dumps({
-            "cluster_id": self.cluster_id,
-            "template_id": self.template_id,
-            "issue_type": self.issue_type,
-            "page_count": self.page_count,
-            "status_distribution": self.status_distribution,
-            "indexability": self.indexability,
-            "content_metrics": self.content_metrics,
-            "severity_hint": self.severity_hint,
-            "model_version": model_version
+            "candidate": asdict(self),
+            "model_version": model_version,
+            "prompt_version": self.prompt_version,
         }, sort_keys=True, default=str)
         return hashlib.sha256(payload.encode()).hexdigest()
 

@@ -164,7 +164,7 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
                     UPDATE runs
                     SET status = 'completed',
                         progress_pct = 100.0,
-                        current_pass = 'P6_DELIVERABLES',
+        current_pass = 'P6_REPORTS',
                         finished_at = %s
                     WHERE id = %s
                     """,
@@ -207,7 +207,7 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
         queue.publish_progress(run_id, {
             "run_id": run_id,
             "status": "completed",
-            "pass": "P6_DELIVERABLES",
+            "pass": "P6_REPORTS",
             "pct": 100.0,
             "counts": etl_result.get("counts"),
             "message": "Run and ETL completed successfully."

@@ -95,10 +95,12 @@ export interface SSEProgressEvent {
   status?: string;
   pct?: number;
   pass_name?: string;
+  pass?: string;
   message?: string;
   urls_crawled?: number;
   urls_discovered?: number;
   issues_found?: number;
+  meta?: Record<string, any>;
 }
 
 // ---------------------------------------------------------------------------
@@ -476,4 +478,3 @@ export interface PortfolioResponse {
   healthy_sites: number;
   sites: SitePortfolioItem[];
 }
-
