@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Lightbulb, Layers, FileCode, BarChart3 } from "lucide-react";
+import { Activity, Lightbulb, Layers, FileCode, BarChart3, ClipboardList, GitCompare, Download } from "lucide-react";
 
 export default function RunNavTabs({ runId }: { runId: string }) {
   const pathname = usePathname();
@@ -21,6 +21,18 @@ export default function RunNavTabs({ runId }: { runId: string }) {
       exact: false,
     },
     {
+      href: `/runs/${runId}/work-orders`,
+      label: "Work Orders",
+      icon: ClipboardList,
+      exact: false,
+    },
+    {
+      href: `/runs/${runId}/diff`,
+      label: "Snapshot Diff",
+      icon: GitCompare,
+      exact: false,
+    },
+    {
       href: `/runs/${runId}/templates`,
       label: "Templates",
       icon: Layers,
@@ -36,6 +48,12 @@ export default function RunNavTabs({ runId }: { runId: string }) {
       href: `/runs/${runId}/gsc`,
       label: "Query / GSC",
       icon: BarChart3,
+      exact: false,
+    },
+    {
+      href: `/runs/${runId}/downloads`,
+      label: "Downloads",
+      icon: Download,
       exact: false,
     },
   ];

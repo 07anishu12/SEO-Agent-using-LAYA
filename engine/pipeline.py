@@ -53,6 +53,7 @@ from technical.root_causes import RootCauseClusterer
 from search.gsc_pipeline import GSCPipeline
 from understanding.index_funnel import IndexFunnelReconciler
 from understanding.entity_graph import EntityGraphEngine
+from verification.snapshot import SnapshotRecorder
 
 
 class PipelineCancelledException(Exception):
@@ -216,6 +217,13 @@ class SEOJEVPipeline:
             self.emit_progress("P1_CRAWL", 25.0, f"Crawl phase complete ({crawl_duration}s).")
         else:
             self.emit_progress("P1_CRAWL", 25.0, f"Skipped HTTP fetch (analyzing existing dataset '{self.crawl_id}').")
+
+        # Record complete state snapshots for all crawled pages
+        try:
+            rec = SnapshotRecorder(db_path=self.db_path, content_store=self.content_store)
+            rec.take_snapshot_from_db(self.crawl_id, self.crawl_id)
+        except Exception:
+            pass
 
         self.pass_timings["P1_CRAWL"] = round(time.monotonic() - t0, 2)
         return {"crawl_id": self.crawl_id, "crawl_duration": crawl_duration}

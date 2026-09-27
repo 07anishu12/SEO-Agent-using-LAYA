@@ -488,15 +488,24 @@ export default function RunDetailPage() {
               </p>
             </div>
 
-            {run?.status === "completed" && (
-              <button
-                onClick={fetchArtifacts}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                title="Refresh Artifacts"
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/runs/${runId}/downloads`}
+                className="text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 hover:underline"
               >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            )}
+                <span>Downloads Center</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+              {run?.status === "completed" && (
+                <button
+                  onClick={fetchArtifacts}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                  title="Refresh Artifacts"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {loadingArtifacts ? (

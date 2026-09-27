@@ -1,3 +1,4 @@
+import os
 import json
 import sqlite3
 import hashlib
@@ -16,16 +17,63 @@ class SnapshotDiffer:
         self,
         before_run_id: str,
         after_run_id: str,
-        export_path: Optional[str] = "seo-diff.json"
+        export_path: Optional[str] = "seo-diff.json",
+        before_snapshots: Optional[List[Dict[str, Any]]] = None,
+        after_snapshots: Optional[List[Dict[str, Any]]] = None,
+        template_map: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """Compares snapshots between two runs and records findings in snapshot_diffs."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            before_rows = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (before_run_id,)).fetchall()
-            after_rows = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (after_run_id,)).fetchall()
+        if before_snapshots is not None and after_snapshots is not None:
+            before_map = {r["url"]: dict(r) for r in before_snapshots}
+            after_map = {r["url"]: dict(r) for r in after_snapshots}
+        else:
+            before_rows = []
+            after_rows = []
+            # 1. Try configured db_path
+            if os.path.exists(self.db_path):
+                try:
+                    with sqlite3.connect(self.db_path) as conn:
+                        conn.row_factory = sqlite3.Row
+                        before_rows = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (before_run_id,)).fetchall()
+                        after_rows = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (after_run_id,)).fetchall()
+                except Exception:
+                    pass
 
-        before_map = {r["url"]: dict(r) for r in before_rows}
-        after_map = {r["url"]: dict(r) for r in after_rows}
+            # 2. Try individual run SQLite DBs if not found in db_path
+            if not before_rows and os.path.exists(f"data/{before_run_id}.db"):
+                try:
+                    with sqlite3.connect(f"data/{before_run_id}.db") as conn:
+                        conn.row_factory = sqlite3.Row
+                        before_rows = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (before_run_id,)).fetchall()
+                except Exception:
+                    pass
+
+            if not after_rows and os.path.exists(f"data/{after_run_id}.db"):
+                try:
+                    with sqlite3.connect(f"data/{after_run_id}.db") as conn:
+                        conn.row_factory = sqlite3.Row
+                        after_rows = conn.execute("SELECT * FROM snapshots WHERE run_id = ?", (after_run_id,)).fetchall()
+                except Exception:
+                    pass
+
+            before_map = {r["url"]: dict(r) for r in before_rows}
+            after_map = {r["url"]: dict(r) for r in after_rows}
+
+        # Resolve template map if not provided
+        t_map = dict(template_map or {})
+        if not t_map and os.path.exists(f"data/{after_run_id}.db"):
+            try:
+                with sqlite3.connect(f"data/{after_run_id}.db") as conn:
+                    conn.row_factory = sqlite3.Row
+                    rows = conn.execute("SELECT url, template_id FROM template_members WHERE run_id = ?", (after_run_id,)).fetchall()
+                    for r in rows:
+                        t_map[r["url"]] = r["template_id"]
+                    if not t_map:
+                        p_rows = conn.execute("SELECT url, template_id FROM pages WHERE crawl_id = ? AND template_id IS NOT NULL", (after_run_id,)).fetchall()
+                        for pr in p_rows:
+                            t_map[pr["url"]] = pr["template_id"]
+            except Exception:
+                pass
 
         all_urls = sorted(set(before_map.keys()) | set(after_map.keys()))
 
@@ -44,14 +92,15 @@ class SnapshotDiffer:
         for u in all_urls:
             b = before_map.get(u)
             a = after_map.get(u)
+            tpl_id = t_map.get(u, "default")
 
             if b and a:
                 category, details = self._compare_snapshots(b, a)
-                b_id = b["snapshot_id"]
-                a_id = a["snapshot_id"]
+                b_id = b.get("snapshot_id", "NONE")
+                a_id = a.get("snapshot_id", "NONE")
             elif a and not b:
                 b_id = "NONE"
-                a_id = a["snapshot_id"]
+                a_id = a.get("snapshot_id", "NONE")
                 if a.get("status_code", 200) >= 400 or "noindex" in a.get("meta_robots", "").lower():
                     category = "NEW_ISSUE"
                     details = {"event": "New page detected with technical errors", "status_code": a.get("status_code")}
@@ -59,7 +108,7 @@ class SnapshotDiffer:
                     category = "IMPROVED"
                     details = {"event": "New healthy page detected", "status_code": a.get("status_code")}
             else: # b and not a
-                b_id = b["snapshot_id"]
+                b_id = b.get("snapshot_id", "NONE")
                 a_id = "NONE"
                 category = "REGRESSED"
                 details = {"event": "Page missing / dropped in post-deployment snapshot"}
@@ -71,6 +120,7 @@ class SnapshotDiffer:
                 "before_snapshot_id": b_id,
                 "after_snapshot_id": a_id,
                 "url": u,
+                "template_id": tpl_id,
                 "fingerprint": fp,
                 "category": category,
                 "details": details
@@ -80,27 +130,67 @@ class SnapshotDiffer:
                 b_id, a_id, u, fp, category, json.dumps(details)
             ))
 
-        # Save to database
-        with sqlite3.connect(self.db_path) as conn:
-            for item in diff_entries_to_insert:
-                conn.execute("""
-                INSERT INTO snapshot_diffs (
-                    before_snapshot_id, after_snapshot_id, url, fingerprint, category, details_json
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                """, item)
-            conn.commit()
+        # Save to database if table exists
+        if os.path.exists(self.db_path):
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.execute("""
+                    CREATE TABLE IF NOT EXISTS snapshot_diffs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        before_snapshot_id TEXT NOT NULL,
+                        after_snapshot_id TEXT NOT NULL,
+                        url TEXT NOT NULL,
+                        fingerprint TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        details_json TEXT
+                    );
+                    """)
+                    for item in diff_entries_to_insert:
+                        conn.execute("""
+                        INSERT INTO snapshot_diffs (
+                            before_snapshot_id, after_snapshot_id, url, fingerprint, category, details_json
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """, item)
+                    conn.commit()
+            except Exception:
+                pass
+
+        # Group differences by template
+        by_template: Dict[str, List[Dict[str, Any]]] = {}
+        for d in diff_results:
+            if d["category"] == "UNCHANGED":
+                continue
+            tpl = d.get("template_id", "default")
+            by_template.setdefault(tpl, []).append(d)
+
+        # Group differences by category
+        by_category: Dict[str, List[Dict[str, Any]]] = {
+            "FIXED": [],
+            "REGRESSED": [],
+            "NEW_ISSUE": [],
+            "IMPROVED": []
+        }
+        for d in diff_results:
+            if d["category"] in by_category:
+                by_category[d["category"]].append(d)
 
         diff_payload = {
             "before_run_id": before_run_id,
             "after_run_id": after_run_id,
             "total_urls_compared": len(all_urls),
             "summary": summary_counts,
+            "by_template": by_template,
+            "by_category": by_category,
             "differences": [d for d in diff_results if d["category"] != "UNCHANGED"]
         }
 
         if export_path:
-            with open(export_path, "w", encoding="utf-8") as f:
-                json.dump(diff_payload, f, indent=2)
+            try:
+                os.makedirs(os.path.dirname(export_path) or ".", exist_ok=True)
+                with open(export_path, "w", encoding="utf-8") as f:
+                    json.dump(diff_payload, f, indent=2)
+            except Exception:
+                pass
 
         return diff_payload
 

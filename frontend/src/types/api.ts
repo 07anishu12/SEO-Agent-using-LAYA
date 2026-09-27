@@ -250,3 +250,90 @@ export interface GscData {
   impression_trends: TrendBracket[];
   click_trends: TrendBracket[];
 }
+
+// ---------------------------------------------------------------------------
+// Stage 8: Work Orders Models
+// ---------------------------------------------------------------------------
+export interface WorkOrder {
+  id: string;
+  org_id: string;
+  run_id: string;
+  site_id: string;
+  opportunity_id?: string;
+  display_id: string;
+  title: string;
+  order_type: "engineering" | "content" | string;
+  status: string;
+  priority?: "P0" | "P1" | "P2" | "P3" | string;
+  scope?: string;
+  problem?: string;
+  required_change?: string;
+  acceptance_criteria?: string;
+  verify_spec?: string;
+  evidence?: Record<string, any>;
+  file_locations?: string[];
+  ticket_ref?: string;
+  verify_last_result?: "PASS" | "FAIL" | "ERROR" | string | null;
+  created_at?: string;
+}
+
+export interface WorkOrderExportResponse {
+  work_order_id: string;
+  display_id: string;
+  platform: "github" | "jira" | "linear" | "markdown" | string;
+  filename: string;
+  payload: Record<string, any>;
+  file_content: string;
+}
+
+export interface WorkOrderVerifyResponse {
+  verification_id: string;
+  work_order_id: string;
+  display_id: string;
+  status: "PASS" | "FAIL" | "ERROR";
+  spec: string;
+  target_url?: string;
+  details: string;
+  executed_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 8: Snapshot Diff Models
+// ---------------------------------------------------------------------------
+export interface SnapshotDiffItem {
+  before_snapshot_id: string;
+  after_snapshot_id: string;
+  url: string;
+  template_id: string;
+  fingerprint: string;
+  category: "FIXED" | "REGRESSED" | "NEW_ISSUE" | "IMPROVED" | "STILL_FAILING" | "UNCHANGED";
+  details: Record<string, any>;
+}
+
+export interface SnapshotDiffSummary {
+  FIXED: number;
+  REGRESSED: number;
+  IMPROVED: number;
+  NEW_ISSUE: number;
+  STILL_FAILING: number;
+  UNCHANGED: number;
+}
+
+export interface CompareTarget {
+  id: string;
+  site_id: string;
+  status: string;
+  created_at?: string;
+}
+
+export interface SnapshotDiffResponse {
+  before_run_id: string;
+  after_run_id: string;
+  total_urls_compared: number;
+  summary: SnapshotDiffSummary;
+  by_template: Record<string, SnapshotDiffItem[]>;
+  by_category: Record<string, SnapshotDiffItem[]>;
+  differences: SnapshotDiffItem[];
+  compare_targets: CompareTarget[];
+}
+

@@ -36,7 +36,7 @@ SEOJEV is structured across decoupled architectural layers that bridge high-thro
 flowchart TD
     subgraph Clients["Clients & Interfaces"]
         CLI["CLI Tool (main.py)"]
-        NextJS["Next.js 14 Dashboard\n(Overview, Opportunities, Templates, Blueprints, GSC)"]
+        NextJS["Next.js 14 Dashboard\n(Overview, Opps, Templates, Blueprints, GSC, Downloads, Diff, Work Orders)"]
     end
 
     subgraph API["FastAPI Platform Service"]
@@ -49,6 +49,8 @@ flowchart TD
         TplsRouter["Templates Router (/runs/{id}/templates)"]
         BpsRouter["Blueprints Router (/runs/{id}/blueprints)"]
         GscRouter["Search Console Router (/runs/{id}/gsc)"]
+        WorkOrdersRouter["Work Orders Router (/work-orders)"]
+        DiffRouter["Snapshot Diff Router (/runs/{id}/diff)"]
     end
 
     subgraph Messaging["Redis Queue & Pub/Sub"]
@@ -62,7 +64,7 @@ flowchart TD
     end
 
     subgraph CoreEngine["SEOJEV 6-Pass Pipeline Engine"]
-        P1["Pass 1: Async Crawler & SQLite WAL"]
+        P1["Pass 1: Async Crawler & SnapshotRecorder"]
         P2["Pass 2: NetworkX Link Graph & SimHash Templates"]
         P3["Pass 3: OpportunityEngine V3 (11 Detectors)"]
         P4["Pass 4: Laya MLX Calibration (Apple Silicon)"]
@@ -88,6 +90,8 @@ flowchart TD
     FastAPIApp --> TplsRouter
     FastAPIApp --> BpsRouter
     FastAPIApp --> GscRouter
+    FastAPIApp --> WorkOrdersRouter
+    FastAPIApp --> DiffRouter
 
     RunsRouter -->|Enqueue Run| Queue
     RunsRouter -->|Set Cancel Flag| CancelFlag
@@ -254,11 +258,27 @@ flowchart TD
 4. **20-Dimension Blueprint Inspector**: Users drill down into crawled URLs at `/runs/[id]/blueprints` and `/runs/[id]/blueprints/detail`, inspecting the engine's 20 diagnostic dimensions (Query Fit, Entity Coverage, Structured Data Schema, Internal Links, AEO/GEO readiness) or viewing rendered raw Markdown.
 5. **Search Performance & GSC Intelligence**: Users analyze striking-distance opportunities (positions 11–20), multi-page cannibalization risks, query topic clusters, and position bracket trend distributions at `/runs/[id]/gsc`, with explicit empty states when Search Console data is unconnected.
 
+### Use Case 6: Artifact Downloads, Snapshot Diff & Work Order Verification (Stage 8)
+1. **Downloads Center**: Users visit `/runs/[id]/downloads` to view the comprehensive deliverables inventory fetched via `GET /runs/{id}/artifacts`. Every artifact (DOCX, CSV, HTML, JSON) displays filename, icon/type, formatted file size, and an individual download action.
+2. **Direct Presigned S3 Downloads**: Individual downloads retrieve signed object-storage URLs via `GET /artifacts/{id}/download`. Files are streamed directly from S3/MinIO without proxying large payloads through the API or frontend, guaranteeing byte-for-byte SHA-256 integrity.
+3. **One-Click Bundle ZIP**: Users click "Download all (.zip)" which calls `GET /runs/{id}/export.zip` to retrieve a signed URL for the complete run deliverables archive.
+4. **Snapshot Diff Comparison**: Users navigate to `/runs/[id]/diff` to compare the current run against any prior baseline run for the same site (`GET /runs/{id}/diff?compare_run_id=...`). The real engine (`SnapshotDiffer`) classifies every evaluated URL into:
+   - **Fixed**: Defect resolved (e.g. HTTP status 500/404 restored to 200, title tag restored, or inadvertent noindex removed).
+   - **Regressed**: Regression introduced (e.g. healthy 200 page degraded to 4xx/5xx or set to noindex).
+   - **New**: Newly crawled page detected with technical errors (`NEW_ISSUE`).
+   - **Improved**: Title tag enhanced, schema added, or content hash updated favorably.
+   - **Still Failing**: Ongoing technical issues that persist across both snapshots.
+   - **Unchanged**: URL identical across both snapshots.
+5. **Template-Based Diff Grouping**: Differences are clustered and displayed under their respective structural templates (e.g. `tpl_brand_bikes_2seg`), allowing engineering teams to see systemic fixes across an entire layout component.
+6. **Engineering vs Content Work Orders**: Users access `/runs/[id]/work-orders` with dedicated segmentation for Engineering tickets (structural templates, server status, metadata tags) versus Content tickets (missing sections, Q&A blocks, keyword gaps).
+7. **Multi-Platform Ticket Exports**: Users export any work order via `POST /work-orders/{id}/export?platform=...` to generate real downloadable JSON payloads for **GitHub Issues**, **Jira Tasks**, **Linear Issues**, or formatted **Markdown**, complete with a copy-to-clipboard modal.
+8. **Automated Spec Verification**: Users click "Run verification now" or invoke `POST /work-orders/{id}/verify`. `VerificationRunner` performs live HTTP fetching and sandboxed DOM evaluation of the ticket's verification spec (e.g. `status_code == 200`, `canonical_matches_url == True`, `has_selector(...)`), distinguishing **PASS**, **FAIL**, and **ERROR** / inconclusive outcomes while persisting an immutable audit record to PostgreSQL `verifications`.
+
 ---
 
 ## 6. End-to-End Request Lifecycle & Data Flow
 
-Here is the exact data path for a crawl and audit request:
+Here is the exact data path for crawl audits, artifact downloads, diff comparisons, and work order operations:
 
 ```
 [Client / UI]
@@ -279,7 +299,8 @@ Here is the exact data path for a crawl and audit request:
       │ 7. Execute SEOJEVPipeline
       ▼
 [Engine Pipeline: engine/pipeline.py]
-      ├── Pass 1: Async Crawler → Writes Pages/Fetches to SQLite WAL (`data/{id}.db`)
+      ├── Pass 1: Async Crawler → Writes Pages to SQLite WAL (`data/{id}.db`)
+      │           └── SnapshotRecorder → Captures URL state snapshots (title, canonical, status, schema)
       ├── Pass 2: Link Graph & SimHash → Analyzes NetworkX graph & templates
       ├── Pass 3: OpportunityEngine V3 → Groups 11 detector findings into opportunities
       ├── Pass 4: Laya Adapter → Computes calibrated confidence via local MLX
@@ -289,16 +310,24 @@ Here is the exact data path for a crawl and audit request:
       │ 8. run_etl()
       ▼
 [PostgreSQL: database/etl.py]
-      │ 9. Upsert runs, sites, templates, findings, opportunities, work_orders
+      │ 9. Upsert runs, sites, templates, findings, opportunities, work_orders, snapshots
       ▼
 [Object Storage: services/object_store.py]
       │ 10. Upload reports, CSVs, HTML explorer, and export.zip to S3 / MinIO
       │ 11. INSERT INTO artifacts (id, s3_key, checksum_sha256, size_bytes)
       ▼
-[Client Retrieval]
-      │ 12. GET /runs/{id}/artifacts → Lists artifact inventory
-      │ 13. GET /artifacts/{art_id}/download → Returns signed S3 presigned URL
-      │ 14. Direct HTTP GET to S3/MinIO → Downloads file without proxying through API
+[Stage 8 Operations]
+      ├── Downloads Center:
+      │   ├── GET /runs/{id}/artifacts → Lists artifacts inventory
+      │   ├── GET /artifacts/{id}/download → Signed direct S3 URL (SHA-256 verified)
+      │   └── GET /runs/{id}/export.zip → Signed bundle ZIP archive download
+      ├── Snapshot Diff Viewer:
+      │   └── GET /runs/{id}/diff?compare_run_id={base_id} → Runs SnapshotDiffer, returns
+      │       Fixed/Regressed/New/Improved grouped by structural template
+      └── Work Orders & Tickets:
+          ├── GET /runs/{id}/work-orders?order_type=engineering|content → Scoped ticket list
+          ├── POST /work-orders/{id}/export?platform=github|jira|linear → Generates downloadable export payload
+          └── POST /work-orders/{id}/verify → VerificationRunner live fetch & spec eval (PASS/FAIL/ERROR)
 ```
 
 ---
@@ -323,7 +352,9 @@ seojev/
 │   │   ├── opportunities.py# /runs/{id}/opportunities & /opportunities/{id}/feedback
 │   │   ├── templates.py    # /runs/{id}/templates clustered templates & details
 │   │   ├── blueprints.py   # /runs/{id}/blueprints & 20-dimension blueprint generator
-│   │   └── gsc.py          # /runs/{id}/gsc query intelligence, striking distance, cannibalization
+│   │   ├── gsc.py          # /runs/{id}/gsc query intelligence, striking distance, cannibalization
+│   │   ├── work_orders.py  # /runs/{id}/work-orders, /work-orders/{id}/export, /work-orders/{id}/verify
+│   │   └── diff.py         # /runs/{id}/diff snapshot comparisons & /runs/{id}/compare-targets
 │   ├── auth.py             # JWT bearer & API-key authentication dependencies
 │   ├── config.py           # Platform settings (PostgreSQL, Redis, S3/MinIO, JWT)
 │   ├── main.py             # FastAPI entrypoint with lifespan background worker
@@ -344,7 +375,8 @@ seojev/
 │   ├── etl.py              # Idempotent SQLite → PostgreSQL ETL loader
 │   ├── migrations/         # Versioned SQL migration scripts
 │   │   ├── 001_phase2_postgres.sql # Base schema (orgs, sites, runs, opps, etc.)
-│   │   └── 002_artifacts.sql       # Artifacts ledger and S3 key indexing
+│   │   ├── 002_artifacts.sql       # Artifacts ledger and S3 key indexing
+│   │   └── 003_stage8_work_orders.sql # Work orders acceptance criteria & verifications table
 │   ├── migrator.py         # Automated database migration runner
 │   └── scoped_query.py     # Tenant-isolation query wrapper (`WHERE org_id = ...`)
 ├── docs/                   # Platform documentation & baseline records
@@ -371,6 +403,10 @@ seojev/
 │   ├── csv_generator.py    # 26+ CSV audit inventory compiler
 │   ├── docx_generator.py   # 28-section Master Word audit report compiler
 │   └── html_explorer.py    # Single-file offline interactive HTML audit explorer
+├── verification/           # Real snapshot diff & automated verification engine
+│   ├── snapshot.py         # SnapshotRecorder taking full URL state snapshots
+│   ├── differ.py           # SnapshotDiffer comparing runs and classifying changes
+│   └── runner.py           # VerificationRunner executing live specs (PASS/FAIL/ERROR)
 ├── frontend/               # Next.js 14 App Router Web Client (TypeScript + Tailwind)
 │   ├── src/app/            # App Router pages & navigation
 │   │   ├── login/          # /login authenticated sign-in
@@ -381,7 +417,10 @@ seojev/
 │   │       ├── opportunities/ # Root-cause diagnostic chain & ICE factors
 │   │       ├── templates/     # Clustered templates & affected member URLs
 │   │       ├── blueprints/    # 20-dimension blueprint inspector & raw markdown
-│   │       └── gsc/           # Striking distance, cannibalization, & search trends
+│   │       ├── gsc/           # Striking distance, cannibalization, & search trends
+│   │       ├── downloads/     # Downloads Center with signed individual URLs & export.zip
+│   │       ├── diff/          # Snapshot Diff Viewer with Fixed/Regressed/New/Improved by template
+│   │       └── work-orders/   # Engineering & Content work orders, verifications, & exports
 │   ├── src/components/     # UI components (RunNavTabs, ProtectedRoute, etc.)
 │   ├── src/context/        # AuthContext session management
 │   └── src/lib/api.ts      # Authenticated API client & SSE subscriber
@@ -394,7 +433,8 @@ seojev/
 │   ├── test_stage4_queue.py# Stage 4: Redis queue, SSE stream, cancel, resume, retry
 │   ├── test_stage5_artifacts.py # Stage 5: S3 upload, presigned URLs, expiry, zip bundle
 │   ├── test_stage6_frontend.py  # Stage 6: Next.js Frontend E2E Playwright tests
-│   └── test_stage7_exploration.py # Stage 7: Real-data exploration Playwright tests
+│   ├── test_stage7_exploration.py # Stage 7: Real-data exploration Playwright tests
+│   └── test_stage8_downloads_diff_workorders.py # Stage 8: Downloads, snapshot diff, work order verifications & exports
 ├── main.py                 # CLI entrypoint supporting all audit & analysis flags
 └── requirements.txt        # Python package dependencies
 ```
@@ -412,7 +452,7 @@ seojev/
 | **Laya MLX Calibration** | **Implemented** | On-device 4-bit inference via `laya-mlx` on Apple Silicon with deterministic fallback classifier. |
 | **Work Orders & Ticket Exporters**| **Implemented** | Formatted JSON/CSV ticket exports for GitHub Issues, Jira, and Linear. |
 | **Deliverables Suite** | **Implemented** | 28-section Master Word report, Executive Word report, 26 CSVs, standalone HTML explorer. |
-| **PostgreSQL Multi-Tenant Schema**| **Implemented** | 16 normalized tables with mandatory `org_id` keys, migrations runner, and ScopedQuery helper. |
+| **PostgreSQL Multi-Tenant Schema**| **Implemented** | 17 normalized tables with mandatory `org_id` keys, migrations runner, and ScopedQuery helper. |
 | **Idempotent ETL Pipeline** | **Implemented** | Normalizes SQLite runs into Postgres with deterministic primary keys and zero row duplication. |
 | **FastAPI REST API** | **Implemented** | JWT auth, API key hashing, org-scoped Sites and Runs CRUD (returns 404 on cross-org reads). |
 | **Redis Asynchronous Job Queue** | **Implemented** | FIFO run queue, cooperative cancellation flags, retry-once with backoff, needs_attention status. |
@@ -421,6 +461,11 @@ seojev/
 | **Object Storage (S3 / MinIO)** | **Implemented** | Deliverables uploaded to `{org}/{site}/{run}/...`, direct presigned download URLs, `export.zip`. |
 | **Web Frontend (Next.js)** | **Implemented** | Next.js 14 App Router (TypeScript + Tailwind), JWT session auth, Sites CRUD, New Run Wizard, Live SSE telemetry, direct artifact downloads. |
 | **Real-Data Exploration Suite** | **Implemented** | Stage 7 exploration screens: Opportunities with 6-stage diagnostic chains & ICE factors, Human-in-the-loop verdict persistence, SimHash Templates explorer with member URLs & findings, 20-Dimension Page Optimization Blueprint inspector, and Search Console intelligence with striking-distance targets, cannibalization detection, query clusters, and trend charts. |
+| **Downloads Center & Signed S3 URLs** | **Implemented** | Stage 8 real deliverables inventory (`GET /runs/{id}/artifacts`), individual downloads using direct signed S3/MinIO URLs (SHA-256 byte integrity verified), and one-click bundle ZIP (`GET /runs/{id}/export.zip`). Never proxies large files through the API. |
+| **Snapshot Diff Viewer** | **Implemented** | Stage 8 real engine comparison (`SnapshotDiffer`) classifying before/after changes into Fixed, Regressed, New (`NEW_ISSUE`), Improved, Still Failing, and Unchanged. Grouped by structural template with status code, title, and robots changes. |
+| **Engineering & Content Work Orders** | **Implemented** | Stage 8 separate segmented views for Engineering vs Content work orders with real problem statements, required changes, acceptance criteria, verify specs, and evidence refs. |
+| **Multi-Platform Ticket Exports** | **Implemented** | Stage 8 real downloadable JSON export payloads (`POST /work-orders/{id}/export`) for GitHub Issues, Jira Tasks, Linear Issues, and Markdown with modal copy-to-clipboard. |
+| **Work-Order Automated Verification** | **Implemented** | Stage 8 live HTTP/DOM evaluation (`POST /work-orders/{id}/verify`) using `VerificationRunner`, distinguishing PASS, FAIL, and ERROR/inconclusive with audit records logged to PostgreSQL `verifications`. |
 | **GSC / Live SERP Live Fetching** | *Partial* | Ingests real GSC CSV performance data, calculates striking distance/cannibalization/clusters/trends, generates synthetic datasets; live Google OAuth token sync planned. |
 
 ---
@@ -544,8 +589,8 @@ The repository features comprehensive automated test suites covering all archite
 # Increase file descriptor limit for concurrent crawler/browser tests on macOS
 ulimit -n 4096
 
-# Run all platform and browser tests (Stages 1 through 7)
-PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py tests/test_stage7_exploration.py -v
+# Run all platform and browser tests (Stages 1 through 8)
+PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py tests/test_stage7_exploration.py tests/test_stage8_downloads_diff_workorders.py -v
 
 # Run individual stage test suites
 PYTHONPATH=. pytest tests/test_pipeline.py -v         # Stage 1: Pipeline & cancellation
@@ -555,6 +600,7 @@ PYTHONPATH=. pytest tests/test_stage4_queue.py -v     # Stage 4: Redis Queue & S
 PYTHONPATH=. pytest tests/test_stage5_artifacts.py -v # Stage 5: Object Storage & Presigned URLs
 PYTHONPATH=. pytest tests/test_stage6_frontend.py -v  # Stage 6: Next.js Frontend E2E Playwright tests
 PYTHONPATH=. pytest tests/test_stage7_exploration.py -v # Stage 7: Real-data Exploration Playwright tests
+PYTHONPATH=. pytest tests/test_stage8_downloads_diff_workorders.py -v # Stage 8: Downloads, snapshot diff, work order verifications & exports
 ```
 
 ---

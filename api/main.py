@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from jobs.worker import RunWorker
-from .routers import auth, sites, runs, artifacts, opportunities, templates, blueprints, gsc
+from .routers import auth, sites, runs, artifacts, opportunities, templates, blueprints, gsc, work_orders, diff
 
 
 @asynccontextmanager
@@ -43,6 +43,8 @@ app.include_router(opportunities.router)
 app.include_router(templates.router)
 app.include_router(blueprints.router)
 app.include_router(gsc.router)
+app.include_router(work_orders.router)
+app.include_router(diff.router)
 
 
 @app.get("/health", tags=["system"])

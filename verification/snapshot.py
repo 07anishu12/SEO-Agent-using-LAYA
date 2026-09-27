@@ -11,8 +11,9 @@ class SnapshotRecorder:
     Captures complete state snapshots of URLs (title, canonical, robots, H1, schema, hashes)
     for pre/post deployment auditing and regression testing.
     """
-    def __init__(self, db_path: str = "data/seo.db"):
+    def __init__(self, db_path: str = "data/seo.db", content_store: Optional[Any] = None):
         self.db_path = db_path
+        self.content_store = content_store
 
     def take_snapshot_for_url(
         self,
@@ -126,7 +127,13 @@ class SnapshotRecorder:
 
             for r in rows:
                 p_data = dict(r)
-                snap = self.take_snapshot_for_url(run_id, p_data["url"], p_data)
+                html_content = None
+                if self.content_store and p_data.get("content_hash"):
+                    try:
+                        html_content = self.content_store.get(p_data["content_hash"])
+                    except Exception:
+                        html_content = None
+                snap = self.take_snapshot_for_url(run_id, p_data["url"], p_data, html_content=html_content)
                 snapshots.append(snap)
 
         return snapshots

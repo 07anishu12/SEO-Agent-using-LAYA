@@ -395,12 +395,14 @@ def run_etl(
                         INSERT INTO work_orders (
                             id, org_id, run_id, site_id, opportunity_id,
                             display_id, title, order_type, status, priority,
-                            scope, problem, required_change, verify_spec
+                            scope, problem, required_change, verify_spec,
+                            acceptance_criteria, evidence_json, file_locations_json
                         )
                         VALUES (
                             %(id)s, %(org_id)s, %(run_id)s, %(site_id)s, %(opportunity_id)s,
                             %(display_id)s, %(title)s, %(order_type)s, %(status)s, %(priority)s,
-                            %(scope)s, %(problem)s, %(required_change)s, %(verify_spec)s
+                            %(scope)s, %(problem)s, %(required_change)s, %(verify_spec)s,
+                            %(acceptance_criteria)s, %(evidence_json)s, %(file_locations_json)s
                         )
                         ON CONFLICT (id) DO UPDATE SET
                             org_id = EXCLUDED.org_id,
@@ -412,6 +414,9 @@ def run_etl(
                             problem = EXCLUDED.problem,
                             required_change = EXCLUDED.required_change,
                             verify_spec = EXCLUDED.verify_spec,
+                            acceptance_criteria = EXCLUDED.acceptance_criteria,
+                            evidence_json = EXCLUDED.evidence_json,
+                            file_locations_json = EXCLUDED.file_locations_json,
                             priority = EXCLUDED.priority;
                         """,
                         {
@@ -428,7 +433,10 @@ def run_etl(
                             "scope": wo["scope"],
                             "problem": wo["problem"],
                             "required_change": wo["required_change"],
-                            "verify_spec": wo["verify_spec"]
+                            "verify_spec": wo["verify_spec"],
+                            "acceptance_criteria": wo["acceptance_criteria"] if "acceptance_criteria" in wo.keys() else None,
+                            "evidence_json": Jsonb(_safe_json_parse(wo["evidence_json"])) if "evidence_json" in wo.keys() and wo["evidence_json"] else Jsonb({}),
+                            "file_locations_json": Jsonb(_safe_json_parse(wo["file_locations_json"])) if "file_locations_json" in wo.keys() and wo["file_locations_json"] else Jsonb([])
                         }
                     )
                     counts["work_orders"] += 1

@@ -17,6 +17,11 @@ import {
   BlueprintPage,
   BlueprintDetail,
   GscData,
+  WorkOrder,
+  WorkOrderExportResponse,
+  WorkOrderVerifyResponse,
+  SnapshotDiffResponse,
+  CompareTarget,
 } from "@/types/api";
 
 const TOKEN_KEY = "seojev_access_token";
@@ -381,3 +386,64 @@ export function subscribeRunProgress(
     controller.abort();
   };
 }
+
+// ---------------------------------------------------------------------------
+// Stage 8: Work Orders API
+// ---------------------------------------------------------------------------
+export interface WorkOrderFilterParams {
+  order_type?: string;
+  priority?: string;
+  search?: string;
+}
+
+export async function getRunWorkOrders(
+  runId: string,
+  filters: WorkOrderFilterParams = {}
+): Promise<WorkOrder[]> {
+  const params = new URLSearchParams();
+  if (filters.order_type) params.set("order_type", filters.order_type);
+  if (filters.priority) params.set("priority", filters.priority);
+  if (filters.search) params.set("search", filters.search);
+
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return request<WorkOrder[]>(`/runs/${runId}/work-orders${query}`);
+}
+
+export async function getWorkOrder(id: string): Promise<WorkOrder> {
+  return request<WorkOrder>(`/work-orders/${id}`);
+}
+
+export async function exportWorkOrder(
+  id: string,
+  platform: "github" | "jira" | "linear" | "markdown" = "github"
+): Promise<WorkOrderExportResponse> {
+  return request<WorkOrderExportResponse>(`/work-orders/${id}/export?platform=${platform}`, {
+    method: "POST",
+  });
+}
+
+export async function verifyWorkOrder(
+  id: string,
+  options: { target_url?: string; html_content?: string; live_fetch?: boolean } = {}
+): Promise<WorkOrderVerifyResponse> {
+  return request<WorkOrderVerifyResponse>(`/work-orders/${id}/verify`, {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stage 8: Snapshot Diff API
+// ---------------------------------------------------------------------------
+export async function getRunDiff(
+  runId: string,
+  compareRunId?: string
+): Promise<SnapshotDiffResponse> {
+  const query = compareRunId ? `?compare_run_id=${encodeURIComponent(compareRunId)}` : "";
+  return request<SnapshotDiffResponse>(`/runs/${runId}/diff${query}`);
+}
+
+export async function getRunCompareTargets(runId: string): Promise<CompareTarget[]> {
+  return request<CompareTarget[]>(`/runs/${runId}/compare-targets`);
+}
+
