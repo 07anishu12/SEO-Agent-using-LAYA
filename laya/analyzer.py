@@ -4,36 +4,43 @@ import logging
 from typing import Dict, Any, List, Optional
 from .questions import get_laya_seo_questions
 from .metrics import LayaMetricsTracker
+from .backends import get_laya_backend, LayaBackend
 
 logger = logging.getLogger("seojev.laya")
 
-class LayaSEOAnalyzer:
-    _instance = None
-    _agent = None
 
-    def __init__(self, model_id: str = "aac6fef/laya-mlx"):
+class LayaSEOAnalyzer:
+    """
+    Cloud-portable Laya SEO Classifier.
+    Routes inference to configured backend (MLX on Apple Silicon, llama.cpp on CPU/CUDA, or remote API).
+    """
+
+    def __init__(
+        self,
+        model_id: str = "aac6fef/laya-mlx",
+        backend_type: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None
+    ):
         self.model_id = model_id
+        self.backend_type = backend_type
+        self.options = options or {}
         self.metrics = LayaMetricsTracker()
         self.questions = get_laya_seo_questions()
-        self._ensure_loaded()
-
-    def _ensure_loaded(self):
-        if LayaSEOAnalyzer._agent is None:
-            try:
-                import laya_mlx
-                logger.info(f"Loading local Laya MLX model '{self.model_id}'...")
-                LayaSEOAnalyzer._agent = laya_mlx.load(self.model_id)
-                logger.info("Laya MLX model loaded successfully.")
-            except Exception as e:
-                logger.error(f"Failed to load Laya MLX model: {e}")
-                LayaSEOAnalyzer._agent = None
+        self.backend: LayaBackend = get_laya_backend(
+            backend_type=self.backend_type,
+            model_id=self.model_id,
+            options=self.options
+        )
 
     def is_available(self) -> bool:
-        return LayaSEOAnalyzer._agent is not None
+        return self.backend.is_available()
+
+    def get_health(self) -> Dict[str, Any]:
+        return self.backend.health_status()
 
     def classify_issue(self, issue_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Classifies a single structured issue using local Laya MLX.
+        Classifies a single structured issue using the active Laya backend.
         Expected input: compact dictionary with page_type, issue, affected_count, evidence.
         """
         if not self.is_available():
@@ -56,7 +63,7 @@ class LayaSEOAnalyzer:
                 )
             }
 
-            res = LayaSEOAnalyzer._agent.predict(prompt_state, self.questions)
+            res = self.backend.predict(prompt_state, self.questions)
             elapsed_ms = (time.monotonic() - start) * 1000.0
             self.metrics.record_decision(elapsed_ms)
 
@@ -82,7 +89,7 @@ class LayaSEOAnalyzer:
         except Exception as e:
             elapsed_ms = (time.monotonic() - start) * 1000.0
             self.metrics.record_error()
-            logger.warning(f"Laya MLX inference error: {e}")
+            logger.warning(f"Laya inference error ({type(self.backend).__name__}): {e}")
             return {
                 "category": issue_data.get("category", "technical"),
                 "severity": issue_data.get("severity", "medium"),
