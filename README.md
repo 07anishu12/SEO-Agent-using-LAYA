@@ -589,8 +589,8 @@ The repository features comprehensive automated test suites covering all archite
 # Increase file descriptor limit for concurrent crawler/browser tests on macOS
 ulimit -n 4096
 
-# Run all platform and browser tests (Stages 1 through 8)
-PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py tests/test_stage7_exploration.py tests/test_stage8_downloads_diff_workorders.py -v
+# Run all platform and browser tests (Stages 1 through 10)
+PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py tests/test_stage7_exploration.py tests/test_stage8_downloads_diff_workorders.py tests/test_stage9_watch_alerts.py tests/test_stage10a_trends.py tests/test_stage10b_laya_backends.py tests/test_stage10c_recurring_audits.py tests/test_stage10d_gsc_anomaly.py tests/test_stage10e_cicd_webhook.py tests/test_stage10f_ticket_sync.py tests/test_stage10g_fts.py tests/test_stage10h_rbac.py tests/test_stage10i_portfolio.py -v
 
 # Run individual stage test suites
 PYTHONPATH=. pytest tests/test_pipeline.py -v         # Stage 1: Pipeline & cancellation
@@ -601,10 +601,93 @@ PYTHONPATH=. pytest tests/test_stage5_artifacts.py -v # Stage 5: Object Storage 
 PYTHONPATH=. pytest tests/test_stage6_frontend.py -v  # Stage 6: Next.js Frontend E2E Playwright tests
 PYTHONPATH=. pytest tests/test_stage7_exploration.py -v # Stage 7: Real-data Exploration Playwright tests
 PYTHONPATH=. pytest tests/test_stage8_downloads_diff_workorders.py -v # Stage 8: Downloads, snapshot diff, work order verifications & exports
+PYTHONPATH=. pytest tests/test_stage9_watch_alerts.py -v # Stage 9: Watches, Alerts, and Dispatcher
+PYTHONPATH=. pytest tests/test_stage10a_trends.py -v   # Stage 10a: Historical Trends
+PYTHONPATH=. pytest tests/test_stage10b_laya_backends.py -v # Stage 10b: Cloud-Portable Laya
+PYTHONPATH=. pytest tests/test_stage10c_recurring_audits.py -v # Stage 10c: Scheduled Recurring Audits
+PYTHONPATH=. pytest tests/test_stage10d_gsc_anomaly.py -v # Stage 10d: GSC Anomaly Detection
+PYTHONPATH=. pytest tests/test_stage10e_cicd_webhook.py -v # Stage 10e: CI/CD Webhook
+PYTHONPATH=. pytest tests/test_stage10f_ticket_sync.py -v # Stage 10f: Bi-directional Ticket Sync
+PYTHONPATH=. pytest tests/test_stage10g_fts.py -v     # Stage 10g: Full-Text Search
+PYTHONPATH=. pytest tests/test_stage10h_rbac.py -v    # Stage 10h: Role-Based Permissions
+PYTHONPATH=. pytest tests/test_stage10i_portfolio.py -v # Stage 10i: Multi-Site Portfolio
 ```
+
+---
+
+## 5. Stage 9 & Stage 10 Power Features
+
+### Stage 9: Watches, Regression Alerts & Notification Dispatcher
+- **Autonomous Watch Scheduler (`jobs/scheduler.py`)**: Periodically checks active site schedules, scans robots.txt, sitemaps, top pages, and template drift without human intervention.
+- **Alert Persistence (`alerts` table)**: Structured alert records with severity (`info`, `warning`, `critical`), alert types (`NOINDEX_LEAK`, `CANONICAL_CHANGE`, `SITEMAP_DROP`, `5XX_SPIKE`), and affected URL payloads.
+- **Multi-Channel Notification Dispatcher (`services/notifications.py`)**: Event fan-out delivery across Slack webhooks, Email (SMTP/dummy sink), and generic HTTP webhooks.
+- **UI Center (`/sites/[id]/watch`)**: Schedule configuration, real-time alert ledger, and interactive resolution controls.
+
+### Stage 10: Power Features Specification
+
+#### 10a: Historical Trend Engine
+- **Table**: `site_trends` (`site_id`, `org_id`, `run_id`, `metric`, `date`, `value`, `metadata_json`).
+- **Engine**: Triggered asynchronously on `run.completed` to record `issue_count` and `opportunity_count` time-series data. Fully idempotent with duplicate run suppression.
+- **API**: `GET /sites/{id}/trends?metric=issue_count&start_date=...&end_date=...`
+- **Frontend**: Interactive SVG historical trend chart with date-axis, empty states, and dynamic toggle metrics.
+
+#### 10b: Cloud-Portable Laya Backends
+- **Abstraction**: `LayaClassifierBackend` contract under `laya/backends/`.
+- **Implementations**:
+  - `mlx.py`: Apple Silicon native acceleration using `laya-mlx`.
+  - `llama_cpp.py`: Cross-platform local GGUF CPU/GPU inference for non-Apple environments.
+  - `api.py`: Remote hosted inference via OpenAI-compatible endpoints with configurable timeouts.
+- **Configuration**: `LAYA_BACKEND=mlx|llama_cpp|api` switches backends seamlessly without altering core engine code.
+
+#### 10c: Scheduled Recurring Audits
+- **Architecture**: Extends the Stage 9 Celery/Redis scheduler to execute full 6-pass SEO audits.
+- **Automation**: Enqueues real runs, generates snapshots, computes diffs against previous snapshots, classifies regressions (`noindex`, `canonical_change`, `sitemap_drop`, `5xx_spike`), and dispatches alerts.
+- **Table**: `sites` augmented with `recurring_cron`, `timezone`, `last_run_at`, and `next_run_at`.
+
+#### 10d: GSC Anomaly Detection
+- **Statistical Detector**: Runs automated daily decay detection over impressions and clicks at both page and template levels.
+- **Algorithm**: Standardized z-score decay calculation with variance guards; explicitly handles short-history/insufficient-data scenarios to prevent false alarms.
+- **Output**: Persists alerts to `alerts` table and emits notifications via the unified Stage 9 dispatcher.
+
+#### 10e: CI/CD Deployment Webhook
+- **Endpoint**: `POST /sites/{site_id}/deploy-webhook`
+- **Workflow**: Accepts authenticated deployment events with commit SHA and deploy reference, triggers scoped re-crawls, performs snapshot diffing, and delivers regression outcomes directly to Slack and PR comments.
+- **Security**: Strict organization scoping and Bearer token / API-key verification.
+
+#### 10f: Bi-Directional Ticket Sync
+- **Webhook Integration**: `POST /work-orders/webhook/{platform}` (GitHub, Jira, Linear).
+- **Execution**: When an external issue is closed, loads the linked work order's `verify_spec`, executes automated verification against real HTTP/HTML targets, and updates status strictly to `Verified` (PASS) or `Verification failed` (FAIL). Idempotent event processing prevents redundant re-verifications.
+
+#### 10g: PostgreSQL Full-Text Search
+- **Database**: Generated `tsvector` columns with GIN indexes across findings, blueprints, and GSC queries (`009_stage10g_search.sql`).
+- **API**: `GET /search?q=...&category=...&site_id=...` returning categorized results with ranking (`ts_rank_cd`) and dynamic highlighting (`ts_headline`).
+- **Frontend**: Global search modal in navigation bar and dedicated `/search` page.
+
+#### 10h: Role-Based Access Control (RBAC)
+- **Roles**:
+  - `viewer`: Read-only access to sites, runs, search, artifacts, and trends; denied all mutations (403 Forbidden).
+  - `editor`: Operational capabilities (create runs, configure watches, export/verify tickets); denied administrative user/org management (403 Forbidden).
+  - `admin`: Full administrative control including user provisioning, role promotion, site deletion, and org settings.
+- **Enforcement**: Server-side dependencies (`require_admin`, `require_editor_or_admin`) with cryptographic JWT signature verification.
+- **Frontend**: Dynamic UI action suppression (hides "New Run", renders role badges and "Viewer (Read-Only)" indicator).
+
+#### 10i: Portfolio View & Lower-Priority Feature Status
+- **10i.1 Multi-Site Portfolio View (Completed)**:
+  - `GET /sites/portfolio`: Aggregates total sites, healthy sites, total issues, opportunities, and open alerts across all sites for a tenant.
+  - Per-site health calculation (`healthy`, `warning`, `critical`).
+  - Frontend summary cards and site cards with real status badges and counters.
+- **10i.2 Grounded Content-Draft Assist (Deferred)**:
+  - *Status*: DEFERRED.
+  - *Reason*: Requires full semantic evidence retrieval across blueprints and GSC queries, strict claim-evidence verification, anti-hallucination guardrails, and custom LLM drafting UI. Deferred to maintain system stability and prevent unverified scaffolding.
+  - *What remains*: Prompt grounding pipeline, evidence-to-claim validators, and content draft editor.
+- **10i.3 Competitor Benchmarking (Deferred)**:
+  - *Status*: DEFERRED.
+  - *Reason*: Requires multi-domain external crawl infrastructure, SERP competitive rank tracker integrations, and careful separation of observed crawler facts from derived competitor metrics. Deferred to prevent crawler queue contention and IP blocking.
+  - *What remains*: Cross-domain competitive crawler scheduler, SERP connector, and comparative benchmarking UI.
 
 ---
 
 ## License
 
 Proprietary — Built by the SEOJEV Engineering Team.
+
