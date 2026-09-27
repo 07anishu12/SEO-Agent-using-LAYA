@@ -28,6 +28,7 @@ import {
   AlertListResponse,
   SiteTrendsResponse,
   TrendPoint,
+  SearchResponse,
 } from "@/types/api";
 
 const TOKEN_KEY = "seojev_access_token";
@@ -503,5 +504,19 @@ export async function getSiteTrends(
   return request<SiteTrendsResponse>(`/sites/${siteId}/trends${qs ? `?${qs}` : ""}`);
 }
 
-
-
+// ---------------------------------------------------------------------------
+// Stage 10g: Full-Text Search API
+// ---------------------------------------------------------------------------
+export async function searchContent(
+  query: string,
+  siteId?: string,
+  category?: string,
+  limit: number = 20
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({ q: query });
+  if (siteId) params.append("site_id", siteId);
+  if (category) params.append("category", category);
+  if (limit) params.append("limit", limit.toString());
+  const qs = params.toString();
+  return request<SearchResponse>(`/search${qs ? `?${qs}` : ""}`);
+}

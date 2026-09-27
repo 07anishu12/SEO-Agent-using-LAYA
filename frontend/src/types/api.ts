@@ -420,6 +420,31 @@ export interface SiteTrendsResponse {
     [metric: string]: TrendPoint[] | undefined;
   };
 }
+// ---------------------------------------------------------------------------
+// Stage 10g: Full-Text Search Models
+// ---------------------------------------------------------------------------
+export interface SearchResultItem {
+  id: string;
+  title: string;
+  category: "findings" | "blueprints" | "queries" | string;
+  excerpt: string;
+  score: number;
+  target_url: string;
+  run_id?: string;
+  site_id?: string;
+  display_id?: string;
+  severity?: string;
+  metadata?: Record<string, any>;
+}
 
+export interface CategorizedSearchResults {
+  findings: SearchResultItem[];
+  blueprints: SearchResultItem[];
+  queries: SearchResultItem[];
+}
 
-
+export interface SearchResponse {
+  query: string;
+  results: CategorizedSearchResults;
+  total_matches: number;
+}

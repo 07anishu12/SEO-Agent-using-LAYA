@@ -477,7 +477,27 @@ def run_etl(
                     )
                     counts["snapshots"] += 1
 
-            # 9. GSC Summary (optional)
+            # 8b. Blueprints (from pages in SQLite)
+            if "pages" in active_tables:
+                sqlite_cur.execute("SELECT url, template_id, page_type, title FROM pages WHERE crawl_id = ?", (crawl_id,))
+                page_rows = sqlite_cur.fetchall()
+                for p in page_rows:
+                    p_url = p["url"]
+                    bpid = f"bp_{hashlib.sha256(f'{crawl_id}:{p_url}'.encode('utf-8')).hexdigest()[:16]}"
+                    cur.execute(
+                        """
+                        INSERT INTO blueprints (
+                            id, org_id, run_id, site_id, url, page_ref, title, artifact_path
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE SET
+                            title = EXCLUDED.title,
+                            page_ref = EXCLUDED.page_ref;
+                        """,
+                        (bpid, org_id, crawl_id, resolved_site_id, p["url"], p["template_id"] or p["page_type"] or "", p["title"] or p["url"], f"store/{crawl_id}/{p['url']}")
+                    )
+
+            # 9. GSC Summary and Queries (optional)
             if "gsc_rows" in active_tables:
                 sqlite_cur.execute(
                     """
@@ -516,6 +536,35 @@ def run_etl(
                         }
                     )
                     counts["gsc_summary"] += 1
+
+                # Upsert individual queries into queries table
+                sqlite_cur.execute(
+                    "SELECT query, page, clicks, impressions, ctr, position FROM gsc_rows WHERE run_id = ?",
+                    (crawl_id,)
+                )
+                for q_row in sqlite_cur.fetchall():
+                    q_query = q_row["query"] or ""
+                    q_page = q_row["page"] or ""
+                    qid = f"{crawl_id}_{hashlib.sha256(f'{q_query}:{q_page}'.encode('utf-8')).hexdigest()[:16]}"
+                    cur.execute(
+                        """
+                        INSERT INTO queries (
+                            id, org_id, run_id, site_id, query, page_url, clicks, impressions, ctr, position
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE SET
+                            clicks = EXCLUDED.clicks,
+                            impressions = EXCLUDED.impressions,
+                            ctr = EXCLUDED.ctr,
+                            position = EXCLUDED.position;
+                        """,
+                        (
+                            qid, org_id, crawl_id, resolved_site_id,
+                            q_query, q_page, q_row["clicks"] or 0,
+                            q_row["impressions"] or 0, q_row["ctr"] or 0.0,
+                            q_row["position"] or 0.0
+                        )
+                    )
 
             # 10. Audit Log
             audit_id = f"audit_etl_{crawl_id}_{int(datetime.now(timezone.utc).timestamp())}"

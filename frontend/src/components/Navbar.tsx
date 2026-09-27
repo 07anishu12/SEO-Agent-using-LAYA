@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Globe, Play, History, LogOut, ShieldCheck } from "lucide-react";
+import GlobalSearch from "@/components/GlobalSearch";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -14,9 +15,9 @@ export default function Navbar() {
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo & Brand */}
-          <div className="flex items-center space-x-8">
+          <div className="flex items-center space-x-8 shrink-0">
             <Link href="/sites" className="flex items-center space-x-3 group">
               <div className="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center text-white font-bold shadow-md shadow-sky-500/20 group-hover:bg-sky-400 transition">
                 S
@@ -56,8 +57,13 @@ export default function Navbar() {
             </nav>
           </div>
 
+          {/* Unified Global Search Bar */}
+          <div className="flex-1 max-w-md hidden sm:block">
+            <GlobalSearch />
+          </div>
+
           {/* Right actions & user profile */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 shrink-0">
             <Link
               href="/runs/new"
               className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium shadow-sm transition"
