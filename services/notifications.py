@@ -95,10 +95,18 @@ class NotificationDispatcher:
     def _send_slack(self, webhook_url: str, event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Dispatches formatted message to Slack incoming webhook."""
         title = data.get("title") or f"SEOJEV Notification: {event_type}"
-        message = data.get("message") or data.get("summary") or json.dumps(data)
+        message = data.get("message") or data.get("summary") or json.dumps(data, default=str)
         severity = (data.get("severity") or "info").upper()
 
         color = "#e11d48" if severity == "CRITICAL" else ("#f59e0b" if severity == "HIGH" else "#0ea5e9")
+
+        ts = data.get("detected_at")
+        if isinstance(ts, datetime):
+            ts_str = ts.isoformat()
+        elif ts:
+            ts_str = str(ts)
+        else:
+            ts_str = datetime.now(timezone.utc).isoformat()
 
         payload = {
             "text": f"[{severity}] {title}: {message}",
@@ -110,8 +118,8 @@ class NotificationDispatcher:
                     "fields": [
                         {"title": "Event", "value": event_type, "short": True},
                         {"title": "Severity", "value": severity, "short": True},
-                        {"title": "Site", "value": data.get("site_id", "N/A"), "short": True},
-                        {"title": "Timestamp", "value": data.get("detected_at") or datetime.now(timezone.utc).isoformat(), "short": True}
+                        {"title": "Site", "value": str(data.get("site_id", "N/A")), "short": True},
+                        {"title": "Timestamp", "value": ts_str, "short": True}
                     ]
                 }
             ]
@@ -163,11 +171,12 @@ class NotificationDispatcher:
 
     def _send_webhook(self, url: str, event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Dispatches structured JSON to generic outgoing webhook."""
+        clean_data = json.loads(json.dumps(data, default=str))
         envelope = {
             "event": event_type,
             "event_id": f"evt_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "data": data
+            "data": clean_data
         }
         headers = {
             "Content-Type": "application/json",

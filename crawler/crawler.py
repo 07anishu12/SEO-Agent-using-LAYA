@@ -298,9 +298,11 @@ class SEOCrawler:
                     h1=page_data.h1_text
                 )
                 if is_soft_404:
-                    from models.issue import Issue
-                    issues.append(Issue(
+                    from models.issue import SEOIssue
+                    issues.append(SEOIssue(
                         url=url,
+                        page_type=page_type,
+                        template=template_id,
                         category="technical",
                         issue="soft_404_response",
                         severity="critical",
@@ -348,6 +350,10 @@ class SEOCrawler:
 
                 if new_url_tuples:
                     self.storage.add_urls(self.crawl_id, new_url_tuples)
+            except Exception as e:
+                import traceback
+                self.console.print(f"[bold red]Error in process_item: {e}[/bold red]")
+                traceback.print_exc()
             finally:
                 busy_workers -= 1
 

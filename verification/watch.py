@@ -487,13 +487,16 @@ class WatchRunner:
                         if s_row:
                             target_base = s_row["url"]
                     if not top_pages:
-                        cur.execute(
-                            "SELECT url FROM pages WHERE org_id = %s AND site_id = %s ORDER BY in_links_count DESC LIMIT 5",
-                            (org_id, site_id)
-                        )
-                        p_rows = cur.fetchall()
-                        if p_rows:
-                            top_pages = [r["url"] for r in p_rows]
+                        try:
+                            cur.execute(
+                                "SELECT url FROM snapshots WHERE org_id = %s AND site_id = %s LIMIT 5",
+                                (org_id, site_id)
+                            )
+                            p_rows = cur.fetchall()
+                            if p_rows:
+                                top_pages = [r["url"] for r in p_rows]
+                        except Exception:
+                            pass
 
         target_base = target_base or "http://127.0.0.1:8000"
         pages_to_check = top_pages or [target_base]

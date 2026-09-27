@@ -99,6 +99,22 @@ class SnapshotRecorder:
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
+            CREATE TABLE IF NOT EXISTS snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                run_id TEXT,
+                url TEXT,
+                title TEXT,
+                canonical TEXT,
+                meta_robots TEXT,
+                h1_text TEXT,
+                status_code INTEGER,
+                schema_hash TEXT,
+                content_hash TEXT,
+                metrics_json TEXT,
+                captured_at TEXT
+            )
+            """)
+            conn.execute("""
             INSERT OR REPLACE INTO snapshots (
                 snapshot_id, run_id, url, title, canonical, meta_robots,
                 h1_text, status_code, schema_hash, content_hash, metrics_json, captured_at

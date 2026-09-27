@@ -44,3 +44,5 @@ class IssueCluster:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+Issue = SEOIssue
