@@ -385,6 +385,10 @@ def run_etl(
             if "work_orders" in active_tables:
                 sqlite_cur.execute("SELECT * FROM work_orders WHERE run_id = ?", (crawl_id,))
                 wo_rows = sqlite_cur.fetchall()
+                # Revalidation may suppress earlier work orders. Mirror the current
+                # authoritative set for this tenant/run, preserving other runs.
+                current_ids = [f"{crawl_id}_{wo['work_order_id']}" for wo in wo_rows]
+                cur.execute("DELETE FROM work_orders WHERE org_id=%s AND site_id=%s AND run_id=%s AND NOT (id = ANY(%s))", (org_id, resolved_site_id, crawl_id, current_ids))
                 for wo in wo_rows:
                     raw_wo_id = wo["work_order_id"] or wo["display_id"]
                     wid = f"{crawl_id}_{raw_wo_id}"

@@ -154,7 +154,8 @@ class VerificationRunner:
         work_order: Dict[str, Any],
         target_url: Optional[str] = None,
         html_content: Optional[str] = None,
-        live_fetch: bool = False
+        live_fetch: bool = False,
+        page_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Runs automated verification on a work order and logs the outcome to SQLite."""
         spec = work_order.get("verify_spec", "status_code == 200")
@@ -167,7 +168,11 @@ class VerificationRunner:
         sample_urls = evidence.get("sample_urls", [])
         eval_url = target_url or (sample_urls[0] if sample_urls else "https://example.com/")
 
-        page_data = {"url": eval_url, "status_code": 200}
+        if page_data is None:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute("SELECT * FROM pages WHERE crawl_id=? AND url=?", (run_id, eval_url)).fetchone()
+            page_data = dict(row) if row else {"url": eval_url, "status_code": None}
 
         # If live_fetch is requested, fetch the URL
         if live_fetch and eval_url.startswith("http"):

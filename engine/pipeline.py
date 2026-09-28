@@ -39,6 +39,9 @@ from performance.lighthouse import PerformanceAuditor
 from laya.analyzer import LayaSEOAnalyzer
 from laya.decision import LayaDecision, LayaCandidateInput, DecisionType, ConfidenceGate
 from laya.worker_pool import LayaWorkerPool
+from laya.candidates import build_candidates, opportunity_candidate_key
+from laya.persistence import OPPORTUNITY_COLUMNS, insert_decision
+from laya.decision import LAYA_PROMPT_VERSION, load_settings
 from reporting.csv_report import CSVReportGenerator
 from reporting.json_report import JSONReportGenerator
 from reporting.docx_report import DocxReportGenerator
@@ -60,6 +63,7 @@ from search.gsc_pipeline import GSCPipeline
 from understanding.index_funnel import IndexFunnelReconciler
 from understanding.entity_graph import EntityGraphEngine
 from verification.snapshot import SnapshotRecorder
+from verification.runner import VerificationRunner
 
 
 class PipelineCancelledException(Exception):
@@ -193,30 +197,52 @@ class SEOJEVPipeline:
         if self.cancel_check and self.cancel_check():
             raise PipelineCancelledException(f"Pipeline execution cancelled by caller for run '{self.crawl_id}'.")
 
+    def checkpoint_contract(self):
+        analyzer = LayaSEOAnalyzer.get_singleton(self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"))
+        settings = {**load_settings(), **self.config.get("laya", {})}
+        return {"prompt_version": LAYA_PROMPT_VERSION, "checkpoint_id": analyzer.preflight()["checkpoint_id"],
+                "confidence": settings["confidence"], "pipeline_version": "strict-laya-v3"}
+
     def is_stage_complete(self, stage: str) -> bool:
-        """Returns True if the stage has already been completed for this crawl_id."""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                row = conn.execute(
-                    "SELECT status FROM stage_checkpoints WHERE crawl_id = ? AND stage = ?",
-                    (self.crawl_id, stage)
-                ).fetchone()
-                return bool(row and row[0] == "completed")
-        except Exception:
-            return False
+        """Legacy aliases are safe only upstream; decisions require current provenance."""
+        aliases = {"P2_DETERMINISTIC_EVIDENCE": "P2_SIGNALS", "P3_CANDIDATE_REDUCTION": "P3_SEARCH_OPPORTUNITIES"}
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("SELECT status, metadata_json FROM stage_checkpoints WHERE crawl_id=? AND stage IN (?, ?) ORDER BY stage=? DESC LIMIT 1",
+                               (self.crawl_id, stage, aliases.get(stage, stage), stage)).fetchone()
+            if not row or row[0] != "completed":
+                return False
+            if stage.startswith(("P4_", "P5_", "P6_")):
+                if self.options.get("rerun_laya"):
+                    return False
+                metadata = json.loads(row[1] or "{}")
+                if metadata.get("contract") != self.checkpoint_contract():
+                    return False
+                if stage == "P4_LAYA_DECISION_ENGINE":
+                    expected = metadata.get("laya_summary", {}).get("total_decisions", 0)
+                    complete = conn.execute("""SELECT COUNT(*) FROM laya_decisions WHERE crawl_id=?
+                        AND cluster_id IS NOT NULL AND choice IS NOT NULL AND gate IS NOT NULL
+                        AND prompt_version=? AND head_confidences IS NOT NULL AND checkpoint_id=?""",
+                        (self.crawl_id, LAYA_PROMPT_VERSION, metadata["contract"]["checkpoint_id"])).fetchone()[0]
+                    return expected > 0 and complete == expected
+                if not self.is_stage_complete("P4_LAYA_DECISION_ENGINE"):
+                    return False
+                if stage == "P6_REPORTS":
+                    return self.is_stage_complete("P5_VALIDATED_OPPORTUNITIES") and all(
+                        os.path.isfile(os.path.join(self.output_dir, name)) for name in
+                        ("SEOJEV_V3_AUDIT_REPORT.docx", "SEOJEV_EXECUTIVE_SUMMARY.docx", "explorer.html", "summary.json"))
+            return True
 
     def mark_stage_complete(self, stage: str, metadata: Optional[Dict[str, Any]] = None):
-        """Marks a stage as completed in stage_checkpoints table."""
-        try:
-            meta_str = json.dumps(metadata or {}, default=str)
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    INSERT OR REPLACE INTO stage_checkpoints (crawl_id, stage, status, metadata_json, completed_at)
-                    VALUES (?, ?, 'completed', ?, ?)
-                """, (self.crawl_id, stage, meta_str, datetime.datetime.now().isoformat()))
-                conn.commit()
-        except Exception:
-            pass
+        metadata = dict(metadata or {})
+        if stage.startswith(("P4_", "P5_", "P6_")):
+            metadata["contract"] = self.checkpoint_contract()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""INSERT OR REPLACE INTO stage_checkpoints
+                (crawl_id,stage,status,metadata_json,completed_at) VALUES (?,?,'completed',?,?)""",
+                (self.crawl_id, stage, json.dumps(metadata, default=str), datetime.datetime.now().isoformat()))
+            order = ["P1_CRAWL", "P2_DETERMINISTIC_EVIDENCE", "P3_CANDIDATE_REDUCTION", "P4_LAYA_DECISION_ENGINE", "P5_VALIDATED_OPPORTUNITIES", "P6_REPORTS"]
+            for downstream in order[order.index(stage)+1:]:
+                conn.execute("UPDATE stage_checkpoints SET status='stale' WHERE crawl_id=? AND stage=?", (self.crawl_id, downstream))
 
     # -------------------------------------------------------------------------
     # PASS 1: CRAWL & DISCOVERY
@@ -475,9 +501,9 @@ class SEOJEVPipeline:
         t0 = time.monotonic()
         self.emit_progress("P3_CANDIDATE_REDUCTION", 51.0, "Ingesting search context for candidate reduction...")
 
-        pages = p2_data.get("pages") if p2_data else self.storage.get_all_pages(self.crawl_id)
+        pages = (p2_data or {}).get("pages") or self.storage.get_all_pages(self.crawl_id)
         product_data_map = p2_data.get("product_data_map", {}) if p2_data else {}
-        issue_clusters = p2_data.get("issue_clusters", []) if p2_data else self.storage.get_all_issue_clusters(self.crawl_id)
+        issue_clusters = (p2_data or {}).get("issue_clusters") or self.storage.get_all_issue_clusters(self.crawl_id)
         node_metrics = p2_data.get("node_metrics", {}) if p2_data else {}
         link_opportunities = p2_data.get("link_opportunities", []) if p2_data else self.storage.get_internal_link_opportunities(self.crawl_id)
         product_pages_data = p2_data.get("product_pages_data", []) if p2_data else []
@@ -632,174 +658,87 @@ class SEOJEVPipeline:
     # PASS 4: LAYA PRIMARY SEO DECISION
     # -------------------------------------------------------------------------
     async def run_pass_4_laya_decision(self, p3_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """P4: Laya is the primary semantic SEO decision layer."""
+        """Run every reduced candidate through Laya and verify persisted provenance."""
         self.check_cancelled()
         t0 = time.monotonic()
-        self.emit_progress("P4_LAYA_DECISION_ENGINE", 71.0, "Initializing Laya SEO Decision Engine...")
-
-        issue_clusters = self.storage.get_all_issue_clusters(self.crawl_id)
+        self.emit_progress("P4_LAYA_DECISION_ENGINE", 71.0, "Running strict MLX preflight...")
+        analyzer = LayaSEOAnalyzer.get_singleton(self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"))
+        preflight = analyzer.preflight()
+        clusters = self.storage.get_all_issue_clusters(self.crawl_id)
         pages = self.storage.get_all_pages(self.crawl_id)
-        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+        with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            opp_rows = [dict(r) for r in conn.execute(
-                "SELECT * FROM opportunities WHERE run_id = ?", (self.crawl_id,)
-            ).fetchall()]
-
-        def samples(value):
-            if isinstance(value, str):
-                try:
-                    return json.loads(value) if value.startswith("[") else [x.strip() for x in value.split(",") if x.strip()]
-                except json.JSONDecodeError:
-                    return [value]
-            return list(value or [])
-
-        def evidence(template_id, sample_urls):
-            sample_set = set(sample_urls)
-            cohort = [p for p in pages if p.get("template_id") == template_id or p.get("url") in sample_set]
-            cohort = cohort or [p for p in pages if p.get("url") in sample_set]
-            words = [int(p.get("word_count") or 0) for p in cohort]
-            hashes = [p.get("content_hash") for p in cohort if p.get("content_hash")]
-            canonical = {
-                "indexable": sum(bool(p.get("is_indexable")) for p in cohort),
-                "non_indexable": sum(not bool(p.get("is_indexable")) for p in cohort),
-                "canonical_statuses": dict(Counter(p.get("canonical_status") or "unknown" for p in cohort)),
-            }
-            return {
-                "status_distribution": dict(Counter(str(p.get("status_code") or 0) for p in cohort)),
-                "indexability": canonical,
-                "canonical_relationship": canonical,
-                "content_metrics": {
-                    "pages": len(cohort), "min_words": min(words or [0]),
-                    "avg_words": round(sum(words) / max(len(words), 1), 1),
-                    "unique_content_hashes": len(set(hashes)), "duplicate_content_pages": len(hashes) - len(set(hashes)),
-                },
-                "link_metrics": {
-                    "avg_internal_links": round(sum(int(p.get("internal_links_count") or 0) for p in cohort) / max(len(cohort), 1), 1),
-                    "orphan_pages": sum(int(p.get("internal_links_count") or 0) == 0 for p in cohort),
-                },
-            }
-
-        # Template and issue clusters are the only Laya inputs. URLs are samples/evidence, never inference units.
-        candidates: Dict[str, LayaCandidateInput] = {}
-        for cluster in issue_clusters:
-            sample_urls = samples(cluster.get("sample_urls"))[:5]
-            ev = evidence(cluster.get("primary_affected_template", "default"), sample_urls)
-            key = f"cluster:{cluster.get('cluster_id', cluster.get('issue', 'generic'))}"
-            candidates[key] = LayaCandidateInput(
-                cluster_id=key, template_id=cluster.get("primary_affected_template", "default"),
-                issue_type=cluster.get("issue", "generic"), page_count=cluster.get("affected_urls_count", 1),
-                sample_urls=sample_urls, status_distribution=ev["status_distribution"],
-                canonical_relationship=ev["canonical_relationship"], indexability=ev["indexability"],
-                content_metrics=ev["content_metrics"], link_metrics=ev["link_metrics"],
-                severity_hint=cluster.get("severity", cluster.get("priority", "medium")),
-                category_hint=cluster.get("category", "technical"), evidence_refs=[cluster.get("evidence_summary", "")],
-            )
-
-        grouped_opps: Dict[str, List[Dict[str, Any]]] = {}
-        for opp in opp_rows:
-            key = f"opportunity:{opp.get('type', 'generic')}|{opp.get('implementation_location', '')}|{opp.get('action', '')[:80]}"
-            grouped_opps.setdefault(key, []).append(opp)
-        for key, group in grouped_opps.items():
-            first = group[0]
-            sample_urls = []
-            for item in group[:5]:
-                sample_urls.extend(samples(item.get("sample_urls_json")))
-            ev = evidence(first.get("implementation_location", "default"), sample_urls[:5])
-            candidates.setdefault(key, LayaCandidateInput(
-                cluster_id=key, template_id=first.get("implementation_location", "default"),
-                issue_type=first.get("observation") or first.get("type", "generic"), page_count=sum(int(x.get("affected_urls_count") or 1) for x in group),
-                sample_urls=sample_urls[:5], status_distribution=ev["status_distribution"],
-                canonical_relationship=ev["canonical_relationship"], indexability=ev["indexability"],
-                content_metrics=ev["content_metrics"], link_metrics=ev["link_metrics"],
-                severity_hint=first.get("opportunity_tier", "medium").lower(), category_hint=first.get("type", "technical"),
-                evidence_refs=[first.get("hypothesis", "")],
-            ))
-
-        laya_pool = LayaWorkerPool(
-            model_id=self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"),
-            max_queue_depth=max(5000, len(candidates)), num_workers=2, batch_size=10, cache_db_path=self.db_path
-        )
-        await laya_pool.start()
-        for candidate in candidates.values():
-            self.check_cancelled()
-            await laya_pool.submit_candidate(candidate, run_id=self.crawl_id)
-
-        self.emit_progress("P4_LAYA_DECISION_ENGINE", 74.0, f"Laya is deciding {len(candidates):,} reduced SEO candidates...")
+            opportunities = [dict(r) for r in conn.execute("SELECT * FROM opportunities WHERE run_id=?", (self.crawl_id,))]
+        candidates, members = build_candidates(clusters, pages, opportunities)
+        if not candidates:
+            raise RuntimeError("Pass 4 has zero candidates; refusing to continue to Pass 5")
+        pool = LayaWorkerPool(model_id=analyzer.model_id, max_queue_depth=max(5000, len(candidates)),
+                              cache_db_path=self.db_path, settings=self.config.get("laya", {}))
+        await pool.start()
         try:
-            await asyncio.wait_for(laya_pool._queue.join(), timeout=300.0)
-        except asyncio.TimeoutError:
-            logger.warning("Laya decision queue drain timed out")
-        all_decisions = await laya_pool.get_decisions()
+            for candidate in candidates.values():
+                self.check_cancelled()
+                if not await pool.submit_candidate(candidate, self.crawl_id):
+                    raise RuntimeError("Pass 4 candidate queue rejected work")
+            self.emit_progress("P4_LAYA_DECISION_ENGINE", 74.0, f"Laya is deciding {len(candidates):,} reduced candidates...")
+            all_decisions = await pool.finish()
+        finally:
+            await pool.stop(abort=True)
         decisions = {d.cluster_id: d for d in all_decisions}
-
+        if len(decisions) != len(all_decisions):
+            raise RuntimeError("Pass 4 produced duplicate candidate decisions")
         severity_score = {"critical": 100.0, "high": 80.0, "medium": 55.0, "low": 25.0}
         priority_model = PriorityModel()
-        opp_updates = []
-        for opp in opp_rows:
-            key = f"opportunity:{opp.get('type', 'generic')}|{opp.get('implementation_location', '')}|{opp.get('action', '')[:80]}"
-            dec = decisions.get(key)
-            if not dec:
+        updates, unmatched, gates = [], [], Counter()
+        for opportunity in opportunities:
+            key = opportunity_candidate_key(opportunity, members)
+            decision = decisions.get(key)
+            if decision is None:
+                unmatched.append(opportunity["opportunity_id"])
                 continue
-            factors = json.loads(opp.get("priority_factors_json") or "{}")
-            factors["technical_severity"] = severity_score.get(dec.severity.lower(), 50.0)
+            factors = json.loads(opportunity.get("priority_factors_json") or "{}")
+            factors["technical_severity"] = severity_score[decision.severity]
             score, tier = priority_model.calculate_opportunity_score(factors)
-            validated = int(dec.is_real_issue and dec.gate != "SUPPRESS")
+            validated = int(decision.is_real_issue and decision.gate in ("AUTO_ACCEPT", "HUMAN_REVIEW"))
             if not validated:
                 score, tier = 0.0, "Low"
-            opp_updates.append((
-                dec.choice, dec.confidence, dec.decision_id, validated,
-                "SEO_PROBLEM" if dec.is_real_issue else "NOISE", dec.scope, dec.root_cause,
-                json.dumps(dec.canonical_indexability), json.dumps(dec.content_assessment),
-                json.dumps(dec.cannibalization), json.dumps(dec.internal_linking), key,
-                tier, score, json.dumps(factors), opp.get("opportunity_id"),
-            ))
-
-        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            if opp_updates:
-                conn.executemany("""UPDATE opportunities SET
-                    laya_action=?, laya_confidence=?, laya_decision_id=?, laya_validated=?, laya_verdict=?,
-                    laya_scope=?, laya_root_cause=?, laya_canonical_indexability=?, laya_content_assessment=?,
-                    laya_cannibalization=?, laya_internal_linking=?, laya_candidate_id=?, opportunity_tier=?,
-                    priority_score=?, priority_factors_json=? WHERE opportunity_id=?""", opp_updates)
-            if all_decisions:
-                conn.executemany("""INSERT OR REPLACE INTO laya_decisions
-                    (crawl_id, issue_key, prompt_summary, response_raw, latency_ms, decision_category,
-                     decision_severity, decision_action, confidence, created_at, decision_type, choice, gate,
-                     input_hash, model_version, prompt_version, affected_scope, affected_count, cluster_id,
-                     is_real_issue, scope, root_cause, canonical_indexability, content_assessment,
-                     cannibalization, internal_linking) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    [(self.crawl_id, d.cluster_id, f"Reduced candidate {d.cluster_id}", d.raw_response, d.latency_ms,
-                      d.reason_codes[0] if d.reason_codes else "technical", d.severity, d.choice, d.confidence,
-                      d.decision_type, d.choice, d.gate, d.input_hash, d.model_version, "laya-seo-decision-v2",
-                      d.affected_scope, d.affected_count, d.cluster_id, int(d.is_real_issue), d.scope, d.root_cause,
-                      json.dumps(d.canonical_indexability), json.dumps(d.content_assessment),
-                      json.dumps(d.cannibalization), json.dumps(d.internal_linking)) for d in all_decisions])
-            conn.commit()
-
-        pool_metrics = laya_pool.get_metrics()
-        await laya_pool.stop()
-        
-        logger.info(
-            f"[LAYA] run_id={self.crawl_id} pool_metrics: "
-            f"candidates={pool_metrics['total_candidates']} decisions={pool_metrics['total_decisions']} "
-            f"cache_hits={pool_metrics['total_cache_hits']} p50={pool_metrics['p50_ms']:.1f}ms "
-            f"p95={pool_metrics['p95_ms']:.1f}ms queue_drops={pool_metrics['queue_drops']}"
-        )
-        
-        laya_analyzer = LayaSEOAnalyzer.get_singleton(
-            model_id=self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx")
-        )
-        laya_summary = laya_analyzer.metrics.get_summary() if laya_analyzer else {}
-        laya_summary.update(pool_metrics)
-
-        self.emit_progress(
-            "P4_LAYA_DECISION_ENGINE", 80.0,
-            f"Laya SEO Decision Engine complete: {pool_metrics['total_decisions']} decisions.",
-            {"laya_telemetry": pool_metrics}
-        )
-        self.pass_timings["P4_LAYA_DECISION_ENGINE"] = round(time.monotonic() - t0, 2)
-        return {"laya_summary": laya_summary, "laya_decisions": [d.to_dict() for d in all_decisions]}
+            gates[decision.gate] += 1
+            updates.append((decision.choice, decision.confidence, decision.decision_id, validated,
+                            decision.verdict, decision.scope, decision.root_cause,
+                            json.dumps(decision.canonical_indexability), json.dumps(decision.content_assessment),
+                            json.dumps(decision.cannibalization), json.dumps(decision.internal_linking), key,
+                            decision.gate, json.dumps(decision.head_confidences), decision.checkpoint_id,
+                            tier, score, json.dumps(factors), opportunity["opportunity_id"], self.crawl_id))
+        logger.info("Pass 4 unmatched opportunities=%s examples=%s", len(unmatched), unmatched[:20])
+        with sqlite3.connect(self.db_path, timeout=30) as conn:
+            # Recomputing a pass replaces only that run's results, transactionally.
+            conn.execute("DELETE FROM laya_decisions WHERE crawl_id=?", (self.crawl_id,))
+            written = sum(insert_decision(conn, "laya_decisions", d) for d in all_decisions)
+            stored = conn.execute("SELECT COUNT(*) FROM laya_decisions WHERE crawl_id=?", (self.crawl_id,)).fetchone()[0]
+            if written != len(all_decisions) or stored != len(all_decisions):
+                raise RuntimeError(f"Pass 4 persistence mismatch: made={len(all_decisions)}, inserted={written}, stored={stored}")
+            resets = ",".join(f'"{col}"=NULL' for col in OPPORTUNITY_COLUMNS if col != "laya_validated")
+            conn.execute(f"UPDATE opportunities SET {resets}, laya_validated=0 WHERE run_id=?", (self.crawl_id,))
+            conn.executemany("""UPDATE opportunities SET laya_action=?, laya_confidence=?, laya_decision_id=?,
+                laya_validated=?, laya_verdict=?, laya_scope=?, laya_root_cause=?, laya_canonical_indexability=?,
+                laya_content_assessment=?, laya_cannibalization=?, laya_internal_linking=?, laya_candidate_id=?,
+                laya_gate=?, laya_head_confidences=?, laya_checkpoint_id=?, opportunity_tier=?, priority_score=?,
+                priority_factors_json=? WHERE opportunity_id=? AND run_id=?""", updates)
+            matched = conn.execute("SELECT COUNT(*) FROM opportunities WHERE run_id=? AND laya_candidate_id IS NOT NULL", (self.crawl_id,)).fetchone()[0]
+            if matched != len(updates):
+                raise RuntimeError(f"Pass 4 opportunity update mismatch: expected={len(updates)}, stored={matched}")
+        summary = {**pool.get_metrics(), "preflight": preflight, "unmatched_opportunities": len(unmatched),
+                   "real_issues": sum(d.is_real_issue for d in all_decisions),
+                   "validated": gates["AUTO_ACCEPT"] + gates["HUMAN_REVIEW"],
+                   "human_review": gates["HUMAN_REVIEW"], "suppressed": gates["SUPPRESS"],
+                   "opportunity_gates": dict(gates), "cluster_member_opportunities": len(members)}
+        if summary["validated"] in (0, len(opportunities)):
+            logger.warning("Suspicious Pass 4 validation fraction: %s/%s", summary["validated"], len(opportunities))
+        logger.info("Pass 4 summary: %s", summary)
+        self.emit_progress("P4_LAYA_DECISION_ENGINE", 80.0, f"Laya persisted {written} decisions; {summary['validated']} validated opportunities.", {"laya_telemetry": summary})
+        self.pass_timings["P4_LAYA_DECISION_ENGINE"] = round(time.monotonic()-t0, 2)
+        self._laya_summary = summary
+        return {"laya_summary": summary, "laya_decisions": [d.to_dict() for d in all_decisions]}
 
     # -------------------------------------------------------------------------
     # PASS 5: VALIDATED OPPORTUNITIES, PRIORITY & WORK ORDERS
@@ -813,11 +752,31 @@ class SEOJEVPipeline:
         wo_mgr = WorkOrderManager(db_path=self.db_path)
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
+            decision_stats = conn.execute("SELECT COUNT(*), COALESCE(SUM(is_real_issue),0) FROM laya_decisions WHERE crawl_id=? AND prompt_version=? AND head_confidences IS NOT NULL", (self.crawl_id, LAYA_PROMPT_VERSION)).fetchone()
+            if decision_stats[0] == 0:
+                raise RuntimeError("Pass 5 refused: Pass 4 has no persisted current Laya decisions")
             rows = conn.execute("SELECT * FROM opportunities WHERE run_id = ? AND COALESCE(laya_validated, 0) = 1", (self.crawl_id,)).fetchall()
             v3_opps = [dict(r) for r in rows]
+            if not v3_opps and decision_stats[1]:
+                raise RuntimeError(f"Pass 5 found zero validated opportunities despite {decision_stats[1]} real-issue decisions; inspect gates and candidate membership")
+            if any(o["laya_gate"] not in ("AUTO_ACCEPT", "HUMAN_REVIEW") or not o["laya_candidate_id"] or not o["laya_decision_id"] for o in v3_opps):
+                raise RuntimeError("Pass 5 found validated opportunities with invalid Laya provenance")
 
         work_orders = wo_mgr.create_work_orders_from_opportunities(self.crawl_id, v3_opps)
-        wo_mgr.persist_work_orders(work_orders)
+        wo_mgr.persist_work_orders(work_orders, run_id=self.crawl_id)
+
+        # Baseline verification measures stored evidence; no deployment is implied.
+        verifier = VerificationRunner(db_path=self.db_path)
+        page_map = {p["url"]: p for p in self.storage.get_all_pages(self.crawl_id)}
+        verification_results = []
+        for order in work_orders:
+            urls = json.loads(order["evidence_json"]).get("sample_urls", [])
+            url = urls[0] if urls else self.target_url
+            page = page_map.get(url)
+            html = self.content_store.get(page["content_hash"]) if page and page.get("content_hash") else None
+            verification_results.append(verifier.verify_work_order(order, target_url=url, html_content=html, page_data=page))
+        with open(os.path.join(self.output_dir, "verification-results.json"), "w") as output:
+            json.dump({"phase": "baseline_before_remediation", "results": verification_results}, output, indent=2)
 
         tickets_dir = os.path.join(self.output_dir, "tickets")
         ticket_stats = wo_mgr.export_all_tickets(self.crawl_id, tickets_dir)
@@ -837,6 +796,7 @@ class SEOJEVPipeline:
         self.pass_timings["P5_VALIDATED_OPPORTUNITIES"] = round(time.monotonic() - t0, 2)
         return {
             "work_orders": work_orders,
+            "verification_count": len(verification_results),
             "ticket_stats": ticket_stats,
             "lint_violations_count": len(lint_violations),
             "lint_report_path": lint_report_path
@@ -888,7 +848,11 @@ class SEOJEVPipeline:
         issue_cat_dist = dict(Counter(i.get("category", "other") for i in all_issues))
 
         json_gen.generate_crawl_summary_json(self.target_url, self.crawl_id, stats, page_types_dist, status_dist, issue_cat_dist)
-        json_gen.generate_site_profile(self.target_url, stats.urls_discovered, page_types_dist, len(all_templates))
+        json_gen.generate_site_profile(self.target_url, stats.urls_discovered, page_types_dist, len(all_templates), out_path=os.path.join(self.output_dir, "site-profile.json"))
+        summary = json_gen.generate_summary_json(self.target_url, self.crawl_id, audit_date, stats, getattr(self, "_laya_summary", {}))
+        summary["laya"] = getattr(self, "_laya_summary", {})
+        with open(os.path.join(self.output_dir, "summary.json"), "w") as output:
+            json.dump(summary, output, indent=2)
         json_gen.generate_readme(self.target_url, self.crawl_id, stats)
 
         self.storage.update_crawl_status(self.crawl_id, "completed", datetime.datetime.now().isoformat())
@@ -912,6 +876,8 @@ class SEOJEVPipeline:
         """Runs Crawl → Evidence → Reduction → Laya → Validation → Reports."""
         start_wall_time = time.monotonic()
         try:
+            self.check_cancelled()
+            LayaSEOAnalyzer.get_singleton(self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx")).preflight()
             # P1: Crawl
             if self.is_stage_complete("P1_CRAWL"):
                 self.emit_progress("P1_CRAWL", 25.0, f"Stage P1_CRAWL already completed for {self.crawl_id}. Resuming from checkpoint.")
@@ -942,7 +908,9 @@ class SEOJEVPipeline:
             # P4: Laya primary SEO decision
             if self.is_stage_complete("P4_LAYA_DECISION_ENGINE"):
                 self.emit_progress("P4_LAYA_DECISION_ENGINE", 80.0, f"Laya SEO decisions already completed for {self.crawl_id}.")
-                p4_res = {"crawl_id": self.crawl_id, "resumed": True}
+                with sqlite3.connect(self.db_path) as conn:
+                    p4_res = json.loads(conn.execute("SELECT metadata_json FROM stage_checkpoints WHERE crawl_id=? AND stage='P4_LAYA_DECISION_ENGINE'", (self.crawl_id,)).fetchone()[0])
+                self._laya_summary = p4_res["laya_summary"]
             else:
                 p4_res = await self.run_pass_4_laya_decision(p3_res)
                 self.mark_stage_complete("P4_LAYA_DECISION_ENGINE", p4_res)

@@ -108,6 +108,16 @@ async def test_baseline_regression_library_mode():
         validated = [o for o in opps if o["laya_validated"] == 1]
         assert len(work_orders) == len(validated)
         assert 0 < len(work_orders) <= len(opps)
+        assert all(o["laya_gate"] in ("AUTO_ACCEPT", "HUMAN_REVIEW") for o in validated)
+        with sqlite3.connect(db_test_path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM verifications WHERE run_id=?", (pipeline.crawl_id,)).fetchone()[0] == len(work_orders)
+            count = conn.execute("SELECT COUNT(*) FROM laya_decisions WHERE crawl_id=? AND cluster_id IS NOT NULL AND choice IS NOT NULL AND gate IS NOT NULL AND prompt_version IS NOT NULL AND head_confidences IS NOT NULL", (pipeline.crawl_id,)).fetchone()[0]
+            assert count == result["laya_summary"]["total_decisions"] > 0
+        from laya.analyzer import LayaSEOAnalyzer
+        LayaSEOAnalyzer.get_singleton().reset_metrics_for_test()
+        replay = await pipeline.run_pass_4_laya_decision()
+        assert replay["laya_summary"]["total_cache_hits"] == count
+        assert replay["laya_summary"]["inference_count"] == 0
 
     finally:
         server.stop()

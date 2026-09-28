@@ -3,6 +3,22 @@ import asyncio
 import datetime
 import os
 import sys
+import importlib.util
+import platform
+from pathlib import Path
+
+
+def check_runtime():
+    expected = Path(__file__).resolve().parent / ".venv"
+    if Path(sys.prefix).resolve() != expected.resolve():
+        raise SystemExit("SEOJEV requires its project environment. Run: .venv/bin/python3 main.py https://www.drivio.in/ --fresh")
+    missing = [name for name in ("mlx", "laya_mlx", "numpy") if importlib.util.find_spec(name) is None]
+    if missing or platform.system() != "Darwin" or platform.machine() != "arm64":
+        raise SystemExit(f"SEOJEV requires native Apple Silicon MLX (outside Docker). Missing packages: {missing}. Install with .venv/bin/python3 -m pip install -r requirements.txt")
+
+
+if __name__ == "__main__":
+    check_runtime()
 import time
 import yaml
 from collections import Counter
@@ -72,6 +88,7 @@ async def main_async(args):
         "fresh": args.fresh,
         "crawl_id": args.crawl_id,
         "analyze_only": args.analyze_only,
+        "rerun_laya": args.rerun_laya,
         "gsc": args.gsc,
         "serp_data": args.serp_data,
         "serp_provider": args.serp_provider,
@@ -456,6 +473,7 @@ def main():
     parser.add_argument("--user-agent", type=str, help="Custom User-Agent header")
     parser.add_argument("--crawl-id", type=str, help="Specific existing crawl ID to analyze or export")
     parser.add_argument("--analyze-only", action="store_true", help="Analyze existing crawl data without running crawler")
+    parser.add_argument("--rerun-laya", action="store_true", help="Re-run Passes 4–6 using current model/prompt and durable cache")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to config.yaml")
 
     args = parser.parse_args()
@@ -465,4 +483,6 @@ def main():
     asyncio.run(main_async(args))
 
 if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     main()

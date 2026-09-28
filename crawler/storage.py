@@ -602,14 +602,6 @@ class CrawlStorage:
             """, (laya_category, laya_severity, laya_action, confidence, issue_id))
             conn.commit()
 
-    def save_laya_decision(self, crawl_id: str, issue_key: str, prompt_summary: str, response_raw: str, latency_ms: float, decision_category: str, decision_severity: str, decision_action: str, confidence: float):
-        with self._get_connection() as conn:
-            conn.execute("""
-            INSERT INTO laya_decisions (crawl_id, issue_key, prompt_summary, response_raw, latency_ms, decision_category, decision_severity, decision_action, confidence, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            """, (crawl_id, issue_key, prompt_summary, response_raw, latency_ms, decision_category, decision_severity, decision_action, confidence))
-            conn.commit()
-
     def save_performance(self, crawl_id: str, perf_data: Dict[str, Any]):
         with self._get_connection() as conn:
             conn.execute("""

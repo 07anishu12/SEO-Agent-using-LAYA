@@ -7,6 +7,7 @@ Tests:
    GET /runs/{id} and confirm counts match Stage 2 ETL / Phase 2 Baseline.
 """
 import os
+import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
@@ -226,7 +227,9 @@ def test_e2e_site_run_pipeline_and_etl(client):
         assert counts["templates"] in (6, 8)
         assert counts["findings"] in (48, 55)
         assert counts["opportunities"] in (48, 55)
-        assert counts["work_orders"] in (48, 55)
+        with sqlite3.connect(f"data/{crawl_id}.db") as local:
+            validated = local.execute("SELECT COUNT(*) FROM opportunities WHERE run_id=? AND laya_validated=1", (crawl_id,)).fetchone()[0]
+        assert counts["work_orders"] == validated > 0
 
         # 4. GET /runs/{id}
         get_run_res = client.get(f"/runs/{crawl_id}", headers=headers)
@@ -236,7 +239,7 @@ def test_e2e_site_run_pipeline_and_etl(client):
         assert detail["status"] == "completed"
         assert detail["counts"]["findings"] in (48, 55)
         assert detail["counts"]["opportunities"] in (48, 55)
-        assert detail["counts"]["work_orders"] in (48, 55)
+        assert detail["counts"]["work_orders"] == validated
         assert detail["counts"]["templates"] in (6, 8)
 
         # 5. GET /runs

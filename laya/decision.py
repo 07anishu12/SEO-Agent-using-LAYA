@@ -14,9 +14,13 @@ from typing import Optional, List, Dict, Any
 LAYA_PROMPT_VERSION = "laya-seo-decision-v3"
 
 
-def load_policy():
+def load_settings():
     with (Path(__file__).resolve().parents[1] / "config.yaml").open() as source:
-        return yaml.safe_load(source)["laya"]["confidence"]
+        return yaml.safe_load(source)["laya"]
+
+
+def load_policy():
+    return load_settings()["confidence"]
 
 
 def confidence_gate(verdict, verdict_probability, action_probability, policy=None):
