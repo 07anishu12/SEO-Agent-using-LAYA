@@ -9,7 +9,8 @@ import sys
 import time
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from engine.chunks import SQLiteStageStore
-from engine.memory_guard import MemoryGuard, autotune_batches
+from engine.memory_guard import MemoryGuard
+from engine.evaluation import empty_equivalence, compare_decision, require_safe_batch
 from engine.profiles import resolve_profile
 from laya.streaming import LocalMLXService, iter_candidates, decide_classes
 from laya.decision import LayaCandidateInput, LayaDecision, LAYA_PROMPT_VERSION
@@ -70,6 +71,10 @@ def synthetic_candidates(directory, db_path):
 def evaluate(args):
     prepared=json.loads(Path(args.prepared).read_text())
     config=resolve_profile(prepared['config'],'dev');limits=config['runtime']
+    from scripts.laya_acceptance import CHECKPOINT, load_prepared
+    load_prepared(args.prepared)  # Verify the existing DB, never create a replacement sample.
+    autotune=json.loads(Path(args.autotune_report).read_text())
+    limits['batch_size']=require_safe_batch(autotune,CHECKPOINT)
     output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
     result_path=output/'measurements.json'
     prior=json.loads(result_path.read_text()) if result_path.exists() else None
@@ -87,6 +92,17 @@ def evaluate(args):
             raise ValueError('Cannot resume equivalence with a different checkpoint')
         if prior and prior['policy']!=result['policy']:
             raise ValueError('Cannot resume with a different confidence policy')
+        # Execute the old worker implementation from the recorded pre-change commit.
+        # The unchanged analyzer/gates serve both implementations; no alternate model exists.
+        import subprocess, types
+        old_source=subprocess.check_output(['git','show','896b2dd:laya/worker_pool.py'],text=True)
+        old_module=types.ModuleType('laya._acceptance_old_worker')
+        old_module.__package__='laya'
+        exec(compile(old_source,'896b2dd:laya/worker_pool.py','exec'),old_module.__dict__)
+        old_pool=old_module.LayaWorkerPool(settings=config.get('laya',{}),cache_db_path=None,num_workers=1)
+        old_pool._analyzer=service.analyzer
+        result['old_pipeline_commit']='896b2dd'
+        result['autotune']=autotune
         # Independent inference of old candidates; no analyzer or durable result reuse.
         with guard.stage('baseline_laya'):
             count=0
@@ -96,21 +112,31 @@ def evaluate(args):
                     count+=1
                     continue
                 service.analyzer.reset_metrics_for_test()
-                decision=service.submit_batch([candidate],'baseline')[0]
+                guard.checkpoint()
+                decision=old_pool._make_decision(candidate,'baseline')
+                time.sleep(limits['throttle_seconds'])
                 store.put('baseline_decisions',candidate.cluster_id,dict(choice=decision.choice,gate=decision.gate))
                 count+=1
             result['baseline_candidates']=count
         with guard.stage('laya'):
             service.analyzer.reset_metrics_for_test()
-            matched=mismatched=0
+            counts=empty_equivalence()
+            result['equivalence']=counts
             for decision in decide_classes(iter_candidates(prepared['db'],prepared['crawl_id']),service,store,guard,prepared['crawl_id']):
                 previous=store.get('baseline_decisions',decision.cluster_id)
-                if previous==dict(choice=decision.choice,gate=decision.gate):matched+=1
-                else:
-                    mismatched+=1
-                    store.put('equivalence_failures',decision.cluster_id,dict(old=previous,new=dict(choice=decision.choice,gate=decision.gate)))
+                new=dict(choice=decision.choice,gate=decision.gate)
+                try:
+                    compare_decision(counts,previous,new)
+                except AssertionError:
+                    store.put('equivalence_failures',decision.cluster_id,dict(old=previous,new=new))
+                    result['failed_candidate_id']=decision.cluster_id
+                    raise  # Stop on the first mismatch, before synthetic evaluation.
                 store.put('run_decisions',decision.cluster_id,decision.to_dict())
-            result['equivalence']=dict(matched=matched,mismatched=mismatched,total=count,passed=matched==count and not mismatched)
+            counts['missing_decisions']+=abs(count-counts['total_comparisons'])
+            counts.update(total=count,matched=counts['choice_matches'] if not counts['gate_mismatches'] else 0,
+                          mismatched=counts['choice_mismatches']+counts['gate_mismatches'],
+                          passed=counts['total_comparisons']==count and not counts['missing_decisions'])
+            if not counts['passed']:raise AssertionError('Incomplete old/new equivalence')
         result['deduplication']=store.get('metrics',prepared['crawl_id'])
         with guard.stage('fan_out_and_work_orders'):
             with closing(sqlite3.connect(prepared['db'])) as c:
@@ -122,14 +148,6 @@ def evaluate(args):
                     store.put('class_work_orders',decision.input_hash,dict(class_id=decision.input_hash,
                         choice=decision.choice,gate=decision.gate,member_opportunities=member_count,
                         affected_urls_count=candidate['page_count'],sample_urls=candidate['sample_urls'],checkpoint_id=decision.checkpoint_id))
-        # Probe submission chunks on real observed candidates; clear caches to measure real inference.
-        probe=list(__import__('itertools').islice(store.rows('baseline_candidates'),64))
-        def measure(size):
-            service.analyzer.reset_metrics_for_test()
-            batch=[LayaCandidateInput(**probe[i%len(probe)]) for i in range(size)]
-            service.submit_batch(batch,'autotune')
-        with guard.stage('batch_autotune'):
-            result['autotune']=autotune_batches(measure,guard,output/'safe-batch.json',dict(checkpoint=service.checkpoint_id,prompt_version=LAYA_PROMPT_VERSION,memory_budget_mb=limits['memory_budget_mb']))
         synthetic=Path(args.synthetic_dir) if args.synthetic_dir else output/'synthetic'
         with guard.stage('synthetic_generation'):
             if (synthetic/'generation.json').exists() and (args.resume or args.synthetic_dir):
@@ -160,6 +178,7 @@ def evaluate(args):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--autotune-report',required=True)
     p.add_argument('--prepared',required=True);p.add_argument('--output',required=True)
     p.add_argument('--resume',action='store_true')
     p.add_argument('--synthetic-dir',help='Reuse an already generated fixture set; never regenerate it')
