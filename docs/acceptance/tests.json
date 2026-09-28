@@ -74,5 +74,17 @@
       "seconds": 0.22556400000030408,
       "output": "...s........................                                             [100%]\n27 passed, 1 skipped in 0.11s\n"
     }
-  ]
+  ],
+  "additional_verified_checks": [
+    {
+      "file": "test_acceptance_guard.py",
+      "test": "test_evaluation_never_starts_after_unsafe_minimum_batch",
+      "result": "passed; updated file result: 3 passed in 0.04s"
+    }
+  ],
+  "unique_test_totals": {
+    "passed": 57,
+    "resource_skipped": 4,
+    "failed": 0
+  }
 }

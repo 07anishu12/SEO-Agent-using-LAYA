@@ -1,0 +1,26 @@
+{
+  "complete": false,
+  "branch": "fix/laya-pipeline",
+  "real_urls": 500,
+  "new_crawls": 0,
+  "full_site_runs": 0,
+  "safe_batch_size": null,
+  "trial_batch_size": 8,
+  "trial_peak_rss_mb": 940.875,
+  "trial_elapsed_seconds": 0.9878307920007501,
+  "swap_occupancy_change_mb": 0,
+  "swap_out_change_mb": 0.140625,
+  "choice_gate_equivalence": "blocked; zero comparisons",
+  "synthetic_precision": null,
+  "synthetic_recall": null,
+  "final_dev_runtime_seconds": null,
+  "tests": {
+    "passed": 57,
+    "resource_skipped": 4,
+    "failed": 0
+  },
+  "checkpoint_unchanged": true,
+  "prompts_gates_thresholds_unchanged": true,
+  "lifecycle_fix_model_verified": false,
+  "blocker": "Zero-swap-growth guard terminated batch 8; no retry and no larger trial. Shared-system page-outs cannot be attributed to MLX."
+}
