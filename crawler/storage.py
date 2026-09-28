@@ -13,6 +13,7 @@ class CrawlStorage:
         self.db_path = db_path
         os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
         self.total_db_write_time: float = 0.0
+        self._lock = threading.Lock()
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:

@@ -247,3 +247,29 @@ async def test_cooperative_cancellation_mid_crawl():
                 os.remove(db_test_path)
             except Exception:
                 pass
+
+
+def test_stale_checkpoint_alias_cannot_skip_pass_4(tmp_path):
+    """
+    Assert that historical stage aliases like P4_CALIBRATION cannot cause
+    is_stage_complete('P4_LAYA_DECISION_ENGINE') to return True.
+    """
+    db_path = str(tmp_path / "stale_cp.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("""
+        CREATE TABLE stage_checkpoints (
+            crawl_id TEXT NOT NULL, stage TEXT NOT NULL, status TEXT NOT NULL,
+            metadata_json TEXT, completed_at TEXT, PRIMARY KEY(crawl_id, stage)
+        )
+        """)
+        conn.execute("INSERT INTO stage_checkpoints VALUES ('crawl_test_1', 'P4_CALIBRATION', 'completed', '{}', '2026-09-27T00:00:00')")
+        conn.commit()
+
+    pipeline = SEOJEVPipeline(
+        target_url="https://example.com",
+        crawl_id="crawl_test_1",
+        db_path=db_path
+    )
+    # Stale alias must not satisfy modern P4 contract
+    assert not pipeline.is_stage_complete("P4_LAYA_DECISION_ENGINE")
+
