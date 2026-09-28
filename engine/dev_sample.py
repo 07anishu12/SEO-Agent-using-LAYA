@@ -7,7 +7,9 @@ from pathlib import Path
 def sample_urls(conn, crawl_id, limit=500, seed=42):
     if not 1 <= limit <= 500:
         raise ValueError('Development samples must contain 1..500 URLs')
-    counts = dict(conn.execute("SELECT COALESCE(template_id,'unknown'),COUNT(*) FROM pages WHERE crawl_id=? GROUP BY COALESCE(template_id,'unknown') ORDER BY 1", (crawl_id,)))
+    from engine.template_families import template_family
+    conn.create_function('template_family', 2, template_family, deterministic=True)
+    counts = dict(conn.execute("SELECT template_family(url,COALESCE(page_type,'other')),COUNT(*) FROM pages WHERE crawl_id=? GROUP BY 1 ORDER BY 1", (crawl_id,)))
     quotas = {t: min(3, n) for t, n in counts.items()}
     if sum(quotas.values()) > limit:
         raise ValueError('500 URL cap cannot cover every template with min(3, available); select a smaller source cohort explicitly')
@@ -20,7 +22,7 @@ def sample_urls(conn, crawl_id, limit=500, seed=42):
     conn.create_function('sample_rank', 1, lambda u: hashlib.sha256(f'{seed}:{u}'.encode()).hexdigest(), deterministic=True)
     selected = []
     for template, n in quotas.items():
-        selected.extend(r[0] for r in conn.execute("SELECT url FROM pages WHERE crawl_id=? AND COALESCE(template_id,'unknown')=? ORDER BY sample_rank(url),url LIMIT ?", (crawl_id, template, n)))
+        selected.extend(r[0] for r in conn.execute("SELECT url FROM pages WHERE crawl_id=? AND template_family(url,COALESCE(page_type,'other'))=? ORDER BY sample_rank(url),url LIMIT ?", (crawl_id, template, n)))
     return sorted(selected)
 
 
