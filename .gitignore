@@ -61,6 +61,8 @@ frontend/.next-dev/
 frontend/out/
 reports/laya-*/
 reports/laya-*
+reports/laya_*/
+reports/laya_*
 reports/synthetic/
 seo-diff.json
 

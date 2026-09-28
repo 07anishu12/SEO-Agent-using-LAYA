@@ -177,6 +177,28 @@ Evaluated the 480-page synthetic site through Laya without threshold tuning:
 - Decision throughput: **1.736 decisions/sec**
 - URL throughput: **0.300 URLs/sec**
 
+### 1,000-URL Validation Run on Drivio.in (Measured)
+Executed controlled ~1,000-URL validation pipeline (ingest → evidence → template grouping → candidate reduction → Laya-MLX → fan-out → work orders) on Drivio.in crawl `crawl_20260928_152046`:
+- Real URLs processed: **1,000** (stratified across 266 structural template families; vehicle/variant: 405, brand: 206, listing/other: 156, blog/articles: 137, city-price: 48, comparison: 48)
+- Unique URLs: **1,000** (0 duplicates)
+- Candidates: **2,529**
+- Unique decision classes: **2,529**
+- Dedupe ratio: **0.0%**
+- Laya decisions: **2,529** (Gate breakdown: 1,077 HUMAN_REVIEW, 1,450 SUPPRESS, 2 AUTO_ACCEPT)
+- Opportunities: **2,529** (1,079 validated, 1,450 suppressed, 0 unmatched in fan-out)
+- Work orders generated: **1,079** (851 content, 228 engineering, 0 failed work orders)
+- Baseline verifications: **1,079 executed**; Claims linter violations: **0**
+- Total pipeline runtime: **1,829.22 s** (Ingest: 1.52 s, Evidence: 15.24 s, Candidates: 12.81 s, Laya-MLX: 1,779.82 s, Work Orders: 19.83 s)
+- Decisions/sec: **1.4209**
+- URLs/sec: **0.5467**
+- Peak RSS across all stages: **1,014.48 MiB** (strictly within 4,096 MiB budget)
+- System memory pressure peak: **68.5%**
+- Swap before → after: **874.56 MiB → 874.56 MiB** (Swap delta: **0.00 MiB**, zero swap growth)
+- Memory guard triggers: **0 triggers (SAFE)**
+- Maximum batch size used: **16**
+- Errors / retries: **0**; Malformed candidates: **0**; Missing evidence: **0**; Duplicate candidates: **0**
+- Idempotency & restart check: **50/50 candidate chunk re-run yielded 100% cache hits and 100% choice/gate identity**.
+
 ## Cloud changes required (design only)
 
 - SQLite → Postgres stage adapter; content-addressed HTML/evidence → object storage.

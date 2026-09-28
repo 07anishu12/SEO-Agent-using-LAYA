@@ -114,10 +114,11 @@ class SEOJEVPipeline:
         os.makedirs(self.output_dir, exist_ok=True)
         self.db_path = db_path or self.config.get("storage", {}).get("db_path", "data/seo.db")
         os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
-        if self.config['profile'] == 'dev':
+        if self.config['profile'] in ('dev', 'val'):
             from engine.dev_sample import build_sample
             source = self.db_path
-            sample_path = os.path.join(self.output_dir, 'dev-sample-' + str(time.time_ns()) + '.db')
+            prefix = 'val-sample-' if self.config['profile'] == 'val' else 'dev-sample-'
+            sample_path = os.path.join(self.output_dir, prefix + str(time.time_ns()) + '.db')
             crawl_id, selected = build_sample(source, sample_path,
                 crawl_id or self.options.get('crawl_id'), self.config['runtime']['max_urls'],
                 self.config['runtime']['seed'], self.target_url)
@@ -336,8 +337,8 @@ class SEOJEVPipeline:
 
         with sqlite3.connect(self.db_path) as conn:
             n = conn.execute('SELECT COUNT(*) FROM pages WHERE crawl_id=?',(self.crawl_id,)).fetchone()[0]
-        if n > 500:
-            raise RuntimeError('Legacy evidence adapter is limited to 500 URLs; use chunk/global reducers before scaling')
+        if n > 1000:
+            raise RuntimeError('Legacy evidence adapter is limited to 1000 URLs; use chunk/global reducers before scaling')
         pages = self.storage.get_all_pages(self.crawl_id)
         links = self.storage.get_all_links(self.crawl_id)
         issues = self.storage.get_all_issues(self.crawl_id)
