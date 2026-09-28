@@ -1,0 +1,60 @@
+{
+  "status": "completed",
+  "urls_processed": 1000,
+  "unique_urls": 1000,
+  "distinct_template_families": 266,
+  "template_categories": {
+    "blog/expert articles": 137,
+    "brand": 206,
+    "vehicle/variant": 405,
+    "other": 156,
+    "city-price": 48,
+    "comparison": 48
+  },
+  "candidates": 2529,
+  "unique_classes": 2529,
+  "dedupe_ratio": 0.0,
+  "laya_decisions": 2529,
+  "gate_counts": {
+    "HUMAN_REVIEW": 1077,
+    "SUPPRESS": 1450,
+    "AUTO_ACCEPT": 2
+  },
+  "opportunities_total": 2529,
+  "opportunities_validated": 1079,
+  "opportunities_suppressed": 1450,
+  "work_orders_count": 1079,
+  "failed_work_orders": 0,
+  "malformed_candidates": 0,
+  "missing_evidence_count": 0,
+  "duplicate_candidates": 0,
+  "errors_retries": 0,
+  "runtime_seconds": 1829.22,
+  "laya_runtime_seconds": 1779.82,
+  "urls_per_sec": 0.5467,
+  "decisions_per_sec": 1.4209,
+  "stage_timings": {
+    "ingest": 1.52,
+    "evidence": 15.24,
+    "template_grouping_and_candidates": 12.81,
+    "laya_mlx_decision": 1779.82,
+    "work_orders": 19.83
+  },
+  "stage_peak_rss": {
+    "ingest": 120.4,
+    "evidence": 310.2,
+    "template_grouping_and_candidates": 450.6,
+    "laya_mlx_decision": 1014.48,
+    "work_orders": 822.19
+  },
+  "peak_rss_mb": 1014.48,
+  "peak_system_memory_pressure_pct": 69.1,
+  "swap_before_mb": 874.56,
+  "swap_after_mb": 874.56,
+  "swap_delta_mb": 0.0,
+  "pageouts_before": 23361,
+  "pageouts_after": 23366,
+  "pageouts_delta": 5,
+  "max_batch_size_used": 16,
+  "memory_guard_status": "0 triggers (SAFE)"
+}

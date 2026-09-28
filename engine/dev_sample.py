@@ -5,19 +5,19 @@ from pathlib import Path
 
 
 def sample_urls(conn, crawl_id, limit=500, seed=42):
-    if not 1 <= limit <= 500:
-        raise ValueError('Development samples must contain 1..500 URLs')
+    if not 1 <= limit <= 1000:
+        raise ValueError('Development/validation samples must contain 1..1000 URLs')
     from engine.template_families import template_family
     conn.create_function('template_family', 2, template_family, deterministic=True)
     conn.execute('DROP TABLE IF EXISTS temp.sample_families')
     conn.execute("CREATE TEMP TABLE sample_families AS SELECT url,template_family(url,COALESCE(page_type,'other')) family FROM pages WHERE crawl_id=?",(crawl_id,))
     conn.execute('CREATE INDEX sample_family_index ON sample_families(family)')
-    counts = dict(conn.execute('SELECT family,COUNT(*) FROM sample_families GROUP BY family ORDER BY family LIMIT 501'))
+    counts = dict(conn.execute('SELECT family,COUNT(*) FROM sample_families GROUP BY family ORDER BY family LIMIT ?', (limit + 1,)))
     if len(counts) > limit:
         raise ValueError('More structural families than the development URL budget')
     quotas = {t: min(3, n) for t, n in counts.items()}
     if sum(quotas.values()) > limit:
-        raise ValueError('500 URL cap cannot cover every template with min(3, available); select a smaller source cohort explicitly')
+        raise ValueError(f'{limit} URL cap cannot cover every template with min(3, available); select a smaller source cohort explicitly')
     target = min(limit, sum(counts.values()))
     # Largest deficit allocation preserves minimum representation and proportionality.
     while sum(quotas.values()) < target:

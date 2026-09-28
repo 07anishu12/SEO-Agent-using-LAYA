@@ -8,8 +8,8 @@ DEFAULTS = dict(max_urls=500, seed=42, memory_budget_mb=4096, max_workers=2,
 
 
 def resolve_profile(config=None, profile='dev'):
-    if profile not in ('dev', 'prod'):
-        raise ValueError('profile must be dev or prod')
+    if profile not in ('dev', 'val', 'prod'):
+        raise ValueError('profile must be dev, val, or prod')
     config = copy.deepcopy(config or {})
     limits = {**DEFAULTS, **config.get('profiles', {}).get(profile, {})}
     for key, default in DEFAULTS.items():
@@ -20,6 +20,9 @@ def resolve_profile(config=None, profile='dev'):
         raise ValueError('Throttle and pressure limits cannot be negative')
     if profile == 'dev':
         limits['max_urls'] = min(500, limits['max_urls'])
+        limits['max_workers'] = min(2, limits['max_workers'])
+    elif profile == 'val':
+        limits['max_urls'] = min(1000, limits['max_urls'])
         limits['max_workers'] = min(2, limits['max_workers'])
     config['profile'], config['runtime'] = profile, limits
     config.setdefault('storage', {})['backend'] = os.getenv('SEOJEV_STORAGE_BACKEND', config.get('storage', {}).get('backend', 'sqlite'))

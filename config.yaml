@@ -60,6 +60,16 @@ profiles:
     throttle_seconds: 0.05
     pause_seconds: 2.0
     min_available_mb: 1536
+  val:
+    max_urls: 1000
+    seed: 42
+    memory_budget_mb: 4096
+    max_workers: 2
+    batch_size: 16
+    queue_size: 16
+    throttle_seconds: 0.05
+    pause_seconds: 2.0
+    min_available_mb: 1536
   prod:
     max_urls: 5000000
     memory_budget_mb: 32768

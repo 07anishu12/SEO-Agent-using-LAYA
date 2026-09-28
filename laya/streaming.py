@@ -95,7 +95,7 @@ class LocalMLXService:
         self.analyzer=LayaSEOAnalyzer.get_singleton(options={'memory_guard':guard})
         self.analyzer.get_backend().guard=guard
         self.checkpoint_id=self.analyzer.preflight()['checkpoint_id']
-        self.pool=LayaWorkerPool(cache_db_path=cache_db,settings=config.get('laya',{}),num_workers=1)
+        self.pool=LayaWorkerPool(cache_db_path=cache_db,settings=config.get('laya',{}),num_workers=1,retain_decisions=False)
         self.pool._analyzer=self.analyzer
         self.throttle=config['runtime']['throttle_seconds']
 

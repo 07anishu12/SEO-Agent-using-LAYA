@@ -46,3 +46,23 @@ Follow-up correctness: wired class-level work orders and durable member IDs into
 - Final Dev Run: 500 URLs, 1,207 candidates, 1,207 unique classes (dedupe ratio 0.0%), total runtime 1,668.73 s, peak RSS 940.22 MiB, swap delta -8.0 MiB (decreased from 946.56 to 938.56 MiB), throughput 1.736 decisions/sec.
 - Test Suite: All 12 test files run one file at a time sequentially: 61 passed, 0 skipped, 0 failed.
 
+12. Controlled 1,000-URL Validation (Drivio.in):
+- Sample & Scope: Seeded deterministic stratified sample of exactly 1,000 URLs across 266 structural template families from `crawl_20260928_152046` on `https://www.drivio.in/` (data/seo.db). Category breakdown: vehicle/variant (405), brand (206), listing & other (156), blog/expert articles (137), city-price (48), comparison (48). 0 duplicate URLs, no artificial duplication. `max_workers = 2`, bounded queues and streaming enabled, zero fallback/mock/API models.
+- Complete Pipeline Execution:
+  - Ingest: 1.52 s, peak RSS 120.4 MiB. Skipped HTTP fetch (analyze-only mode on isolated sample DB).
+  - Pass 2 (Deterministic Evidence): 15.24 s, peak RSS 310.2 MiB.
+  - Pass 3 (Candidate Reduction): 12.81 s, peak RSS 450.6 MiB. 2,529 candidates reduced.
+  - Candidate Audit: 2,529 candidates, 0 malformed, 0 missing evidence, 0 duplicates.
+  - Pass 4 (Laya-MLX Decisions & Fan-Out): 1,779.82 s, peak RSS 1014.48 MiB. 2,529 candidates evaluated.
+    - 2,529 total decisions, 2,529 unique decision classes, dedupe ratio 0.0%.
+    - Gates: 1,077 HUMAN_REVIEW, 1,450 SUPPRESS, 2 AUTO_ACCEPT.
+    - Validated opportunities: 1,079. Suppressed opportunities: 1,450. Unmatched opportunities: 0.
+  - Pass 5 (Work Orders & Verification): 19.83 s, peak RSS 822.19 MiB.
+    - 1,079 work orders generated (851 content, 228 engineering), 0 failed work orders.
+    - Added canonical `WorkOrderManager.validate_work_order` and `audit_run_work_orders` schema/lifecycle contracts in `engine/work_orders.py`.
+    - Resolved validator key mismatch (`action_type` -> canonical `order_type` in `('content', 'engineering')` and `priority` in `('P0', 'P1', 'P2', 'P3')`).
+    - Added comprehensive regression tests in `tests/test_work_order_validation.py` verifying valid generation, failure accounting, and live DB integrity (4 passed).
+    - 1,079 baseline verifications executed (443 confirming defect presence before remediation, 636 passed), claims linter: 0 violations.
+- Idempotency & Restart Verification: 50 candidate chunk re-run through `decide_classes`: 50/50 cache hits (100%), 0 new inferences. 100% choice and gate equality against persisted decisions.
+- Memory Safety & Telemetry: Total runtime 1,829.22 s (30.49 min); Laya throughput: 1.4209 decisions/sec; URL throughput: 0.5467 URLs/sec. Peak RSS across all stages: 1,014.48 MiB (well below 4,096 MiB budget). Peak system memory pressure: 68.5%. Swap before: 874.56 MiB; Swap after: 874.56 MiB; Swap delta: 0.00 MiB (zero swap growth). Memory guard triggers: 0 triggers (SAFE). Maximum batch size used: 16. Errors/retries: 0.
+
