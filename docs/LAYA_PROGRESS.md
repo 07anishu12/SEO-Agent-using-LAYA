@@ -10,6 +10,9 @@
 - Step 4: Replay verification on identical crawl confirmed 100% cache hits and 0 inference calls.
 
 ## In Progress / Notes
-- Step 5: Full crawl of drivio.in completed 5,009 pages; Pass 4 MLX inference ongoing on 12,610 candidates.
+- Historical full-site work stopped; no crawl/model processes running at new-direction start.
 - Step 6: grep verified zero fallback/mock/api backend in decision path; test suite green.
 
+
+## Bounded development direction
+1. Added default dev profile, environment resource limits, deterministic stratified DB sample isolation, and disabled full-site benchmark. No crawl is started in dev. Templates with fewer than 3 members retain all available; impossible coverage fails explicitly.

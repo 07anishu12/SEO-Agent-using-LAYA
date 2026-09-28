@@ -98,7 +98,8 @@ class SEOJEVPipeline:
         if not target.startswith(("http://", "https://")):
             target = "https://" + target
         self.target_url = target
-        self.config = config or {}
+        from engine.profiles import resolve_profile
+        self.config = resolve_profile(config, (options or {}).get("profile", "dev"))
         self.options = options or {}
         self.progress_callback = progress_callback
         self.cancel_check = cancel_check
@@ -108,6 +109,17 @@ class SEOJEVPipeline:
         os.makedirs(self.output_dir, exist_ok=True)
         self.db_path = db_path or self.config.get("storage", {}).get("db_path", "data/seo.db")
         os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
+        if self.config['profile'] == 'dev':
+            from engine.dev_sample import build_sample
+            source = self.db_path
+            sample_path = os.path.join(self.output_dir, 'dev-sample-' + str(time.time_ns()) + '.db')
+            crawl_id, selected = build_sample(source, sample_path,
+                crawl_id or self.options.get('crawl_id'), self.config['runtime']['max_urls'],
+                self.config['runtime']['seed'], self.target_url)
+            self.db_path = sample_path
+            self.options.update(analyze_only=True, crawl_id=crawl_id, max_pages=len(selected),
+                                concurrency=2, performance_sample=0)
+            crawl_id = None  # Preserve the copied source run instead of replacing it.
         self.storage = CrawlStorage(db_path=self.db_path)
         self.content_store = ContentStore(base_dir=self.config.get("storage", {}).get("store_dir", "store"))
         self.migration_runner = MigrationRunner(db_path=self.db_path)

@@ -47,3 +47,23 @@ storage:
 
 reports:
   output_dir: "reports/"
+
+# --profile dev is the default; prod must be explicitly selected.
+profiles:
+  dev:
+    max_urls: 500
+    seed: 42
+    memory_budget_mb: 4096
+    max_workers: 2
+    batch_size: 8
+    queue_size: 16
+    throttle_seconds: 0.05
+    pause_seconds: 2.0
+    min_available_mb: 1536
+  prod:
+    max_urls: 5000000
+    memory_budget_mb: 32768
+    max_workers: 8
+    batch_size: 32
+    queue_size: 64
+    throttle_seconds: 0.0

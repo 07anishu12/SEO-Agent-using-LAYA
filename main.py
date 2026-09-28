@@ -79,6 +79,7 @@ def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
 async def main_async(args):
     config = load_config(args.config)
     options = {
+        "profile": args.profile,
         "max_pages": args.max_pages,
         "concurrency": args.concurrency,
         "delay": args.delay,
@@ -459,7 +460,8 @@ def main():
 
     parser = argparse.ArgumentParser(description="SEOJEV V3 — Universal Search Intelligence Operating System")
     parser.add_argument("url", nargs="?", default="https://www.drivio.in/", help="Target website URL to audit")
-    parser.add_argument("--max-pages", type=int, default=5000, help="Maximum number of pages to crawl")
+    parser.add_argument("--profile", choices=("dev", "prod"), default="dev")
+    parser.add_argument("--max-pages", type=int, default=500, help="Maximum number of pages to crawl")
     parser.add_argument("--concurrency", type=int, default=10, help="Concurrent async HTTP requests")
     parser.add_argument("--delay", type=float, default=0.05, help="Delay between requests in seconds")
     parser.add_argument("--render", action="store_true", help="Enable selective Playwright browser rendering")
