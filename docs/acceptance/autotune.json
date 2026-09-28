@@ -1,0 +1,32 @@
+{
+  "safe_batch_size": null,
+  "checkpoint_id": "aac6fef/laya-mlx@20aed815fc6acde75733882e7ec0e3f28aeb9717",
+  "results": [
+    {
+      "batch_size": 8,
+      "baseline_rss_mb": 0.59375,
+      "peak_rss_mb": 940.875,
+      "swap_before_mb": 1018.5625,
+      "swap_after_mb": 1018.5625,
+      "peak_swap_mb": 1018.5625,
+      "peak_system_memory_percent": 69.5,
+      "peak_pressure_level": 1,
+      "min_available_mb": 5002.265625,
+      "memory_guard_triggered": true,
+      "safe": false,
+      "elapsed_seconds": 0.9878307920007501,
+      "checkpoint_id": "aac6fef/laya-mlx@20aed815fc6acde75733882e7ec0e3f28aeb9717",
+      "pid": 19294,
+      "error": "System swap grew (zero-growth guard)",
+      "swap_out_delta_mb": 0.140625,
+      "return_code": -15,
+      "started": true
+    }
+  ],
+  "sizes_requested": [
+    8,
+    16,
+    32,
+    64
+  ]
+}
