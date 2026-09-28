@@ -182,7 +182,7 @@ PYTHONUNBUFFERED=1 PYTHONPATH="$REPO_ROOT" "$PYTHON" -m jobs.scheduler > >(awk '
 BEAT_PID=$!
 
 # Next.js Frontend
-(cd "$REPO_ROOT/frontend" && npm run dev) > >(awk '{ print "\033[1;33m[frontend]\033[0m " $0; fflush(); }') 2>&1 &
+(cd "$REPO_ROOT/frontend" && NEXT_DIST_DIR=.next-dev npm run dev) > >(awk '{ print "\033[1;33m[frontend]\033[0m " $0; fflush(); }') 2>&1 &
 FRONTEND_PID=$!
 
 # 7. Readiness Verification

@@ -1,6 +1,7 @@
 import os
 import json
 import sqlite3
+from reporting.scoped_db import report_connection
 from typing import Dict, Any, List, Optional
 
 class HTMLExplorerGenerator:
@@ -16,7 +17,7 @@ class HTMLExplorerGenerator:
 
     def generate(self, domain: str = "drivio.in", run_id: Optional[str] = None) -> str:
         """Pulls latest data from SQLite and generates the offline HTML dashboard."""
-        with sqlite3.connect(self.db_path) as conn:
+        with report_connection(self.db_path, run_id) as conn:
             conn.row_factory = sqlite3.Row
             
             # KPI Counts

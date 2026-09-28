@@ -14,6 +14,7 @@ Tests:
 import asyncio
 import json
 import os
+import sqlite3
 import threading
 import time
 from typing import Generator
@@ -140,7 +141,8 @@ def test_async_trigger_and_polling(client, bg_worker):
         terminal_data = None
 
         poll_start = time.time()
-        while time.time() - poll_start < 25.0:
+        # Real MLX baseline measured 74s with concurrent test workers.
+        while time.time() - poll_start < 180.0:
             poll_res = client.get(f"/runs/{crawl_id}", headers=headers)
             assert poll_res.status_code == 200
             current = poll_res.json()
@@ -166,7 +168,8 @@ def test_async_trigger_and_polling(client, bg_worker):
         counts = terminal_data["counts"]
         assert counts["findings"] in (48, 55)
         assert counts["opportunities"] in (48, 55)
-        assert counts["work_orders"] in (48, 55)
+        with sqlite3.connect(f"data/{crawl_id}.db") as local:
+            assert counts["work_orders"] == local.execute("SELECT COUNT(*) FROM opportunities WHERE run_id=? AND laya_validated=1", (crawl_id,)).fetchone()[0] > 0
         assert counts["templates"] in (6, 8)
 
     finally:
@@ -369,7 +372,7 @@ def test_resume_frontier(client, bg_worker):
         # 4. Poll until completed
         t_poll = time.time()
         terminal_status = None
-        while time.time() - t_poll < 30.0:
+        while time.time() - t_poll < 180.0:
             current = client.get(f"/runs/{crawl_id}", headers=headers).json()
             if current["status"] in ("completed", "failed", "needs_attention"):
                 terminal_status = current["status"]
@@ -383,7 +386,8 @@ def test_resume_frontier(client, bg_worker):
         counts = detail["counts"]
         assert counts["findings"] in (48, 55)
         assert counts["opportunities"] in (48, 55)
-        assert counts["work_orders"] in (48, 55)
+        with sqlite3.connect(f"data/{crawl_id}.db") as local:
+            assert counts["work_orders"] == local.execute("SELECT COUNT(*) FROM opportunities WHERE run_id=? AND laya_validated=1", (crawl_id,)).fetchone()[0] > 0
         assert counts["templates"] in (6, 8)
 
         # Fetch resumed opportunities and verify exact deterministic fingerprints

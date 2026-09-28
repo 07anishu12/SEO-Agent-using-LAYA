@@ -107,7 +107,7 @@ def _register_user(client: TestClient, prefix: str, port: int):
     return headers, org_id, site_id, suffix
 
 
-def _wait_for_completion(client: TestClient, crawl_id: str, headers: dict, timeout: float = 35.0):
+def _wait_for_completion(client: TestClient, crawl_id: str, headers: dict, timeout: float = 180.0):
     """Polls GET /runs/{id} until terminal state is reached."""
     poll_start = time.time()
     while time.time() - poll_start < timeout:
@@ -171,7 +171,7 @@ def test_full_user_journey_end_to_end(client, bg_worker):
         if interim["status"] == "cancelled":
             resume_res = client.post(f"/runs/{crawl_id}/resume", headers=headers)
             assert resume_res.status_code == 200
-            final_data = _wait_for_completion(client, crawl_id, headers, timeout=30.0)
+            final_data = _wait_for_completion(client, crawl_id, headers, timeout=180.0)
         else:
             final_data = interim
 
@@ -291,8 +291,8 @@ def test_concurrent_multi_org_isolation(client, bg_worker):
         assert run_b.status_code == 201
 
         # Await completion of both
-        data_a = _wait_for_completion(client, crawl_a, headers_a, timeout=45.0)
-        data_b = _wait_for_completion(client, crawl_b, headers_b, timeout=45.0)
+        data_a = _wait_for_completion(client, crawl_a, headers_a, timeout=180.0)
+        data_b = _wait_for_completion(client, crawl_b, headers_b, timeout=180.0)
         assert data_a["status"] == "completed"
         assert data_b["status"] == "completed"
 

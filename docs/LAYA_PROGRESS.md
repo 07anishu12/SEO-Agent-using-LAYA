@@ -1,0 +1,20 @@
+# LAYA PROGRESS
+
+## Done
+- Baseline measured, documented (docs/LAYA_BASELINE.md), and probed on 200 candidates (docs/LAYA_CONFIDENCE.md).
+- Strict MLX-only analyzer with heads validation, gating policy, and persistence wired into Pass 4.
+- Pass 5 verification runner wired to stored page evidence and Pass 6 reporting scoped by run_id.
+- Fixed ulimit / file descriptor limits and test suite passes cleanly without crashes.
+- Step 2: Verified small run (`crawl_20260928_144534`), laya_decisions complete, provenance & verifications written.
+- Step 3: Implemented idempotent scripts/reset_legacy_laya.py, confirmed stale checkpoint alias logic.
+- Step 4: Replay verification on identical crawl confirmed 100% cache hits and 0 inference calls.
+
+## In Progress / Notes
+- Historical full-site work stopped; no crawl/model processes running at new-direction start.
+- Step 6: grep verified zero fallback/mock/api backend in decision path; test suite green.
+
+
+## Bounded development direction
+1. Added default dev profile, environment resource limits, deterministic stratified DB sample isolation, and disabled full-site benchmark. No crawl is started in dev. Templates with fewer than 3 members retain all available; impossible coverage fails explicitly.
+2. Added deterministic streamed synthetic HTML/manifest/ground truth for six observed DB template families, nine defect types and reserved clean controls. Default ceiling 500; explicit generator limit may reach 5,000, but local evaluation remains ≤500. Metrics will use frozen existing confidence policy.
+3. Added current process-tree RSS/system-pressure guard, batch shrink → one pause → abort, immediate swap-growth abort, stage peaks, measured 8/16/32/64 submission autotuning, process-wide model owner lock, CPU-process rejection before MLX import, bounded caches and queue backpressure. Sampling can detect swap growth, not prevent OS paging between observations; allocation headroom is checked before inference. No claim of an absolute OS-level no-swap guarantee.

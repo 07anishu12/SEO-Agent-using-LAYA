@@ -262,7 +262,7 @@ async def test_main_e2e_flow_with_live_sse(frontend_server, api_server, site_ser
 
         # Wait for terminal state 'Completed' without refreshing the page
         # Timeout 45s for full 6-pass execution against synthetic site
-        await page.wait_for_selector("span:has-text('Completed')", timeout=45000)
+        await page.wait_for_selector("span:has-text('Completed')", timeout=180000)
         assert await page.is_visible("span:has-text('Completed')")
 
         # Confirm 100% reached

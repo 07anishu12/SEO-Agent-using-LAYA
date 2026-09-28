@@ -7,9 +7,9 @@ networkx>=3.4.0
 pandas>=2.2.0
 PyYAML>=6.0.0
 rich>=13.9.0
-mlx>=0.20.0
-laya>=0.3.0
-laya-mlx>=0.2.0
+mlx==0.32.2
+laya-mlx==0.2.0
+numpy==2.5.3
 
 h2
 psutil>=5.9.0

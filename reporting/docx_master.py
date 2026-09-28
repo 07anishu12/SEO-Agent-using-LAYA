@@ -9,6 +9,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 from engine.provenance import ProvenanceLedger
+from reporting.scoped_db import report_connection
 
 def set_cell_background(cell, fill_hex: str):
     shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
@@ -105,7 +106,7 @@ class MasterDocxReportGenerator:
 
     def generate_master_report(self, run_id: str, website: str = "https://www.drivio.in/"):
         """Compiles the complete 28 sections into the master Word report."""
-        with sqlite3.connect(self.db_path) as conn:
+        with report_connection(self.db_path, run_id) as conn:
             conn.row_factory = sqlite3.Row
             total_pages = conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0]
             indexable_pages = conn.execute("SELECT COUNT(*) FROM pages WHERE is_indexable = 1").fetchone()[0]
@@ -115,11 +116,7 @@ class MasterDocxReportGenerator:
             total_wos = conn.execute("SELECT COUNT(*) FROM work_orders").fetchone()[0]
             top_wos = [dict(r) for r in conn.execute("SELECT * FROM work_orders ORDER BY priority ASC LIMIT 10").fetchall()]
             top_opps = [dict(r) for r in conn.execute("SELECT * FROM opportunities ORDER BY priority_score DESC LIMIT 10").fetchall()]
-            laya_decs = []
-            try:
-                laya_decs = [dict(r) for r in conn.execute("SELECT * FROM laya_decisions ORDER BY confidence DESC LIMIT 10").fetchall()]
-            except Exception:
-                pass
+            laya_decs = [dict(r) for r in conn.execute("SELECT * FROM laya_decisions ORDER BY confidence DESC LIMIT 10").fetchall()]
 
         # Record provenance for report metrics
         self.prov.record_metric(run_id, "total_pages_crawled", total_pages, "COUNT(*)", "pages", "SELECT COUNT(*) FROM pages")

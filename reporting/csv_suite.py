@@ -2,6 +2,7 @@ import os
 import csv
 import sqlite3
 import json
+from reporting.scoped_db import report_connection
 from typing import Dict, Any, List, Optional
 
 class CSVSuiteExporter:
@@ -17,7 +18,7 @@ class CSVSuiteExporter:
     def export_all(self, run_id: Optional[str] = None) -> Dict[str, int]:
         """Pulls from SQLite tables and exports 25+ CSV files, returning row counts."""
         exported = {}
-        with sqlite3.connect(self.db_path) as conn:
+        with report_connection(self.db_path, run_id) as conn:
             conn.row_factory = sqlite3.Row
 
             def dump_query(filename: str, query: str, params: tuple = ()) -> int:
@@ -103,6 +104,8 @@ class CSVSuiteExporter:
 
             # 26. URLs Universe & Discovery Source
             dump_query("urls_universe.csv", "SELECT url, discovery_source, status, depth, is_trap FROM urls LIMIT 50000")
+            dump_query("laya_decisions.csv", "SELECT * FROM laya_decisions")
+            dump_query("verifications.csv", "SELECT * FROM verifications")
 
         return exported
 

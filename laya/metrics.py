@@ -1,9 +1,10 @@
 import numpy as np
+from collections import deque
 from typing import List, Dict, Any
 
 class LayaMetricsTracker:
     def __init__(self):
-        self.latencies_ms: List[float] = []
+        self.latencies_ms = deque(maxlen=1000)
         self.total_decisions: int = 0
         self.error_count: int = 0
 

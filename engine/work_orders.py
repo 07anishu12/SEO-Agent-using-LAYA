@@ -64,10 +64,13 @@ class WorkOrderManager:
             laya_action = opp.get("laya_action")
             laya_conf = opp.get("laya_confidence")
             laya_dec_id = opp.get("laya_decision_id")
+            laya_gate = opp.get("laya_gate")
             if laya_action:
                 evidence["laya_decision_id"] = laya_dec_id
                 evidence["laya_action"] = laya_action
                 evidence["laya_confidence"] = laya_conf
+                evidence["laya_gate"] = laya_gate
+                evidence["needs_review"] = laya_gate == "HUMAN_REVIEW"
 
             required_change = (
                 f"Action Required: {opp.get('action')}\n\n"
@@ -77,6 +80,8 @@ class WorkOrderManager:
             )
             if laya_action:
                 required_change += f"\n\nLaya AI Decision: {laya_action} (confidence: {laya_conf})"
+            if laya_gate == "HUMAN_REVIEW":
+                required_change += "\nNeeds human review before implementation."
 
             acceptance_criteria = (
                 f"- [ ] Implementation updated in `{opp.get('implementation_location')}`.\n"
@@ -101,35 +106,34 @@ class WorkOrderManager:
                 "file_locations_json": json.dumps([opp.get("implementation_location")]),
                 "laya_action": laya_action,
                 "laya_confidence": laya_conf,
-                "laya_decision_id": laya_dec_id
+                "laya_decision_id": laya_dec_id,
+                "laya_gate": laya_gate,
             }
             work_orders.append(wo)
 
         return work_orders
 
-    def persist_work_orders(self, work_orders: List[Dict[str, Any]]):
+    def persist_work_orders(self, work_orders: List[Dict[str, Any]], run_id=None):
         """Saves generated work orders to SQLite database using batch executemany."""
-        if not work_orders:
+        if not work_orders and run_id is None:
             return
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
+            if run_id is not None:
+                conn.execute("DELETE FROM work_orders WHERE run_id=?", (run_id,))
             # Ensure laya columns exist if table was created without them
-            try:
-                cur = conn.execute("PRAGMA table_info(work_orders);")
-                cols = {row[1] for row in cur.fetchall()}
-                for col, col_type in [("laya_action", "TEXT"), ("laya_confidence", "REAL"), ("laya_decision_id", "TEXT")]:
-                    if cols and col not in cols:
-                        conn.execute(f"ALTER TABLE work_orders ADD COLUMN {col} {col_type};")
-            except Exception:
-                pass
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(work_orders)")}
+            for col, col_type in [("laya_action", "TEXT"), ("laya_confidence", "REAL"), ("laya_decision_id", "TEXT"), ("laya_gate", "TEXT")]:
+                if col not in cols:
+                    conn.execute(f"ALTER TABLE work_orders ADD COLUMN {col} {col_type}")
             rows = [
                 (
                     wo["work_order_id"], wo["fingerprint"], wo["display_id"], wo["run_id"],
                     wo["order_type"], wo["priority"], wo["scope"], wo["title"],
                     wo["problem"], wo["evidence_json"], wo["required_change"],
                     wo["acceptance_criteria"], wo["verify_spec"], wo["file_locations_json"],
-                    wo.get("laya_action"), wo.get("laya_confidence"), wo.get("laya_decision_id")
+                    wo.get("laya_action"), wo.get("laya_confidence"), wo.get("laya_decision_id"), wo.get("laya_gate")
                 )
                 for wo in work_orders
             ]
@@ -138,8 +142,8 @@ class WorkOrderManager:
                 work_order_id, fingerprint, display_id, run_id, order_type,
                 priority, scope, title, problem, evidence_json, required_change,
                 acceptance_criteria, verify_spec, file_locations_json,
-                laya_action, laya_confidence, laya_decision_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                laya_action, laya_confidence, laya_decision_id, laya_gate
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, rows)
             conn.commit()
 

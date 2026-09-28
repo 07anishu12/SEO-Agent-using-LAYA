@@ -1,5 +1,32 @@
 # SEOJEV — Search Intelligence & Technical SEO Platform
 
+## Strict Laya pipeline (Apple Silicon host)
+
+Pass 4 requires `aac6fef/laya-mlx`; startup loads the checkpoint and verifies all
+ten question outputs. No API, llama.cpp, deterministic predictor, or missing-head
+default is supported. MLX must run on native macOS, **not inside Docker**.
+
+```sh
+.venv/bin/python3 -m pip install -r requirements.txt
+.venv/bin/python3 -m playwright install chromium
+.venv/bin/python3 scripts/diagnose_laya.py
+.venv/bin/python3 scripts/laya_probe.py --count 200
+.venv/bin/python3 main.py https://www.drivio.in/ --fresh --max-pages 50 --output reports/laya-small
+.venv/bin/python3 main.py https://www.drivio.in/ --fresh --max-pages 5000 --output reports/laya-full
+# Replace RUN_ID with the full crawl ID to replay unchanged evidence and prove cache reuse:
+.venv/bin/python3 main.py https://www.drivio.in/ --crawl-id RUN_ID --analyze-only --rerun-laya --output reports/laya-replay
+```
+
+Thresholds and worker error limits live in `config.yaml`; measured defaults and
+the distinction between entropy confidence and selected probability are documented
+in [LAYA_CONFIDENCE.md](docs/LAYA_CONFIDENCE.md). Real issues routed to HUMAN_REVIEW
+produce tickets marked as needing review. Verification checks stored evidence
+before remediation; it does not claim that changes have been deployed.
+
+Cache identity includes the resolved checkpoint revision and prompt version.
+Model, missing-head, persistence, queue-completion, and pass-boundary failures are
+surfaced. Historical Pass 4–6 checkpoints cannot skip the current contract.
+
 > A production-grade, multi-tenant search intelligence platform and 6-pass crawling engine built for automated technical SEO discovery, systemic root-cause analysis, local machine learning calibration, and multi-cloud ticket generation.
 
 ---
@@ -449,7 +476,7 @@ seojev/
 | **11 Root-Cause Detectors** | **Implemented** | Canonical, hreflang, link graph, soft 404, CWV, duplicate, schema, index funnel, mobile, traps. |
 | **Template Clustering** | **Implemented** | 64-bit SimHash DOM token clustering grouping URLs into structural templates. |
 | **Numeric Evidence Provenance** | **Implemented** | Every opportunity links directly to page/node metrics, link graph PageRank, and test evidence. |
-| **Laya MLX Calibration** | **Implemented** | On-device 4-bit inference via `laya-mlx` on Apple Silicon with deterministic fallback classifier. |
+| **Laya MLX Decisions** | **Implemented** | Strict local `aac6fef/laya-mlx` inference on Apple Silicon; model or head failure aborts the pass. |
 | **Work Orders & Ticket Exporters**| **Implemented** | Formatted JSON/CSV ticket exports for GitHub Issues, Jira, and Linear. |
 | **Deliverables Suite** | **Implemented** | 28-section Master Word report, Executive Word report, 26 CSVs, standalone HTML explorer. |
 | **PostgreSQL Multi-Tenant Schema**| **Implemented** | 17 normalized tables with mandatory `org_id` keys, migrations runner, and ScopedQuery helper. |
@@ -670,9 +697,8 @@ PYTHONPATH=. pytest tests/test_stage10i_portfolio.py -v # Stage 10i: Multi-Site 
 - **Abstraction**: `LayaClassifierBackend` contract under `laya/backends/`.
 - **Implementations**:
   - `mlx.py`: Apple Silicon native acceleration using `laya-mlx`.
-  - `llama_cpp.py`: Cross-platform local GGUF CPU/GPU inference for non-Apple environments.
-  - `api.py`: Remote hosted inference via OpenAI-compatible endpoints with configurable timeouts.
-- **Configuration**: `LAYA_BACKEND=mlx|llama_cpp|api` switches backends seamlessly without altering core engine code.
+  - Only the native MLX backend is supported. Other backend selections fail at startup.
+- **Configuration**: `LAYA_BACKEND=mlx`; thresholds and error limits live under `laya` in `config.yaml`.
 
 #### 10c: Scheduled Recurring Audits
 - **Architecture**: Extends the Stage 9 Celery/Redis scheduler to execute full 6-pass SEO audits.
@@ -753,4 +779,3 @@ All numbers below represent real, measured wall-clock performance from synthetic
 ## License
 
 Proprietary — Built by the SEOJEV Engineering Team.
-

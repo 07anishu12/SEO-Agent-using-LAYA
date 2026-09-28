@@ -108,6 +108,16 @@ async def test_baseline_regression_library_mode():
         validated = [o for o in opps if o["laya_validated"] == 1]
         assert len(work_orders) == len(validated)
         assert 0 < len(work_orders) <= len(opps)
+        assert all(o["laya_gate"] in ("AUTO_ACCEPT", "HUMAN_REVIEW") for o in validated)
+        with sqlite3.connect(db_test_path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM verifications WHERE run_id=?", (pipeline.crawl_id,)).fetchone()[0] == len(work_orders)
+            count = conn.execute("SELECT COUNT(*) FROM laya_decisions WHERE crawl_id=? AND cluster_id IS NOT NULL AND choice IS NOT NULL AND gate IS NOT NULL AND prompt_version IS NOT NULL AND head_confidences IS NOT NULL", (pipeline.crawl_id,)).fetchone()[0]
+            assert count == result["laya_summary"]["total_decisions"] > 0
+        from laya.analyzer import LayaSEOAnalyzer
+        LayaSEOAnalyzer.get_singleton().reset_metrics_for_test()
+        replay = await pipeline.run_pass_4_laya_decision()
+        assert replay["laya_summary"]["total_cache_hits"] == count
+        assert replay["laya_summary"]["inference_count"] == 0
 
     finally:
         server.stop()
@@ -237,3 +247,29 @@ async def test_cooperative_cancellation_mid_crawl():
                 os.remove(db_test_path)
             except Exception:
                 pass
+
+
+def test_stale_checkpoint_alias_cannot_skip_pass_4(tmp_path):
+    """
+    Assert that historical stage aliases like P4_CALIBRATION cannot cause
+    is_stage_complete('P4_LAYA_DECISION_ENGINE') to return True.
+    """
+    db_path = str(tmp_path / "stale_cp.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("""
+        CREATE TABLE stage_checkpoints (
+            crawl_id TEXT NOT NULL, stage TEXT NOT NULL, status TEXT NOT NULL,
+            metadata_json TEXT, completed_at TEXT, PRIMARY KEY(crawl_id, stage)
+        )
+        """)
+        conn.execute("INSERT INTO stage_checkpoints VALUES ('crawl_test_1', 'P4_CALIBRATION', 'completed', '{}', '2026-09-27T00:00:00')")
+        conn.commit()
+
+    pipeline = SEOJEVPipeline(
+        target_url="https://example.com",
+        crawl_id="crawl_test_1",
+        db_path=db_path
+    )
+    # Stale alias must not satisfy modern P4 contract
+    assert not pipeline.is_stage_complete("P4_LAYA_DECISION_ENGINE")
+

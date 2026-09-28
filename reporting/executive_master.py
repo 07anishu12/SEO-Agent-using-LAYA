@@ -8,6 +8,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 from engine.provenance import ProvenanceLedger
+from reporting.scoped_db import report_connection
 
 def set_cell_background(cell, fill_hex: str):
     shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
@@ -44,7 +45,7 @@ class MasterExecutiveSummaryGenerator:
         font.color.rgb = RGBColor(0x22, 0x22, 0x22)
 
     def generate(self, run_id: str, website: str = "https://www.drivio.in/"):
-        with sqlite3.connect(self.db_path) as conn:
+        with report_connection(self.db_path, run_id) as conn:
             conn.row_factory = sqlite3.Row
             total_pages = conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0]
             indexable_pages = conn.execute("SELECT COUNT(*) FROM pages WHERE is_indexable = 1").fetchone()[0]
