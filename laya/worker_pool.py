@@ -120,15 +120,8 @@ class LayaWorkerPool:
         if cached is not None:
             cached.run_id, cached.cluster_id, cached.from_cache = run_id, candidate.cluster_id, True
             return cached
-        issue_data = {"cluster_id": candidate.cluster_id, "issue": candidate.issue_type,
-                      "category": candidate.category_hint, "severity": candidate.severity_hint,
-                      "template": candidate.template_id, "affected_urls_count": candidate.page_count,
-                      "status_distribution": candidate.status_distribution,
-                      "canonical_indexability": candidate.canonical_relationship or candidate.indexability,
-                      "content_metrics": candidate.content_metrics, "link_metrics": candidate.link_metrics,
-                      "query_metrics": candidate.query_metrics, "schema_metrics": candidate.schema_metrics,
-                      "evidence_refs": candidate.evidence_refs, "root_cause": candidate.issue_type}
-        result = self._analyzer.classify_issue(issue_data, run_id)
+        from .prompt import issue_data
+        result = self._analyzer.classify_issue(issue_data(candidate), run_id)
         return LayaDecision(decision_id=f"dec_{input_hash}", run_id=run_id, cluster_id=candidate.cluster_id,
                             decision_type="SEO_PROBLEM" if result["is_real_issue"] else "NO_SEO_PROBLEM",
                             head_confidences=result["head_confidences"], checkpoint_id=checkpoint,
