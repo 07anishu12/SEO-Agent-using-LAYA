@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 
+@pytest.mark.mlx
 def test_500_url_choice_gate_equivalence():
     path=os.environ.get('SEOJEV_EQUIVALENCE_REPORT')
     if not path:

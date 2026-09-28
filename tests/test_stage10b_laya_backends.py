@@ -23,6 +23,7 @@ def test_forbidden_backends(backend, monkeypatch):
         get_laya_backend()
 
 
+@pytest.mark.mlx
 def test_real_mlx_preflight_and_cache():
     analyzer = LayaSEOAnalyzer.get_singleton()
     assert isinstance(analyzer.backend, MLXBackend)

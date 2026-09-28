@@ -1,0 +1,78 @@
+{
+  "one_file_at_a_time": true,
+  "mlx_resource_report": "docs/acceptance/autotune.json",
+  "results": [
+    {
+      "file": "test_dev_profile.py",
+      "return_code": 0,
+      "seconds": 0.19310912500077393,
+      "output": "...                                                                      [100%]\n3 passed in 0.08s\n"
+    },
+    {
+      "file": "test_synthetic_generator.py",
+      "return_code": 0,
+      "seconds": 0.1848662910015264,
+      "output": ".                                                                        [100%]\n1 passed in 0.07s\n"
+    },
+    {
+      "file": "test_memory_safety.py",
+      "return_code": 0,
+      "seconds": 0.1715469579976343,
+      "output": ".......                                                                  [100%]\n7 passed in 0.05s\n"
+    },
+    {
+      "file": "test_streaming_candidates.py",
+      "return_code": 0,
+      "seconds": 0.38546608300021035,
+      "output": ".....                                                                    [100%]\n5 passed in 0.25s\n"
+    },
+    {
+      "file": "test_mlx_isolation.py",
+      "return_code": 0,
+      "seconds": 0.2737366250003106,
+      "output": "...                                                                      [100%]\n3 passed in 0.16s\n"
+    },
+    {
+      "file": "test_acceptance_guard.py",
+      "return_code": 0,
+      "seconds": 0.14546133299882058,
+      "output": "..                                                                       [100%]\n2 passed in 0.03s\n"
+    },
+    {
+      "file": "test_equivalence_accounting.py",
+      "return_code": 0,
+      "seconds": 0.11959570800172514,
+      "output": "...                                                                      [100%]\n3 passed in 0.01s\n"
+    },
+    {
+      "file": "test_dev_equivalence.py",
+      "return_code": 0,
+      "seconds": 0.11708374999943771,
+      "output": "s                                                                        [100%]\n1 skipped in 0.01s\n"
+    },
+    {
+      "file": "test_noise_metrics.py",
+      "return_code": 0,
+      "seconds": 0.16415537500142818,
+      "output": "..                                                                       [100%]\n2 passed in 0.05s\n"
+    },
+    {
+      "file": "test_laya_flow.py",
+      "return_code": 0,
+      "seconds": 0.2885767500010843,
+      "output": ".ss                                                                      [100%]\n1 passed, 2 skipped in 0.15s\n"
+    },
+    {
+      "file": "test_laya_migration.py",
+      "return_code": 0,
+      "seconds": 0.33149691699873074,
+      "output": "..                                                                       [100%]\n2 passed in 0.19s\n"
+    },
+    {
+      "file": "test_stage10b_laya_backends.py",
+      "return_code": 0,
+      "seconds": 0.22556400000030408,
+      "output": "...s........................                                             [100%]\n27 passed, 1 skipped in 0.11s\n"
+    }
+  ]
+}
