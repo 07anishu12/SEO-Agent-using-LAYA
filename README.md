@@ -1,781 +1,718 @@
-# SEOJEV — Search Intelligence & Technical SEO Platform
+# SEOJEV — SEO Intelligence & Technical SEO Platform using Laya-MLX
 
-## Strict Laya pipeline (Apple Silicon host)
+> A deterministic technical SEO analysis and automated work-order generation engine powered by native Apple Silicon machine learning inference (`laya-mlx`).
 
-Pass 4 requires `aac6fef/laya-mlx`; startup loads the checkpoint and verifies all
-ten question outputs. No API, llama.cpp, deterministic predictor, or missing-head
-default is supported. MLX must run on native macOS, **not inside Docker**.
+SEOJEV transforms raw website crawling into an actionable search operating system. Rather than generating thousands of repetitive, unranked per-page alerts, SEOJEV groups pages into structural template families, synthesizes root-cause opportunities across deterministic crawl signals and internal link graphs, executes calibrated decision inference using a local Apple Silicon MLX model, and emits deduplicated, verified engineering and content work orders.
 
-```sh
-.venv/bin/python3 -m pip install -r requirements.txt
-.venv/bin/python3 -m playwright install chromium
-.venv/bin/python3 scripts/diagnose_laya.py
-.venv/bin/python3 scripts/laya_probe.py --count 200
-.venv/bin/python3 main.py https://www.drivio.in/ --fresh --max-pages 50 --output reports/laya-small
-.venv/bin/python3 main.py https://www.drivio.in/ --fresh --max-pages 5000 --output reports/laya-full
-# Replace RUN_ID with the full crawl ID to replay unchanged evidence and prove cache reuse:
-.venv/bin/python3 main.py https://www.drivio.in/ --crawl-id RUN_ID --analyze-only --rerun-laya --output reports/laya-replay
+---
+
+## Status
+
+| Dimension | Status | Verified Evidence |
+| :--- | :---: | :--- |
+| **Local 1,000-URL Validation** | **VALIDATED** | Complete end-to-end run on Drivio.in (266 template families, 2,529 candidates, 1,079 work orders, 0 failed, 0 swap growth). Commit: `2d4e087` / `b251629`. |
+| **Laya-MLX Local Inference** | **VALIDATED** | Pinned checkpoint `aac6fef/laya-mlx`, 10 multi-task SEO heads, scalar prediction, safe batch autotuned up to 64. |
+| **Model Equivalence** | **VALIDATED** | 100.0% choice and gate equality (1,207/1,207 candidates) between legacy worker pool and streaming class deduplication service. |
+| **Memory Guard & Safety** | **VALIDATED** | Peak RSS ~1,014 MiB, 0.0 MB swap growth, 0 memory guard aborts, bounded queue backpressure. |
+| **Work Order Lifecycle & Audit** | **VALIDATED** | 1,079/1,079 valid work orders (`order_type` in `engineering`, `content`), canonical schema audit passed, 0 failed work orders. |
+| **Restart / Idempotency** | **VALIDATED** | 50/50 restart candidates verified as 100% cache hits with identical choice and gate outputs. |
+| **Synthetic Benchmark Recall** | **BASELINE / UNTUNED** | Clean page suppression: 100% (184/184 TN, 0 FP). Defect recall: 0.0% under frozen baseline thresholds without tuning. |
+| **Cloud / Distributed Scaling** | **PLANNED** | StageStore Postgres adapter, remote MLX serving, object storage, and global SQL reducers are design specifications only. |
+| **Production Multi-Node** | **NOT IMPLEMENTED** | System is currently bounded to single-node Apple Silicon host execution (<=1,000 URLs per run). |
+
+> [!IMPORTANT]
+> **Production Boundary**: SEOJEV is **not** yet production-ready for unconstrained or multi-node full-site cloud deployment. The engine is verified for local Apple Silicon execution up to 1,000 URLs. Full-site runs (>1,000 URLs) on the legacy evidence path are deliberately blocked by an in-engine safety limit until global SQL reducers are implemented.
+
+---
+
+## What SEOJEV Does
+
+Traditional SEO auditing tools produce thousands of fragmented, repetitive alerts (e.g., 5,000 separate "missing meta description" or "broken link" issues) with zero awareness of page template architecture, no numeric evidence provenance, and no automated translation into engineering work orders.
+
+**SEOJEV** eliminates alert explosion through a multi-pass reduction and decision pipeline:
+
+```
+Raw URLs / Crawl DB
+       │
+       ▼
+Pass 1: Ingest & State Snapshots (SQLite WAL + Content-Addressed Store)
+       │
+       ▼
+Pass 2: Deterministic Evidence Extraction (NetworkX Link Graph, SimHash Templates, CWV, Index Funnel)
+       │
+       ▼
+Pass 3: Candidate & Opportunity Reduction (OpportunityEngineV3 multi-factor synthesis & ICE scoring)
+       │
+       ▼
+Pass 4: Laya-MLX Decision Engine (Local Apple Silicon inference across 10 SEO heads, gated confidence)
+       │
+       ▼
+Pass 5: Work Orders & Verification (Class deduplication, canonical schema audit, baseline spec verification)
+       │
+       ▼
+Pass 6: Deliverables (Master Word reports, Executive summaries, 25+ CSV suite, interactive HTML explorer)
 ```
 
-Thresholds and worker error limits live in `config.yaml`; measured defaults and
-the distinction between entropy confidence and selected probability are documented
-in [LAYA_CONFIDENCE.md](docs/LAYA_CONFIDENCE.md). Real issues routed to HUMAN_REVIEW
-produce tickets marked as needing review. Verification checks stored evidence
-before remediation; it does not claim that changes have been deployed.
-
-Cache identity includes the resolved checkpoint revision and prompt version.
-Model, missing-head, persistence, queue-completion, and pass-boundary failures are
-surfaced. Historical Pass 4–6 checkpoints cannot skip the current contract.
-
-> A production-grade, multi-tenant search intelligence platform and 6-pass crawling engine built for automated technical SEO discovery, systemic root-cause analysis, local machine learning calibration, and multi-cloud ticket generation.
-
----
-
-## 1. What the System Does
-
-### The Problem
-Traditional SEO auditing tools produce thousands of fragmented, repetitive alerts (e.g., 5,000 separate "missing meta description" or "broken link" issues) with zero awareness of page template architecture, no numeric evidence provenance, and no automated translation into engineering work orders. Auditing large, dynamic sites (10,000+ pages) often leads to memory bloat, uncalibrated priority scores, and manual spreadsheet wrangling.
-
-### The Purpose
-**SEOJEV** transforms raw web crawling into an actionable search operating system. It moves beyond superficial checklist scans by:
-1. **Clustering pages into structural templates** using 64-bit SimHash algorithms.
-2. **Suppressing issue explosion** by pinpointing systemic root causes at the template and component level.
-3. **Calculating deterministic numeric provenance** across internal link graphs, Core Web Vitals, and search signals.
-4. **Calibrating confidence and impact** using local Apple Silicon MLX inference (`laya-mlx`) with zero external API dependencies.
-5. **Generating ready-to-dispatch engineering and content work orders** with automated ticket exports for GitHub Issues, Jira, and Linear.
-
-### Main Capabilities
-* **Asynchronous Deep Crawling**: Bounded memory footprint, robots.txt compliance, recursive XML sitemap processing, crawl trap quarantining, and selective Playwright browser rendering for JavaScript-heavy single-page apps.
-* **Internal Link Graph Intelligence**: NetworkX-powered graph analysis computing PageRank, CheiRank, Hubs/Authorities, crawl depth distribution, and cut-vertex orphan page risks.
-* **11 Root-Cause Detectors**: Comprehensive detection covering canonicals, hreflang, indexability funnels, pagination loops, soft 404s, mobile parity, redirect chains, structured data schema validation, and rendering diffs.
-* **Vertical Provenance Analysis**: Industry-specific entity graph extraction and schema auditing for Automotive, E-commerce, SaaS, Real Estate, and Healthcare.
-* **Multi-Tenant REST Platform**: FastAPI service with JWT and API-key authentication, strict organization row-level isolation, and asynchronous Redis task queuing.
-* **Real-Time Telemetry & Cancellation**: Server-Sent Events (SSE) streaming live pass progress with cooperative cancellation that leaves zero corrupted or half-written database records.
-* **Object Storage & Signed Downloads**: Direct S3/MinIO artifact archiving for Word audit reports, CSV suites, offline HTML explorers, and single-archive `export.zip` bundles with signed, expiring download URLs.
-
----
-
-## 2. Architecture & Technologies
-
-SEOJEV is structured across decoupled architectural layers that bridge high-throughput crawling, analytical graph intelligence, local on-device machine learning, and a multi-tenant cloud backend:
+### Architecture Diagram
 
 ```mermaid
 flowchart TD
-    subgraph Clients["Clients & Interfaces"]
-        CLI["CLI Tool (main.py)"]
-        NextJS["Next.js 14 Dashboard\n(Overview, Opps, Templates, Blueprints, GSC, Downloads, Diff, Work Orders)"]
+    subgraph InputLayer["Input & Sampling Layer"]
+        CLI["CLI (main.py) / Scripts"]
+        CrawlDB[("Source Crawl DB\n(data/seo.db)")]
+        DevSampler["DevSampler (engine/dev_sample.py)\nStratified Template Sampling (<=500 URLs)"]
     end
 
-    subgraph API["FastAPI Platform Service"]
-        FastAPIApp["FastAPI REST Endpoints"]
-        AuthModule["JWT & API Key Auth"]
-        SitesRouter["Sites Router (/sites)"]
-        RunsRouter["Runs Router (/runs)"]
-        ArtifactsRouter["Artifacts Router (/artifacts)"]
-        OppsRouter["Opportunities Router (/runs/{id}/opportunities)"]
-        TplsRouter["Templates Router (/runs/{id}/templates)"]
-        BpsRouter["Blueprints Router (/runs/{id}/blueprints)"]
-        GscRouter["Search Console Router (/runs/{id}/gsc)"]
-        WorkOrdersRouter["Work Orders Router (/work-orders)"]
-        DiffRouter["Snapshot Diff Router (/runs/{id}/diff)"]
+    subgraph CoreEngine["SEOJEV Core Engine (engine/pipeline.py)"]
+        P1["Pass 1: Ingest & Snapshot Recorder"]
+        P2["Pass 2: Deterministic Evidence\n• NetworkX Link Graph (PageRank/CheiRank)\n• SimHash 64-bit Templates\n• Near-Duplicates & CWV Performance"]
+        P3["Pass 3: Candidate Reduction\n• OpportunityEngineV3\n• Search Context & ICE Scoring\n• Fingerprinted Opportunities"]
+        P4["Pass 4: Laya Decision Engine\n• iter_candidates (streaming)\n• MemoryGuard (zero swap growth)\n• decide_classes (exact prompt hashing)\n• Fan-Out to Member Candidates"]
+        P5["Pass 5: Validated Work Orders\n• class_opportunities deduplication\n• WorkOrderManager (canonical audit)\n• VerificationRunner (stored baseline specs)\n• ClaimsLinter Gate"]
+        P6["Pass 6: Deliverables\n• Master Word Report (.docx)\n• 25+ CSV Inventory Suite\n• Offline HTML Explorer (explorer.html)"]
     end
 
-    subgraph Messaging["Redis Queue & Pub/Sub"]
-        Queue["Run Queue (seojev:queue:runs)"]
-        PubSub["Pub/Sub Telemetry (run:id:progress)"]
-        CancelFlag["Cancellation Flag (run:id:cancel)"]
+    subgraph MLXLayer["Laya-MLX Local Inference (laya/backends/mlx.py)"]
+        OSLock["Exclusive OS Lock\n(seojev-laya-mlx.lock)"]
+        MLXModel["Native Apple Silicon MLX\n(aac6fef/laya-mlx)"]
+        Heads["10 Multi-Task Heads\n(Verdict, Category, Severity, Action,\nScope, Root Cause, Canonical, Content,\nCannibalization, Internal Linking)"]
     end
 
-    subgraph WorkerLayer["Asynchronous Worker"]
-        Worker["Background Task Worker (jobs/worker.py)"]
+    subgraph StorageLayer["Storage & Cache (SQLite WAL)"]
+        RunDB[("Run Database\n(data/seo.db or val-sample-*.db)")]
+        StageStore[("SQLiteStageStore\n(chunk_records: classes, decisions)")]
+        ContentStore["ContentStore (store/\nContent-Addressed HTML)"]
     end
 
-    subgraph CoreEngine["SEOJEV 6-Pass Pipeline Engine"]
-        P1["Pass 1: Async High-Throughput Crawler & SnapshotRecorder"]
-        P2["Pass 2: NetworkX Link Graph & SimHash Templates"]
-        P3["Pass 3: OpportunityEngine V3 (11 Detectors)"]
-        P4["Pass 4: Laya SEO Decision Engine (Apple Silicon MLX)"]
-        P5["Pass 5: Work Orders & Ticket Exporters"]
-        P6["Pass 6: Word, CSV & HTML Deliverables"]
-        
-        P1 --> P2 --> P3 --> P4 --> P5 --> P6
-    end
-
-    subgraph Storage["Persistence & Object Storage"]
-        Postgres[("PostgreSQL Multi-Tenant Database")]
-        SQLite[("Per-Run SQLite Store data/{id}.db")]
-        MinIO[("MinIO / AWS S3 Object Storage")]
-    end
-
-    CLI --> CoreEngine
-    NextJS -->|HTTP / SSE| FastAPIApp
-    FastAPIApp --> AuthModule
-    FastAPIApp --> SitesRouter
-    FastAPIApp --> RunsRouter
-    FastAPIApp --> ArtifactsRouter
-    FastAPIApp --> OppsRouter
-    FastAPIApp --> TplsRouter
-    FastAPIApp --> BpsRouter
-    FastAPIApp --> GscRouter
-    FastAPIApp --> WorkOrdersRouter
-    FastAPIApp --> DiffRouter
-
-    RunsRouter -->|Enqueue Run| Queue
-    RunsRouter -->|Set Cancel Flag| CancelFlag
-    RunsRouter -->|Stream SSE Progress| PubSub
-
-    Worker -->|Dequeue Job| Queue
-    Worker -->|Check Cancel Flag| CancelFlag
-    Worker -->|Publish Progress| PubSub
-    Worker -->|Execute Pipeline| CoreEngine
-
-    CoreEngine -->|Post-Run ETL| Postgres
-    CoreEngine -->|Run-level State| SQLite
-    Worker -->|Upload Artifacts| MinIO
-    Worker -->|Record Metadata| Postgres
-    ArtifactsRouter -->|Query Metadata| Postgres
-    ArtifactsRouter -->|Generate Presigned URL| MinIO
-    NextJS -.->|Direct Download via Signed URL| MinIO
-    OppsRouter -->|Read Opps & Save Feedback| Postgres
-    TplsRouter -->|Read Clusters & Findings| Postgres
-    BpsRouter -->|20-Dimension Generator| SQLite
-    GscRouter -->|Striking Distance & Cannibalization| SQLite
-```
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          Clients & Interfaces                          │
-│         CLI (`main.py`)    │    Web Frontend / API Clients             │
-└──────────────────┬─────────────────────────────┬───────────────────────┘
-                   │                             │ HTTP / SSE / REST
-                   ▼                             ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        FastAPI Platform Service                        │
-│   • Auth (JWT / API Key)        • Sites CRUD (Org Scoped)              │
-│   • Runs Enqueueing             • SSE Telemetry Stream                 │
-│   • Artifacts & Direct Signed URLs (`/artifacts/{id}/download`)        │
-└─────────────────────────────────┬──────────────────────────────────────┘
-                                  │ Enqueue Job
-                                  ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       Redis Task Queue & Pub/Sub                       │
-│   • List Queue: `seojev:queue:runs`    • Pub/Sub: `run:{id}:progress`  │
-│   • Cancellation Flag: `run:{id}:cancel` • Retry / Backoff State       │
-└─────────────────────────────────┬──────────────────────────────────────┘
-                                  │ Dequeue (`blpop`)
-                                  ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       Background Asynchronous Worker                   │
-│   • Cooperative Cancel Checks   • 1-Retry Backoff Policy               │
-│   • Terminal Status Dispatch    • Automatic ETL & S3 Sync Trigger      │
-└─────────────────────────────────┬──────────────────────────────────────┘
-                                  │ Invokes
-                                  ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                SEOJEV 6-Pass Search Intelligence Engine                 │
-│                                                                        │
-│   [Pass 1: P1_CRAWL]                                                   │
-│   Async HTTP, Robots, Sitemaps, Traps, Soft-404, Playwright Render     │
-│   → Scratchpad Storage: SQLite WAL (`data/{run_id}.db`)                │
-│   → Content Store: Content-Addressed Compressed Cache (`store/`)       │
-│                                                                        │
-│   [Pass 2: P2_SIGNALS]                                                 │
-│   NetworkX Link Graph, SimHash Template Clustering, Near-Duplicates,  │
-│   Core Web Vitals Sample (TTFB, FCP, LCP, CLS), Schema & Verticals     │
-│                                                                        │
-│   [Pass 3: P3_SEARCH_OPPORTUNITIES]                                    │
-│   OpportunityEngine V3: 11 Detectors, Root-Cause Suppression,          │
-│   SHA-256 Fingerprints, Stable Display IDs (`OPP-...`), ICE Scoring   │
-│                                                                        │
-│   [Pass 4: P4_CALIBRATION]                                             │
-│   Laya MLX Local Inference (4-bit Apple Silicon) / Deterministic       │
-│   Fallback Classifier, Calibrated Confidence, Sensitivity Matrix       │
-│                                                                        │
-│   [Pass 5: P5_WORK_ORDERS]                                             │
-│   WorkOrderManager (`WO-ENG-...`, `WO-CNT-...`), ClaimsLinter Gate,    │
-│   Ticket Generation (GitHub Issues JSON, Jira CSV/JSON, Linear JSON)   │
-│                                                                        │
-│   [Pass 6: P6_DELIVERABLES]                                            │
-│   28-Section Master Word Report, Executive Word Report, 25+ CSVs,      │
-│   Standalone Interactive HTML Explorer (`explorer.html`)               │
-└──────────────────┬─────────────────────────────┬───────────────────────┘
-                   │                             │
-                   ▼ (Post-Run ETL)              ▼ (Artifact Upload)
-┌──────────────────────────────────┐ ┌──────────────────────────────────┐
-│        PostgreSQL Database       │ │       S3 / MinIO Storage         │
-│   • `orgs`, `users`, `api_keys`  │ │   Bucket: `seojev-artifacts`     │
-│   • `sites`, `runs`, `artifacts` │ │   Path: `{org}/{site}/{run}/...` │
-│   • `templates`, `findings`      │ │   • Word Reports (.docx)         │
-│   • `opportunities` (with ICE)   │ │   • All CSV Inventories (.csv)   │
-│   • `work_orders`, `snapshots`   │ │   • Single-File HTML Explorer    │
-│   • Multi-Tenant Isolation       │ │   • Pre-bundled `export.zip`     │
-└──────────────────────────────────┘ └──────────────────────────────────┘
+    CLI -->|--profile dev| DevSampler
+    CrawlDB --> DevSampler
+    DevSampler --> RunDB
+    CLI -->|--fresh| P1
+    P1 --> RunDB & ContentStore
+    RunDB --> P2 --> P3 --> P4 --> P5 --> P6
+    P4 <-->|submit_batch| MLXModel
+    MLXModel --- OSLock
+    MLXModel --> Heads
+    P4 <--> StageStore
 ```
 
 ---
 
-## 3. Technology Purpose & Rationale
+## Architecture & Component Responsibilities
 
-| Technology / Component | Purpose in SEOJEV | Why It Exists in the Stack |
+| Component | Module | Responsibility |
 | :--- | :--- | :--- |
-| **Python 3.12 + `asyncio`** | Core engine & crawler runtime | Non-blocking concurrent HTTP crawling (10–50 requests/sec) with controlled concurrency semaphores. |
-| **Playwright** | Headless Chromium browser rendering | Selectively executed only when initial HTML payloads are thin or indicate client-side hydration (`<div id="root"></div>`, `<div id="__next"></div>`). |
-| **SQLite (WAL Mode)** | Local run scratchpad & frontier storage | High-speed local disk persistence for crawled URLs, headers, and intermediate signals without network roundtrips. |
-| **NetworkX** | Internal link graph modeling | Computes PageRank, CheiRank, In-link counts, Hub/Authority ratios, and cut-vertices to find isolated page clusters and orphans. |
-| **SimHash (64-bit)** | Structural template clustering | Clusters thousands of dynamic URLs into cohesive layout templates based on DOM token frequencies and structural fingerprints. |
-| **Laya MLX (`aac6fef/laya-mlx`)** | On-device ML calibration | 4-bit Apple Silicon MLX inference calibrating issue severity, confidence probabilities, and ICE scores without leaking data to third-party LLM APIs. |
-| **FastAPI** | REST API platform service | High-performance asynchronous API layer with auto-generated OpenAPI documentation, Pydantic validation, and dependency injection. |
-| **PostgreSQL 14+ + `psycopg 3`** | Multi-tenant persistent data warehouse | Normalized relational persistence with mandatory `org_id` foreign keys on every table, indexed JSONB configs, and row-level isolation. |
-| **Redis** | Background job queue & pub/sub | FIFO run task scheduling (`seojev:queue:runs`), pub/sub pass telemetry (`run:{id}:progress`), and cooperative cancellation flags. |
-| **MinIO / AWS S3 + `boto3`** | Cloud object storage & direct delivery | Direct binary artifact hosting. Clients receive signed, expiring URLs (`/artifacts/{id}/download`); the API process never buffers or proxies large files. |
-| **`python-docx`** | Automated document generation | Compiles polished 28-section executive and technical Word audit reports with styled tables, callouts, and formatted action plans. |
+| **Crawler & Ingest** | `crawler/crawler.py`, `crawler/storage.py` | Asynchronous HTTP crawling, robots compliance, sitemap ingestion, crawl trap isolation, SQLite WAL frontier storage. |
+| **Content Store** | `engine/content_store.py` | Content-addressed compressed storage of raw HTML payloads (`store/` directory) keyed by SHA-256 hash. |
+| **Evidence Extraction** | `analysis/`, `extraction/provenance_extractor.py` | Graph metrics (NetworkX PageRank, CheiRank), SimHash DOM token clustering, Core Web Vitals sampling, and vertical attribute extraction. |
+| **Template Families** | `engine/template_families.py` | Partitions URLs by structural route shape, page type, static route suffixes, and query keys (`template_family`). |
+| **Opportunity Engine** | `engine/opportunity_engine_v3.py` | Synthesizes detector findings into structured opportunities with SHA-256 fingerprints, display IDs (`OPP-...`), and 7-factor ICE scores. |
+| **Candidate Streaming** | `laya/streaming.py` | SQL-backed streaming candidate reducer (`iter_candidates`) keeping at most 1 candidate and 5 sample URLs in memory at a time. |
+| **Prompt Normalization** | `laya/prompt.py` | Normalizes candidate features, rounds metrics, and generates deterministic prompt hashes for caching. |
+| **Laya-MLX Backend** | `laya/backends/mlx.py`, `laya/analyzer.py` | Native Apple Silicon MLX inference engine with OS-level single-owner locking, strict head validation, and memory cleanup. |
+| **Memory Guard** | `engine/memory_guard.py` | Enforces process-tree RSS limits, minimum available system memory, batch autotuning, and zero-swap-growth aborts. |
+| **Stage Store & Cache** | `engine/chunks.py` | Range-addressed SQLite stage storage (`SQLiteStageStore`) for atomic chunk checkpoints and exact-prompt decision caching. |
+| **Work Order Manager** | `engine/work_orders.py` | Transforms validated opportunities into engineering and content work orders; enforces canonical schema contract and lifecycle audits. |
+| **Spec Verification** | `verification/runner.py` | Sandboxed baseline verification of work order acceptance specs against stored crawl HTML before remediation. |
+| **Claims Linter** | `engine/claims_linter.py` | Quality gate preventing forbidden, unsubstantiated, or contradictory claims in generated work orders. |
+| **Reporting Suite** | `reporting/` | Compiles 28-section Master Word audit report, Executive Summary, 25+ CSV dataset suite, and offline HTML Explorer. |
 
 ---
 
-## 4. Component Relationships & Architecture Table
+## End-to-End Pipeline
 
-| Component | Upstream Dependency | Downstream Dependent | Primary Responsibility |
-| :--- | :--- | :--- | :--- |
-| **`api/routers/runs.py`** | Client Requests, JWT Auth | `jobs/queue.py`, PostgreSQL | Accepts run requests, enqueues background jobs, exposes SSE progress and cancellation. |
-| **`jobs/worker.py`** | `jobs/queue.py`, Redis | `engine/pipeline.py`, ETL, S3 | Background loop pulling jobs, executing the 6 passes, catching cancellations, and triggering ETL. |
-| **`engine/pipeline.py`** | `jobs/worker.py` or CLI | Crawler, Analyzers, Reporters | Orchestrates Passes 1 through 6, emitting granular progress callbacks and enforcing cooperative cancel checks. |
-| **`crawler/crawler.py`** | `engine/pipeline.py` | `crawler/storage.py`, Network | Manages seed discovery, sitemaps, robots.txt, politeness delays, and frontier resume. |
-| **`engine/opportunity_engine_v3.py`** | Page & Link Signals | `engine/work_orders.py`, SQLite | Groups issues into systemic opportunities with SHA-256 fingerprints and numeric provenance. |
-| **`laya/worker_pool.py` & `laya/decision.py`** | Issue Clusters & Candidates | Opportunities, Work Orders, Reports | Laya Primary SEO Decision Engine: evaluates candidate clusters asynchronously with backpressure, generating auditable `LayaDecision` objects with confidence gating (`AUTO_ACCEPT`, `HUMAN_REVIEW`, `SUPPRESS`). |
-| **`database/etl.py`** | SQLite Run DB (`data/{id}.db`) | PostgreSQL Tables | Idempotently copies completed run data into Postgres using deterministic primary keys. |
-| **`services/object_store.py`** | Reports on Disk | S3 / MinIO, Postgres | Uploads deliverables under `{org}/{site}/{run}/...` and signs time-limited direct download URLs. |
+The engine executes in six strictly sequenced passes:
 
----
+### Pass 1: Ingest & State Snapshots (`P1_CRAWL`)
+- **Input**: Target seed URL, crawl configuration, or existing crawl database.
+- **Processing**: In standard execution, runs asynchronous crawling with robots.txt parsing, sitemap discovery, crawl trap filtering, and selective Playwright rendering. In `--profile dev` or `--profile val`, HTTP fetching is skipped; an isolated SQLite database is created using deterministic stratified sampling from existing crawl data. Full URL state snapshots (title, canonical, status, schema) are recorded.
+- **Storage**: SQLite tables `urls`, `pages`, `snapshots`; compressed HTML in `ContentStore` (`store/`).
+- **Memory**: Bounded by connection pool and scheduler heap limits.
+- **Resumability**: Resumable via SQLite frontier; idempotent on existing runs.
 
-## 5. Major Use Cases & Step-by-Step Workflows
+### Pass 2: Deterministic Evidence (`P2_DETERMINISTIC_EVIDENCE`)
+- **Input**: Stored page records and HTML content hashes.
+- **Processing**:
+  - Builds NetworkX internal link graph; computes PageRank, CheiRank, in/out-link distributions, and orphan risks.
+  - Clusters pages into layout templates using 64-bit SimHash DOM token frequencies.
+  - Identifies near-duplicate content clusters.
+  - Reconciles sitemap discovery against crawled URLs via `IndexFunnelReconciler`.
+  - Executes Core Web Vitals sampling (TTFB, FCP, LCP, CLS).
+  - Extracts domain-specific vertical attributes and verifies cross-field entity consistency.
+- **Storage**: SQLite tables `issues`, `templates`, `issue_clusters`, `attributes`, `internal_link_opportunities`.
+- **Memory**: Peak RSS ~310 MiB on 1,000 URLs. Bounded by SQLite paging.
+- **Failure Behavior**: Bounded legacy adapter guard: halts if `pages > 1000` to prevent unreduced memory growth.
 
-### Use Case 1: Automated Enterprise Site Audit
-1. **Trigger**: An engineering or SEO lead issues a request via `POST /runs` specifying `site_id`, `max_pages=5000`, and `concurrency=10`.
-2. **Immediate Acknowledgment**: The API returns HTTP 201 with `status: "queued"` within 20 milliseconds.
-3. **Queue & Crawl**: The background worker picks up the job. The crawler inspects `robots.txt`, processes sitemap index hierarchies, identifies trap URLs, and crawls pages asynchronously into a local SQLite database.
-4. **Analysis & Synthesis**: Structural templates are clustered via SimHash; the link graph is analyzed via NetworkX; 11 detectors synthesize root-cause opportunities with ICE scores.
-5. **ETL & Object Storage**: The run data is ingested into multi-tenant PostgreSQL tables, and all deliverables (Word reports, CSV inventories, HTML explorer, ticket JSONs) are uploaded to S3/MinIO.
-6. **Delivery**: The client downloads the reports or single-archive `export.zip` via secure presigned URLs.
+### Pass 3: Candidate & Opportunity Reduction (`P3_CANDIDATE_REDUCTION`)
+- **Input**: Deterministic findings, issue clusters, optional GSC search performance CSV, and SERP competitive data.
+- **Processing**: Ingests search signals; runs `OpportunityEngineV3` multi-factor synthesis across 11 root-cause detector categories; assigns SHA-256 fingerprints, stable display IDs (`OPP-...`), and calculated ICE impact scores.
+- **Storage**: SQLite table `opportunities`.
+- **Memory**: Peak RSS ~450 MiB on 1,000 URLs (2,529 opportunities).
 
-### Use Case 2: Live Progress Telemetry via Server-Sent Events (SSE)
-1. **Subscribe**: Frontend client connects to `GET /runs/{run_id}/progress` with a Bearer token.
-2. **Channel Subscription**: FastAPI opens a Redis pub/sub subscription to `run:{run_id}:progress`.
-3. **Stream Events**: As the worker executes each pass (`P1_CRAWL` → `P2_SIGNALS` → `P3_SEARCH_OPPORTUNITIES` → `P4_CALIBRATION` → `P5_WORK_ORDERS` → `P6_DELIVERABLES`), it emits monotonic progress percentages, pass identifiers, and counter metadata.
-4. **Terminal State**: Upon receiving `"status": "completed"` (or `"cancelled"` / `"failed"`), the SSE connection closes cleanly.
+### Pass 4: Laya-MLX Decision Engine (`P4_LAYA_DECISION_ENGINE`)
+- **Input**: Reduced opportunities and issue clusters streamed via `iter_candidates`.
+- **Processing**:
+  - Executes strict MLX preflight canary prediction to verify model checkpoint and all 10 heads.
+  - Computes exact normalized prompt hashes (`class_id = candidate.compute_hash(checkpoint_id)`).
+  - Queries `SQLiteStageStore` cache; if cached, reuses decision with zero inference.
+  - On cache miss, submits candidate to `LocalMLXService.submit_batch`; executes native MLX forward pass on Apple Silicon GPU.
+  - Evaluates decision against confidence policy (`AUTO_ACCEPT`, `HUMAN_REVIEW`, `SUPPRESS`).
+  - Fans out class decisions to all member opportunities in `candidate_membership`.
+  - Marks validated opportunities (`laya_validated = 1`) for decisions where `is_real_issue == True` and gate in `('AUTO_ACCEPT', 'HUMAN_REVIEW')`.
+- **Storage**: SQLite tables `laya_decisions`, `candidate_membership`, updated `opportunities`, and `chunk_records`.
+- **Memory**: Peak RSS ~1,014 MiB. Strictly governed by `MemoryGuard`.
+- **Failure Behavior**: Immediately aborts on swap growth or persistent memory pressure. Resumable per chunk.
 
-### Use Case 3: Cooperative Mid-Crawl Cancellation & Clean Resumption
-1. **Cancellation Request**: A client calls `POST /runs/{run_id}/cancel`.
-2. **Flagging**: The API sets Redis key `run:{run_id}:cancel = "1"`.
-3. **Clean Halt**: Between URL fetches, the crawler checks `cancel_check()`, terminates the crawl loop, and raises `PipelineCancelledException`.
-4. **Zero Partial Corruption**: The worker records `runs.status = 'cancelled'`. **ETL is skipped entirely**, ensuring zero partial or corrupt rows are written to PostgreSQL.
-5. **Resumption**: The client calls `POST /runs/{run_id}/resume`. The worker initializes the crawler with `resume=True`, queries `storage.get_queued_urls(...)`, hydrates the scheduler with unvisited URLs, and finishes the crawl from where it stopped.
+### Pass 5: Validated Work Orders & Verification (`P5_VALIDATED_OPPORTUNITIES`)
+- **Input**: Validated opportunities (`laya_validated == 1`) with complete Laya provenance.
+- **Processing**:
+  - Groups opportunities by decision class via `class_opportunities`, preventing duplicate work orders for systemic template issues.
+  - Generates discrete engineering (`WO-ENG-...`) and content (`WO-CNT-...`) work orders.
+  - Runs `VerificationRunner` baseline evaluation against stored crawl HTML (verifying defect presence before remediation).
+  - Enforces `ClaimsLinter` quality gate to catch unsubstantiated claims.
+  - Exports ticket payloads for GitHub Issues, Jira, and Linear.
+- **Storage**: SQLite tables `work_orders`, `work_order_membership`, `verifications`; files `verification-results.json`, `lint-report.json`, `tickets/`.
+- **Memory**: Peak RSS ~822 MiB on 1,000 URLs.
+- **Failure Behavior**: Aborts if Pass 4 produced zero validated decisions or malformed provenance.
 
-### Use Case 4: Engineering & Content Work Order Generation
-1. **Linting**: The claims linter checks detected opportunities against systemic rules (e.g. verifying that canonical updates target existing, indexable 200 OK pages).
-2. **Work Order Partitioning**: `WorkOrderManager` generates discrete engineering (`WO-ENG-...`) and content (`WO-CNT-...`) work orders.
-3. **Ticket Export**: Outputs formatted task payloads for:
-   - `github_issues.json`: Ready for GitHub CLI (`gh issue create`).
-   - `jira_import.json` & `jira_issues.csv`: Configured with Jira standard issue fields.
-   - `linear_import.json`: Formatted for Linear batch import.
-
-### Use Case 5: Deep Diagnostic Exploration & Human Feedback Loop (Stage 7)
-1. **Root-Cause Diagnostic Exploration**: Analysts navigate to `/runs/[id]/opportunities` to view sortable, filterable opportunities. Expanding any card reveals the strict 6-phase reasoning chain (`Observation -> Evidence -> Diagnosis -> Hypothesis -> Action -> Verification`) alongside 7 numeric ICE factors (Visibility, Gap, Page Importance, Template Scope, Tech Severity, CTR Headroom, Link Gap).
-2. **Human-in-the-Loop Feedback**: Users submit feedback verdicts (`Fixed`, `False Positive`, `Accepted`, `Won't Fix`) directly from the UI, persisting into PostgreSQL `feedback` with tenant isolation and surviving browser reloads.
-3. **SimHash Template Architecture**: Users inspect clustered structural templates at `/runs/[id]/templates`, drilling into template detail views showing real affected member URLs and associated systemic findings.
-4. **20-Dimension Blueprint Inspector**: Users drill down into crawled URLs at `/runs/[id]/blueprints` and `/runs/[id]/blueprints/detail`, inspecting the engine's 20 diagnostic dimensions (Query Fit, Entity Coverage, Structured Data Schema, Internal Links, AEO/GEO readiness) or viewing rendered raw Markdown.
-5. **Search Performance & GSC Intelligence**: Users analyze striking-distance opportunities (positions 11–20), multi-page cannibalization risks, query topic clusters, and position bracket trend distributions at `/runs/[id]/gsc`, with explicit empty states when Search Console data is unconnected.
-
-### Use Case 6: Artifact Downloads, Snapshot Diff & Work Order Verification (Stage 8)
-1. **Downloads Center**: Users visit `/runs/[id]/downloads` to view the comprehensive deliverables inventory fetched via `GET /runs/{id}/artifacts`. Every artifact (DOCX, CSV, HTML, JSON) displays filename, icon/type, formatted file size, and an individual download action.
-2. **Direct Presigned S3 Downloads**: Individual downloads retrieve signed object-storage URLs via `GET /artifacts/{id}/download`. Files are streamed directly from S3/MinIO without proxying large payloads through the API or frontend, guaranteeing byte-for-byte SHA-256 integrity.
-3. **One-Click Bundle ZIP**: Users click "Download all (.zip)" which calls `GET /runs/{id}/export.zip` to retrieve a signed URL for the complete run deliverables archive.
-4. **Snapshot Diff Comparison**: Users navigate to `/runs/[id]/diff` to compare the current run against any prior baseline run for the same site (`GET /runs/{id}/diff?compare_run_id=...`). The real engine (`SnapshotDiffer`) classifies every evaluated URL into:
-   - **Fixed**: Defect resolved (e.g. HTTP status 500/404 restored to 200, title tag restored, or inadvertent noindex removed).
-   - **Regressed**: Regression introduced (e.g. healthy 200 page degraded to 4xx/5xx or set to noindex).
-   - **New**: Newly crawled page detected with technical errors (`NEW_ISSUE`).
-   - **Improved**: Title tag enhanced, schema added, or content hash updated favorably.
-   - **Still Failing**: Ongoing technical issues that persist across both snapshots.
-   - **Unchanged**: URL identical across both snapshots.
-5. **Template-Based Diff Grouping**: Differences are clustered and displayed under their respective structural templates (e.g. `tpl_brand_bikes_2seg`), allowing engineering teams to see systemic fixes across an entire layout component.
-6. **Engineering vs Content Work Orders**: Users access `/runs/[id]/work-orders` with dedicated segmentation for Engineering tickets (structural templates, server status, metadata tags) versus Content tickets (missing sections, Q&A blocks, keyword gaps).
-7. **Multi-Platform Ticket Exports**: Users export any work order via `POST /work-orders/{id}/export?platform=...` to generate real downloadable JSON payloads for **GitHub Issues**, **Jira Tasks**, **Linear Issues**, or formatted **Markdown**, complete with a copy-to-clipboard modal.
-8. **Automated Spec Verification**: Users click "Run verification now" or invoke `POST /work-orders/{id}/verify`. `VerificationRunner` performs live HTTP fetching and sandboxed DOM evaluation of the ticket's verification spec (e.g. `status_code == 200`, `canonical_matches_url == True`, `has_selector(...)`), distinguishing **PASS**, **FAIL**, and **ERROR** / inconclusive outcomes while persisting an immutable audit record to PostgreSQL `verifications`.
+### Pass 6: Deliverables & Reports (`P6_REPORTS`)
+- **Input**: All persisted run data and statistics.
+- **Processing**: Compiles 28-section Master Word audit report (`SEOJEV_V3_AUDIT_REPORT.docx`), Executive Summary (`SEOJEV_EXECUTIVE_SUMMARY.docx`), 25+ CSV dataset suite (`csv/`), and standalone offline HTML Explorer (`explorer.html`).
+- **Storage**: Export files in configured `--output` directory; updates run status to `completed`.
+- **Memory**: Ephemeral report compilation allocations; completes within memory budget.
 
 ---
 
-## 6. End-to-End Request Lifecycle & Data Flow
+## Laya-MLX Decision Engine
 
-Here is the exact data path for crawl audits, artifact downloads, diff comparisons, and work order operations:
+**Laya-MLX is the exclusive decision maker in SEOJEV.** There are no fallback models, mock classifiers, API endpoints, or missing-head defaults.
 
-```
-[Client / UI]
-      │
-      │ 1. POST /runs { site_id, max_pages: 50, concurrency: 2 }
-      ▼
-[FastAPI: api/routers/runs.py]
-      │ 2. ScopedQuery: Validate site ownership for user's org_id
-      │ 3. INSERT INTO runs (status='queued')
-      │ 4. RunQueue.enqueue_run()
-      ▼
-[Redis: seojev:queue:runs]
-      │
-      │ 5. blpop (Async Worker Dequeue)
-      ▼
-[Worker: jobs/worker.py]
-      │ 6. UPDATE runs (status='running', current_pass='P1_CRAWL')
-      │ 7. Execute SEOJEVPipeline
-      ▼
-[Engine Pipeline: engine/pipeline.py]
-      ├── Pass 1: Async Crawler → Writes Pages to SQLite WAL (`data/{id}.db`)
-      │           └── SnapshotRecorder → Captures URL state snapshots (title, canonical, status, schema)
-      ├── Pass 2: Link Graph & SimHash → Analyzes NetworkX graph & templates
-      ├── Pass 3: OpportunityEngine V3 → Groups 11 detector findings into opportunities
-      ├── Pass 4: Laya Adapter → Computes calibrated confidence via local MLX
-      ├── Pass 5: WorkOrderManager → Emits tickets (GitHub, Jira, Linear)
-      └── Pass 6: Deliverables → Compiles Word reports, CSVs, and explorer.html
-      │
-      │ 8. run_etl()
-      ▼
-[PostgreSQL: database/etl.py]
-      │ 9. Upsert runs, sites, templates, findings, opportunities, work_orders, snapshots
-      ▼
-[Object Storage: services/object_store.py]
-      │ 10. Upload reports, CSVs, HTML explorer, and export.zip to S3 / MinIO
-      │ 11. INSERT INTO artifacts (id, s3_key, checksum_sha256, size_bytes)
-      ▼
-[Stage 8 Operations]
-      ├── Downloads Center:
-      │   ├── GET /runs/{id}/artifacts → Lists artifacts inventory
-      │   ├── GET /artifacts/{id}/download → Signed direct S3 URL (SHA-256 verified)
-      │   └── GET /runs/{id}/export.zip → Signed bundle ZIP archive download
-      ├── Snapshot Diff Viewer:
-      │   └── GET /runs/{id}/diff?compare_run_id={base_id} → Runs SnapshotDiffer, returns
-      │       Fixed/Regressed/New/Improved grouped by structural template
-      └── Work Orders & Tickets:
-          ├── GET /runs/{id}/work-orders?order_type=engineering|content → Scoped ticket list
-          ├── POST /work-orders/{id}/export?platform=github|jira|linear → Generates downloadable export payload
-          └── POST /work-orders/{id}/verify → VerificationRunner live fetch & spec eval (PASS/FAIL/ERROR)
-```
+### Model Specification
+- **HuggingFace Checkpoint**: [`aac6fef/laya-mlx`](https://huggingface.co/aac6fef/laya-mlx)
+- **Pinned Revision**: `@20aed815fc6acde75733882e7ec0e3f28aeb9717`
+- **Architecture**: 4-bit quantized transformer on Apple Silicon Metal framework (`mlx`).
+- **Inference Mode**: Scalar prediction (evaluates one candidate across 10 heads per call). Submission batching provides bounded dispatch and memory checkpoints, not vectorized multi-candidate tensor batches.
+
+### Multi-Task Output Heads
+Every candidate is evaluated across ten structured heads:
+
+1. **`verdict`**: `real_issue` vs `noise`
+2. **`category`**: `technical`, `content`, `architecture`, `internal_linking`, `schema`, etc.
+3. **`severity`**: `critical`, `high`, `medium`, `low`
+4. **`action`**: `fix`, `optimize`, `investigate`, `monitor`, `ignore`
+5. **`scope`**: `page`, `template`, `site`
+6. **`root_cause`**: Specific architectural diagnosis
+7. **`canonical_indexability`**: Indexability status and canonical relationship assessment
+8. **`content_assessment`**: Thin content, title/H1 alignment, and duplicate assessment
+9. **`cannibalization`**: Keyword and query conflict assessment
+10. **`internal_linking`**: Link equity and orphan risk evaluation
+
+### Confidence & Gating Policy
+Confidence is calculated strictly from **selected option probabilities**, not entropy confidence (see [`docs/LAYA_CONFIDENCE.md`](docs/LAYA_CONFIDENCE.md)):
+
+$$\text{confidence} = \min\left(P_{\text{verdict}}(\text{choice}), P_{\text{action}}(\text{choice})\right)$$
+
+- **`AUTO_ACCEPT`**: $\text{confidence} \ge 0.90$ and $\text{action} \ne \text{'ignore'}$.
+- **`HUMAN_REVIEW`**: $P_{\text{verdict}} \ge 0.60$ and $P_{\text{action}} \ge 0.50$.
+- **`SUPPRESS`**: Below threshold, $\text{verdict} = \text{'noise'}$, or $\text{action} = \text{'ignore'}$.
+
+### Process Isolation & Host Safety
+- **Native Host Execution Only**: MLX requires direct access to Apple Silicon GPU hardware via macOS Metal. It **cannot run inside Docker containers** on macOS.
+- **Process-Wide Owner Lock**: An exclusive non-blocking file lock (`seojev-laya-mlx.lock`) ensures that exactly **one** process on the host can load the MLX model at any time.
+- **CPU Worker Rejection**: Background CPU pool workers are forbidden from importing MLX. If a subprocess attempts to import `laya.backends.mlx`, it raises an immediate `RuntimeError`.
+- **Allocator Memory Reclaim**: After loading weights and after every prediction step, the engine executes `mx.set_cache_limit(0)` and `mx.clear_cache()` to return unused Metal allocator buffers to the OS.
 
 ---
 
-## 7. Repository Structure
+## Memory Safety & Guard Architecture
 
-```
-seojev/
-├── analysis/               # Technical signal extractors & analyzers
-│   ├── duplicate_detector.py # Near-duplicate content detection
-│   ├── extractors.py       # Metadata, headings, OpenGraph, schemas extractors
-│   ├── link_graph.py       # NetworkX link graph, PageRank, orphan page analysis
-│   ├── performance.py      # Core Web Vitals (TTFB, FCP, LCP, CLS, INP)
-│   ├── template_analyzer.py# SimHash 64-bit structural template clustering
-│   └── verticals.py        # Vertical entity extraction (Auto, Ecom, SaaS, etc.)
-├── api/                    # FastAPI REST API platform service
-│   ├── routers/            # Scoped route handlers
-│   │   ├── auth.py         # /auth/register, /auth/login, /auth/api-keys
-│   │   ├── sites.py        # /sites CRUD (multi-tenant org-scoped)
-│   │   ├── runs.py         # /runs trigger, status, SSE progress, cancel, resume
-│   │   ├── artifacts.py    # /artifacts/{id}/download (direct presigned URLs)
-│   │   ├── opportunities.py# /runs/{id}/opportunities & /opportunities/{id}/feedback
-│   │   ├── templates.py    # /runs/{id}/templates clustered templates & details
-│   │   ├── blueprints.py   # /runs/{id}/blueprints & 20-dimension blueprint generator
-│   │   ├── gsc.py          # /runs/{id}/gsc query intelligence, striking distance, cannibalization
-│   │   ├── work_orders.py  # /runs/{id}/work-orders, /work-orders/{id}/export, /work-orders/{id}/verify
-│   │   └── diff.py         # /runs/{id}/diff snapshot comparisons & /runs/{id}/compare-targets
-│   ├── auth.py             # JWT bearer & API-key authentication dependencies
-│   ├── config.py           # Platform settings (PostgreSQL, Redis, S3/MinIO, JWT)
-│   ├── main.py             # FastAPI entrypoint with lifespan background worker
-│   └── schemas.py          # Pydantic request & response models
-├── crawler/                # Asynchronous crawling engine
-│   ├── content_store.py    # Content-addressed compressed HTML storage
-│   ├── crawler.py          # Main async crawler engine with frontier management
-│   ├── fetcher.py          # HTTP client connection pooling & retry handling
-│   ├── render.py           # Playwright headless browser selective rendering
-│   ├── robots.py           # Robots.txt parser and rule matcher
-│   ├── scheduler.py        # Priority heap scheduler with politeness rate-limiting
-│   ├── sitemap.py          # Recursive XML sitemap index parser
-│   ├── soft404.py          # Site fingerprinting soft-404 detector
-│   ├── storage.py          # Local SQLite WAL scratchpad storage
-│   └── traps.py            # Calendar & repeating directory crawl trap quarantine
-├── database/               # PostgreSQL persistence & ETL layer
-│   ├── connection.py       # psycopg 3 connection factory
-│   ├── etl.py              # Idempotent SQLite → PostgreSQL ETL loader
-│   ├── migrations/         # Versioned SQL migration scripts
-│   │   ├── 001_phase2_postgres.sql # Base schema (orgs, sites, runs, opps, etc.)
-│   │   ├── 002_artifacts.sql       # Artifacts ledger and S3 key indexing
-│   │   └── 003_stage8_work_orders.sql # Work orders acceptance criteria & verifications table
-│   ├── migrator.py         # Automated database migration runner
-│   └── scoped_query.py     # Tenant-isolation query wrapper (`WHERE org_id = ...`)
-├── docs/                   # Platform documentation & baseline records
-│   ├── PHASE2_BASELINE.md  # Golden baseline metrics (48 findings, 6 templates)
-│   └── PHASE2_ASSUMPTIONS.md # Comprehensive architectural decisions log
-├── engine/                 # V3 Operating System orchestration
-│   ├── claims_linter.py    # Quality gate validation for recommendations
-│   ├── laya_adapter.py     # Apple Silicon MLX inference & fallback classifier
-│   ├── opportunity_engine_v3.py # Opportunity synthesis, ICE scoring, provenance
-│   ├── pipeline.py         # Unified 6-Pass pipeline callable as library or CLI
-│   └── work_orders.py      # Engineering and content work order generator
-├── intelligence/           # Search and AEO evaluators
-│   ├── aeo_evaluator.py    # Answer Engine Optimization (Perplexity/ChatGPT) scoring
-│   ├── geo_evaluator.py    # Generative Engine Optimization audit
-│   ├── gsc.py              # Google Search Console query performance integrator
-│   └── serp.py             # Search engine results page competitor intelligence
-├── jobs/                   # Background job queue & worker processes
-│   ├── queue.py            # Redis FIFO queue, cancellation, and pub/sub client
-│   └── worker.py           # Background worker executing pipeline tasks and ETL
-├── lab/                    # Synthetic defect lab for detector benchmarking
-│   ├── server.py           # Multi-threaded synthetic HTTP test site server
-│   └── site_generator.py   # Synthetic site generator with 16 planted defect classes
-├── reports/                # Report generation engines
-│   ├── csv_generator.py    # 26+ CSV audit inventory compiler
-│   ├── docx_generator.py   # 28-section Master Word audit report compiler
-│   └── html_explorer.py    # Single-file offline interactive HTML audit explorer
-├── verification/           # Real snapshot diff & automated verification engine
-│   ├── snapshot.py         # SnapshotRecorder taking full URL state snapshots
-│   ├── differ.py           # SnapshotDiffer comparing runs and classifying changes
-│   └── runner.py           # VerificationRunner executing live specs (PASS/FAIL/ERROR)
-├── frontend/               # Next.js 14 App Router Web Client (TypeScript + Tailwind)
-│   ├── src/app/            # App Router pages & navigation
-│   │   ├── login/          # /login authenticated sign-in
-│   │   ├── register/       # /register agency & user account registration
-│   │   ├── sites/          # /sites multi-tenant target site directory & modal
-│   │   ├── runs/           # /runs history & /runs/new audit run configuration
-│   │   └── runs/[id]/      # /runs/[id] run detail & real-data exploration suite
-│   │       ├── opportunities/ # Root-cause diagnostic chain & ICE factors
-│   │       ├── templates/     # Clustered templates & affected member URLs
-│   │       ├── blueprints/    # 20-dimension blueprint inspector & raw markdown
-│   │       ├── gsc/           # Striking distance, cannibalization, & search trends
-│   │       ├── downloads/     # Downloads Center with signed individual URLs & export.zip
-│   │       ├── diff/          # Snapshot Diff Viewer with Fixed/Regressed/New/Improved by template
-│   │       └── work-orders/   # Engineering & Content work orders, verifications, & exports
-│   ├── src/components/     # UI components (RunNavTabs, ProtectedRoute, etc.)
-│   ├── src/context/        # AuthContext session management
-│   └── src/lib/api.ts      # Authenticated API client & SSE subscriber
-├── services/               # Platform services
-│   └── object_store.py     # S3 / MinIO client, presigned URLs, zip bundler
-├── tests/                  # Automated test suites
-│   ├── test_pipeline.py    # Stage 1: Pipeline library mode, progress, cancellation
-│   ├── test_postgres_etl.py# Stage 2: PostgreSQL schema, ETL, idempotency, isolation
-│   ├── test_api_stage3.py  # Stage 3: FastAPI auth, sites CRUD, synchronous runs
-│   ├── test_stage4_queue.py# Stage 4: Redis queue, SSE stream, cancel, resume, retry
-│   ├── test_stage5_artifacts.py # Stage 5: S3 upload, presigned URLs, expiry, zip bundle
-│   ├── test_stage6_frontend.py  # Stage 6: Next.js Frontend E2E Playwright tests
-│   ├── test_stage7_exploration.py # Stage 7: Real-data exploration Playwright tests
-│   └── test_stage8_downloads_diff_workorders.py # Stage 8: Downloads, snapshot diff, work order verifications & exports
-├── main.py                 # CLI entrypoint supporting all audit & analysis flags
-└── requirements.txt        # Python package dependencies
-```
+Running deep technical audits alongside local MLX inference on a 16 GB Apple Silicon Mac requires strict memory discipline. Uncontrolled memory growth causes macOS memory pressure to escalate, triggering system-wide swapping and degrading performance.
+
+### MemoryGuard Contract (`engine/memory_guard.py`)
+`MemoryGuard` continuously monitors the process tree and system state:
+
+- **Process-Tree RSS**: Recursively sums RSS memory of the main process and all child workers.
+- **Available System Memory**: Enforces a minimum reserve (`min_available_mb`, default 1,536 MiB).
+- **System Memory Pressure**: Queries `psutil.virtual_memory().percent`.
+- **Swap Occupancy**: Tracks `psutil.swap_memory().used`.
+- **OS Pageouts**: Distinguishes cumulative system-wide `sout` from active `swap.used` growth.
+
+### Abort & Backpressure Policy
+1. **Immediate Zero-Swap-Growth Abort**:
+   $$\text{state}[\text{swap\_used}] > \text{initial}[\text{swap\_used}] \implies \text{Raise } \texttt{MemoryBudgetExceeded}$$
+   If system swap occupancy increases by even 1 byte during work, the run aborts immediately. No retries are permitted.
+2. **Batch Shrinking & GC**:
+   If process RSS exceeds `memory_budget_mb` (default 4,096 MiB) or available memory drops below reserve, the guard shrinks the submission batch by half (`batch_size = max(1, batch_size // 2)`) and forces garbage collection (`gc.collect()`).
+3. **Single Pause Boundary**:
+   If memory pressure persists after shrinking, the guard pauses execution once (`pause_seconds: 2.0s`).
+4. **Clean Abort**:
+   If pressure remains above threshold after the single pause, the run terminates cleanly with a human-readable diagnostic.
+
+### Measured Safe Batch Size
+Through sequential subprocess autotuning (`docs/acceptance/autotune.json`), submission batch sizes 8, 16, 32, and 64 were tested against identical probe candidates:
+
+$$\text{Largest Measured Safe Batch} = \mathbf{64}$$
+
+All tested batch sizes operated with **zero swap occupancy growth** and peak RSS stabilized at ~943–945 MiB.
 
 ---
 
-## 8. Implementation Status
+## Configuration
 
-| Capability / Feature | Status | Details |
-| :--- | :---: | :--- |
-| **6-Pass Core Engine** | **Implemented** | All 6 passes callable as library or CLI with progress callbacks and cancellation checks. |
-| **11 Root-Cause Detectors** | **Implemented** | Canonical, hreflang, link graph, soft 404, CWV, duplicate, schema, index funnel, mobile, traps. |
-| **Template Clustering** | **Implemented** | 64-bit SimHash DOM token clustering grouping URLs into structural templates. |
-| **Numeric Evidence Provenance** | **Implemented** | Every opportunity links directly to page/node metrics, link graph PageRank, and test evidence. |
-| **Laya MLX Decisions** | **Implemented** | Strict local `aac6fef/laya-mlx` inference on Apple Silicon; model or head failure aborts the pass. |
-| **Work Orders & Ticket Exporters**| **Implemented** | Formatted JSON/CSV ticket exports for GitHub Issues, Jira, and Linear. |
-| **Deliverables Suite** | **Implemented** | 28-section Master Word report, Executive Word report, 26 CSVs, standalone HTML explorer. |
-| **PostgreSQL Multi-Tenant Schema**| **Implemented** | 17 normalized tables with mandatory `org_id` keys, migrations runner, and ScopedQuery helper. |
-| **Idempotent ETL Pipeline** | **Implemented** | Normalizes SQLite runs into Postgres with deterministic primary keys and zero row duplication. |
-| **FastAPI REST API** | **Implemented** | JWT auth, API key hashing, org-scoped Sites and Runs CRUD (returns 404 on cross-org reads). |
-| **Redis Asynchronous Job Queue** | **Implemented** | FIFO run queue, cooperative cancellation flags, retry-once with backoff, needs_attention status. |
-| **Server-Sent Events (SSE)** | **Implemented** | Real-time progress broadcasting via Redis pub/sub channel `run:{id}:progress`. |
-| **Frontier Resumption** | **Implemented** | Clean resumption of cancelled crawls from SQLite queued URLs without recrawling or data loss. |
-| **Object Storage (S3 / MinIO)** | **Implemented** | Deliverables uploaded to `{org}/{site}/{run}/...`, direct presigned download URLs, `export.zip`. |
-| **Web Frontend (Next.js)** | **Implemented** | Next.js 14 App Router (TypeScript + Tailwind), JWT session auth, Sites CRUD, New Run Wizard, Live SSE telemetry, direct artifact downloads. |
-| **Real-Data Exploration Suite** | **Implemented** | Stage 7 exploration screens: Opportunities with 6-stage diagnostic chains & ICE factors, Human-in-the-loop verdict persistence, SimHash Templates explorer with member URLs & findings, 20-Dimension Page Optimization Blueprint inspector, and Search Console intelligence with striking-distance targets, cannibalization detection, query clusters, and trend charts. |
-| **Downloads Center & Signed S3 URLs** | **Implemented** | Stage 8 real deliverables inventory (`GET /runs/{id}/artifacts`), individual downloads using direct signed S3/MinIO URLs (SHA-256 byte integrity verified), and one-click bundle ZIP (`GET /runs/{id}/export.zip`). Never proxies large files through the API. |
-| **Snapshot Diff Viewer** | **Implemented** | Stage 8 real engine comparison (`SnapshotDiffer`) classifying before/after changes into Fixed, Regressed, New (`NEW_ISSUE`), Improved, Still Failing, and Unchanged. Grouped by structural template with status code, title, and robots changes. |
-| **Engineering & Content Work Orders** | **Implemented** | Stage 8 separate segmented views for Engineering vs Content work orders with real problem statements, required changes, acceptance criteria, verify specs, and evidence refs. |
-| **Multi-Platform Ticket Exports** | **Implemented** | Stage 8 real downloadable JSON export payloads (`POST /work-orders/{id}/export`) for GitHub Issues, Jira Tasks, Linear Issues, and Markdown with modal copy-to-clipboard. |
-| **Work-Order Automated Verification** | **Implemented** | Stage 8 live HTTP/DOM evaluation (`POST /work-orders/{id}/verify`) using `VerificationRunner`, distinguishing PASS, FAIL, and ERROR/inconclusive with audit records logged to PostgreSQL `verifications`. |
-| **GSC / Live SERP Live Fetching** | *Partial* | Ingests real GSC CSV performance data, calculates striking distance/cannibalization/clusters/trends, generates synthetic datasets; live Google OAuth token sync planned. |
+Configuration is managed via [`config.yaml`](config.yaml) and profile resolution in [`engine/profiles.py`](engine/profiles.py).
 
----
+### Profiles
 
-## 9. Setup & Development Guide
+| Setting | `dev` (Default) | `val` | `prod` (Explicit) |
+| :--- | :---: | :---: | :---: |
+| **`max_urls`** | 500 (Hard Cap) | 1,000 (Hard Cap) | 5,000,000 |
+| **`max_workers`** | 2 (Hard Cap) | 2 (Hard Cap) | 8 |
+| **`batch_size`** | 8 | 16 | 32 |
+| **`queue_size`** | 16 | 16 | 64 |
+| **`memory_budget_mb`** | 4,096 MiB | 4,096 MiB | 32,768 MiB |
+| **`min_available_mb`** | 1,536 MiB | 1,536 MiB | 4,096 MiB |
+| **`throttle_seconds`** | 0.05s | 0.05s | 0.0s |
+| **`pause_seconds`** | 2.0s | 2.0s | 2.0s |
+| **`seed`** | 42 | 42 | Unset |
+| **Sampling Mode** | Stratified DB Sample | Stratified DB Sample | Full Ingest |
 
-### Prerequisites
-* **Python 3.12+**
-* **Node.js 18+ & npm** (for Next.js frontend)
-* **PostgreSQL 14+** running locally or in Docker
-* **Redis 6+** running locally (`brew services start redis` or Docker)
-* **MinIO / AWS S3** running locally (`brew services start minio` or Docker)
-* **Playwright Browsers** (for client-side JavaScript rendering & browser tests)
+> [!IMPORTANT]
+> **DEV is the Default**: If no profile is specified, the system runs under `dev` limits (max 500 URLs, max 2 CPU workers). The `prod` profile must be explicitly requested (`--profile prod`), but full-site runs remain blocked until cloud reducers are implemented.
 
-### Environment Variables
-Configure `.env` or export in your shell:
+### Environment Variable Overrides
+All profile settings can be overridden in your shell:
 
 ```bash
-# Database
-DATABASE_URL=postgresql:///seojev_test
-
-# Redis Queue
-REDIS_URL=redis://localhost:6379/0
-
-# Object Storage (MinIO local defaults)
-S3_ENDPOINT_URL=http://127.0.0.1:9000
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
-S3_BUCKET=seojev-artifacts
-S3_REGION=us-east-1
-
-# Security
-JWT_SECRET=your_super_secret_jwt_key_here
-JWT_EXPIRE_MINUTES=1440
+export SEOJEV_MEMORY_BUDGET_MB=4096
+export SEOJEV_MAX_WORKERS=2
+export SEOJEV_BATCH_SIZE=16
+export SEOJEV_QUEUE_SIZE=16
+export SEOJEV_THROTTLE_SECONDS=0.05
+export SEOJEV_PAUSE_SECONDS=2.0
+export SEOJEV_MIN_AVAILABLE_MB=1536
+export SEOJEV_MAX_URLS=500
+export SEOJEV_SEED=42
+export SEOJEV_DB_PATH="data/seo.db"
+export SEOJEV_STORE_DIR="store"
+export SEOJEV_STORAGE_BACKEND="sqlite"
 ```
 
-### Installation
+---
+
+## Template-Level Processing & Deduplication
+
+A central innovation in SEOJEV is **class-level decision deduplication with explicit member fan-out**:
+
+### 1. Structural Template Families (`engine/template_families.py`)
+URLs are grouped into structural families based on route patterns and page types rather than surface-level query variations. For example, vehicle detail pages, city-price pages, brand hubs, and blog articles are partitioned into separate template families.
+
+### 2. Candidate Normalization (`laya/prompt.py`)
+Candidate payloads are normalized into a deterministic JSON representation with standardized rounding and sorted URL samples.
+
+### 3. Class Identity & Exact Hashing
+A decision class is defined by exact feature identity:
+
+$$\text{class\_id} = \text{SHA-256}(\text{normalized\_prompt} + \text{checkpoint\_id})$$
+
+$$\text{contract\_key} = \text{class\_id} + \text{confidence\_policy}$$
+
+- If an identical candidate prompt was already evaluated under the same checkpoint and confidence policy, Laya retrieves the decision from `SQLiteStageStore` with **zero GPU inference calls**.
+- **No Artificial Deduplication**: Outliers, unique page evidence, and distinct issue types retain their own distinct candidate keys. Dynamic evidence is never erased merely to inflate deduplication ratios.
+
+### 4. Explicit Fan-Out & Class Work Orders
+- Once a class decision is made, it is fanned out across all member opportunities in `candidate_membership`.
+- Pass 5 creates work orders at the **class level** (`class_opportunities`), ensuring engineers receive one consolidated ticket for a systemic template issue rather than hundreds of identical tickets, while preserving all affected sample URLs and member counts.
+
+---
+
+## Database & Storage Layer
+
+All local execution uses high-performance SQLite in WAL (Write-Ahead Logging) mode:
+
+```
+data/
+├── seo.db                   # Primary crawl database
+└── val-sample-*.db          # Isolated per-run sample databases
+store/
+└── {hash[:2]}/{hash[2:4]}/{hash} # Content-addressed zlib-compressed HTML payloads
+```
+
+### Key Database Tables
+
+| Table | Purpose |
+| :--- | :--- |
+| **`pages`** | Crawled URL metadata, status codes, word counts, content hashes, canonical status, indexability. |
+| **`links`** | Internal link graph edges (`source_url` → `target_url`, anchor text, follow status). |
+| **`issues`** | Raw per-page deterministic detector findings. |
+| **`issue_clusters`** | Aggregated systemic issue clusters across templates. |
+| **`templates`** | SimHash clustered layout templates and token fingerprints. |
+| **`opportunities`** | Synthesized multi-factor opportunities with ICE scores and Laya decision columns. |
+| **`candidate_membership`** | Explicit mapping between `opportunity_id` and Laya `candidate_id`. |
+| **`laya_decisions`** | Persisted Laya MLX outputs, head confidences, choices, and gates. |
+| **`chunk_records`** | Key-value store powering `SQLiteStageStore` for stage checkpoints and decision caching. |
+| **`work_orders`** | Validated engineering and content tickets with acceptance criteria and verify specs. |
+| **`work_order_membership`**| Mapping between work order classes and individual opportunity IDs. |
+| **`verifications`** | Immutable audit records of baseline spec verification results (`PASSED` vs `FAILED`). |
+| **`snapshots`** | URL state snapshots for before/after regression diffing. |
+
+---
+
+## Work Orders & Lifecycle Validation
+
+Work orders in SEOJEV bridge SEO discoveries with software engineering and content workflows.
+
+### Canonical Schema Contract (`engine/work_orders.py`)
+Every work order must satisfy the canonical schema verified by `WorkOrderManager.validate_work_order`:
+
+- **`work_order_id`**: Deterministic unique identifier (`WO-ENG-...` or `WO-CNT-...`).
+- **`display_id`**: Human-readable short ID.
+- **`order_type`**: Strictly `'engineering'` (templates, headers, robots, schema) or `'content'` (copy, sections, keywords).
+- **`priority`**: Strictly `'P0'`, `'P1'`, `'P2'`, or `'P3'`.
+- **`required_change`**: Non-empty, unambiguous engineering or content specification.
+- **`acceptance_criteria`**: Non-empty, testable acceptance rules.
+- **`verify_spec`**: Executable verification DSL (e.g. `status_code == 200`, `canonical_matches_url == True`).
+- **`evidence_json`**: Valid JSON object containing sample URLs, affected counts, and metrics.
+
+### Run-Level Lifecycle Audit (`audit_run_work_orders`)
+The engine provides an automated audit method that inspects all generated work orders for a run:
+
+```python
+from engine.work_orders import WorkOrderManager
+wo_mgr = WorkOrderManager("data/seo.db")
+audit = wo_mgr.audit_run_work_orders(run_id="crawl_20260928_152046")
+print(audit["valid_count"], audit["failed_count"], audit["by_type"])
+```
+
+### Baseline Verification vs Deployment
+The `verifications` table records baseline checks run **before** remediation:
+- A verification outcome of **`FAILED`** proves that the defect is confirmed present on the crawled page.
+- A verification outcome of **`PASSED`** indicates that the page already satisfies the test criteria.
+- Baseline verification tests stored evidence; it does not claim that changes have been deployed to production.
+
+---
+
+## CLI & How to Run
+
+### 1. Environment Setup
+Native Apple Silicon macOS (Darwin `arm64`) is required:
 
 ```bash
-# 1. Clone the repository
+# Clone repository
 git clone git@github.com:07anishu12/SEO-Agent-using-LAYA.git
-cd seojev
+cd SEO-Agent-using-LAYA
+git checkout fix/laya-pipeline
 
-# 2. Set up virtual environment
+# Set up virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 3. Install Python dependencies
+# Install pinned dependencies
 pip install -r requirements.txt
-pip install boto3 moto
 playwright install chromium
+```
 
-# 4. Install Frontend dependencies & build
-cd frontend
-npm install
-npm run build
-cd ..
+### 2. Preflight Diagnostics
+Verify MLX model accessibility and environment integrity:
 
-# 5. Initialize PostgreSQL database and apply migrations
-createdb seojev_test
-python -c "from database.migrator import PostgresMigrator; PostgresMigrator().run_migrations()"
+```bash
+# Check database tables and Laya schema
+.venv/bin/python scripts/diagnose_laya.py --db data/seo.db
 
-# 6. Start supporting services (macOS / Homebrew example)
-brew services start redis
-brew services start minio
+# Run real MLX inference probe across existing opportunities
+.venv/bin/python scripts/laya_probe.py --db data/seo.db --count 200
+```
+
+### 3. Run Development Pipeline (<=500 URLs)
+Run offline preparation and guarded Laya evaluation:
+
+```bash
+# Step A: Deterministic stratified preparation (CPU only, 500 URLs)
+.venv/bin/python scripts/run_dev_pipeline.py \
+  --db data/seo.db \
+  --crawl-id crawl_20260928_152046 \
+  --store store \
+  --output reports/laya-dev-500
+
+# Step B: Guarded MLX evaluation & equivalence verification
+.venv/bin/python scripts/evaluate_laya_dev.py \
+  --autotune-report docs/acceptance/autotune.json \
+  --prepared reports/laya-dev-500/prepared.json \
+  --output reports/laya-dev-eval
+```
+
+### 4. Run Controlled 1,000-URL Validation (Drivio.in)
+Executes the complete 6-stage pipeline across 1,000 stratified URLs with zero swap growth verification:
+
+```bash
+.venv/bin/python scripts/validate_1000_urls.py --db data/seo.db
+```
+
+### 5. Running main.py directly
+```bash
+# Analyze existing crawl data in dev profile
+.venv/bin/python main.py https://www.drivio.in/ \
+  --crawl-id crawl_20260928_152046 \
+  --analyze-only \
+  --profile dev \
+  --output reports/my-audit/
+```
+
+### 6. Synthetic Site Generator
+```bash
+# Generate deterministic synthetic site with 9 planted defect classes
+.venv/bin/python scripts/gen_synthetic_site.py \
+  --output reports/synthetic \
+  --pages 480 \
+  --cities 20
 ```
 
 ---
 
-## 10. Running the System
+## Testing & Verification
 
-### 1. One-Line Start (Full Local Stack)
+Tests are structured to run individually where memory isolation and file descriptor limits matter.
 
-Start the entire SEOJEV platform — Docker infra, FastAPI backend, Celery worker, Celery beat scheduler, and Next.js frontend — with a single command:
-
+### File Descriptor Limit
+Test suites automatically raise the soft limit (`RLIMIT_NOFILE`) to 10,240 via [`tests/conftest.py`](tests/conftest.py). If running manually in shell:
 ```bash
-make dev
-# or directly:
-./scripts/dev.sh
+ulimit -n 10240
 ```
 
-This single command will:
-1. Load environment variables from `.env` (automatically copying `.env.example` if `.env` does not exist).
-2. Spin up Postgres, Redis, and MinIO in Docker via `docker compose -f docker-compose.dev.yml up -d postgres redis minio`.
-3. Poll each service until healthy via real TCP/HTTP readiness checks.
-4. Run pending database migrations automatically (`database.migrator`).
-5. Launch the FastAPI backend (with `--reload`), Celery worker, Celery beat scheduler, and Next.js frontend in parallel with color-coded log prefixing (`[backend]`, `[worker]`, `[beat]`, `[frontend]`).
-6. Cleanly trap `Ctrl+C` to terminate all native background processes without leaving orphaned processes behind.
+### Running Test Suites Individually
 
-To stop the Docker infra containers when finished:
 ```bash
-make down
-# or: ./scripts/dev.sh --full-down
+# Work order canonical schema & lifecycle audit
+PYTHONPATH=. .venv/bin/pytest tests/test_work_order_validation.py -v
+
+# Memory safety, guard shrinking, pause, and zero-swap abort
+PYTHONPATH=. .venv/bin/pytest tests/test_memory_safety.py -v
+
+# MLX CPU isolation and OS-level locking
+PYTHONPATH=. .venv/bin/pytest tests/test_mlx_isolation.py -v
+
+# Candidate streaming, prompt hashing, and explicit fan-out
+PYTHONPATH=. .venv/bin/pytest tests/test_streaming_candidates.py -v
+
+# Dev profile resource caps and stratified sampler
+PYTHONPATH=. .venv/bin/pytest tests/test_dev_profile.py -v
+
+# Equivalence accounting and decision comparison
+PYTHONPATH=. .venv/bin/pytest tests/test_equivalence_accounting.py -v
+
+# Synthetic site generator and defect validation
+PYTHONPATH=. .venv/bin/pytest tests/test_synthetic_generator.py -v
+
+# Full pipeline execution and cooperative cancellation
+PYTHONPATH=. .venv/bin/pytest tests/test_pipeline.py -v
 ```
+
+---
+
+## Validation Results
+
+All metrics below represent **measured empirical data** verified against repository artifacts:
+
+| Metric | Result | Dataset / Scope | Status | Source Artifact |
+| :--- | :---: | :---: | :---: | :--- |
+| **Real URLs Processed** | **1,000** | Drivio.in (`crawl_20260928_152046`) | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Structural Template Families** | **266** | 1,000 stratified URLs | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Extracted Candidates** | **2,529** | 1,000 URLs | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Unique Decision Classes** | **2,529** | 1,000 URLs (0% prompt masking) | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Laya-MLX Decisions** | **2,529** | Gate: 1,077 HR, 1,450 SUPPRESS, 2 AUTO | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Validated Opportunities** | **1,079** | 1,450 suppressed, 0 unmatched | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Work Orders Generated** | **1,079** | 851 Content, 228 Engineering | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Failed Work Orders** | **0** | Verified via `audit_run_work_orders` | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Peak Process RSS** | **1,014.48 MiB** | Across all 5 stages (Budget: 4,096 MiB) | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Swap Occupancy Delta** | **0.00 MiB** | Before: 874.56 MiB → After: 874.56 MiB | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Memory Guard Triggers** | **0 (SAFE)** | Zero aborts, zero batch shrinkages | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Safe Submission Batch** | **64** | Autotuned sizes 8, 16, 32, 64 all safe | **MEASURED** | `docs/acceptance/autotune.json` |
+| **Old-vs-New Equivalence** | **100.0%** | 1,207/1,207 choice & gate matches | **MEASURED** | `docs/acceptance/measured_results.json` |
+| **Total Validation Runtime** | **1,829.22 s** | Ingest: 1.5s, Ev: 15.2s, Cand: 12.8s, MLX: 1,779.8s, WO: 19.8s | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Decision Throughput** | **1.42 dec/s** | Laya-MLX scalar inference | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **URL Throughput** | **0.55 URL/s** | End-to-end pipeline | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Restart / Idempotency** | **100.0%** | 50/50 candidate replay cache hits | **MEASURED** | `docs/acceptance/validation_1000_results.json` |
+| **Clean Page Suppression** | **100.0%** | 184/184 clean synthetic pages suppressed | **MEASURED** | `docs/acceptance/measured_results.json` |
+| **Synthetic Defect Recall** | **0.0%** | 296/296 FN (Frozen baseline thresholds) | **MEASURED** | `docs/acceptance/measured_results.json` |
+| **Full Suite Tests** | **65 Passed** | 12 test files run individually | **MEASURED** | `tests/` |
+
+---
+
+## Synthetic Benchmark
+
+To evaluate detector precision and noise handling, SEOJEV includes a deterministic synthetic generator ([`scripts/gen_synthetic_site.py`](scripts/gen_synthetic_site.py)) based on observed Drivio page structures:
+
+- **Dataset**: 480 synthetic HTML pages with a known [`ground_truth.json`](reports/synthetic/ground_truth.json).
+- **Clean Controls**: 184 pristine control pages containing zero defects.
+- **Planted Defect Population**: 296 pages containing one or more of 9 planted defect classes (missing titles, duplicate titles, thin content, bad canonicals, broken schema, orphan pages, wrong city in body, price mismatches, and noindexed money pages).
+- **Scoring**: Page-level evaluation comparing planted defect flags against Laya decisions (`is_real_issue == True` and gate in `AUTO_ACCEPT`, `HUMAN_REVIEW`).
+
+### Current Evaluation Status: 0.0% Recall (Documented Baseline)
+- **True Positives (TP)**: 0
+- **False Positives (FP)**: 0
+- **True Negatives (TN)**: 184 (100% clean suppression rate)
+- **False Negatives (FN)**: 296
+- **Precision**: null (no positive decisions)
+- **Recall**: **0.0%**
+
+### Engineering Root Cause
+The synthetic evaluation prompt asks a generic whole-page question:
+`"Assess whether the observed page has a real SEO problem or is noise"`
+Under the frozen baseline confidence policy (`verdict_min: 0.60`, `action_min: 0.50`, `auto_accept_min: 0.90`), the model conservatively routes these generic synthetic assessments to `SUPPRESS`. Because **threshold tuning against synthetic benchmark data is strictly forbidden by project rules**, this 0.0% recall is reported honestly as a known baseline characteristic, not masked or artificially tuned.
+
+---
+
+## Scaling Architecture (Local vs Cloud)
+
+Summary of the architectural model detailed in [`docs/SCALING.md`](docs/SCALING.md):
+
+### Local Architecture (Implemented & Verified)
+- **Runtime**: Single Apple Silicon Mac host (16 GB unified memory).
+- **Execution**: At most 2 concurrent CPU workers; 1 exclusive MLX model process.
+- **Storage**: SQLite WAL mode with local content-addressed disk store.
+- **Scope**: Up to 1,000 URLs per run.
+
+### Cloud Architecture (Design / Planned Only)
+- **Stage Store Adapter**: Replace `SQLiteStageStore` with PostgreSQL implementing the same range/checkpoint interface.
+- **Blob Storage**: Stream raw HTML and heavy evidence blobs to AWS S3 or MinIO with SHA-256 content hashes as references.
+- **Global Distributed Reducers**: Replace the in-memory/in-process link graph and duplicate analyzers with SQL-based distributed group-by and PageRank reducers before Pass 4.
+- **Remote Laya Inference Service**: Host the **identical** checkpoint (`aac6fef/laya-mlx`) behind a dedicated inference microservice via `submit_batch` (preserving tokenizer, heads, and gating). *Checkpoint conversion and remote serving are currently NOT implemented.*
+- **Containerized Workers**: Non-MLX stages (Ingest, Evidence, Candidates, Fan-out, Work Orders) run in lightweight CPU-only Docker containers (`Dockerfile`).
+
+### Projected CPU Resource Scenarios (PROJECTIONS ONLY)
+Linear projections from measured 500-URL CPU preparation (4.32 s, ~176 MiB peak per worker):
+
+| URLs | Ingest + Evidence + Candidates (PROJECTION) | Synthetic Generation (PROJECTION) | Memory Envelope |
+|---:|---:|---:|---|
+| **50,000** | ~5.66 min | ~3.64 min | ~176 MiB per CPU worker |
+| **500,000** | ~56.60 min | ~36.42 min | ~176 MiB per CPU worker |
+| **5,000,000** | ~566.02 min | ~364.16 min | ~176 MiB per CPU worker |
 
 > [!CAUTION]
-> **CRITICAL ARCHITECTURAL CONSTRAINT — APPLE SILICON MLX & DOCKER**:
-> Laya's on-device MLX inference (`aac6fef/laya-mlx`) requires direct native access to Apple Silicon GPU hardware. Docker Desktop on macOS runs containers inside a Linux virtual machine, so if the FastAPI backend or Celery worker are containerized, Apple Silicon MLX silently fails and cannot access the host GPU.
->
-> **Design Pattern**:
-> - **PostgreSQL, Redis, and MinIO** run in Docker (they do not require MLX).
-> - **FastAPI backend, Celery worker (`jobs.worker`), Celery beat scheduler (`jobs.scheduler`), and Next.js frontend** run **NATIVELY on the host**, keeping Laya MLX operational.
-> - **DO NOT move the backend or worker into Docker containers.**
+> **Projections are Not Measurements**: The table above represents theoretical CPU-only scaling scenarios holding work mix constant. They exclude MLX inference duration, network crawling, remote database roundtrips, and global reducers. There are **no 50k, 500k, or 5M execution measurements** in this repository.
 
 ---
 
-### 2. CLI Audit (Standalone Engine)
-Run a direct crawl and generate reports locally without the API:
+## Repository Structure
 
-```bash
-# Basic run against any website
-python main.py https://example.com/ --max-pages 100 --concurrency 5 --output reports/run_01/
-
-# Full run with Playwright rendering and performance sample
-python main.py https://example.com/ \
-    --max-pages 500 \
-    --concurrency 10 \
-    --render \
-    --performance-sample 50 \
-    --output reports/full_audit/
 ```
-
-### 3. Alternative: Starting Services Manually (Multi-Terminal)
-
-```bash
-# Option A: In-process worker (development)
-ENABLE_WORKER=true uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
-
-# Option B: Dedicated standalone worker (production)
-# Terminal 1: API Server
-uvicorn api.main:app --host 0.0.0.0 --port 8000
-
-# Terminal 2: Background Task Worker
-python -m jobs.worker
-```
-
-### 4. Alternative: Starting Frontend Manually
-
-```bash
-cd frontend
-
-# Development server
-npm run dev
-
-# Production build and server
-npm run build
-npm start
-```
-Visit `http://localhost:3000` to access the interactive dashboard.
-
-### 5. Running the Comprehensive Test Suite
-
-The repository features comprehensive automated test suites covering all architectural layers:
-
-```bash
-# Increase file descriptor limit for concurrent crawler/browser tests on macOS
-ulimit -n 4096
-
-# Run all platform and browser tests (Stages 1 through 10)
-PYTHONPATH=. pytest tests/test_pipeline.py tests/test_postgres_etl.py tests/test_api_stage3.py tests/test_stage4_queue.py tests/test_stage5_artifacts.py tests/test_stage6_frontend.py tests/test_stage7_exploration.py tests/test_stage8_downloads_diff_workorders.py tests/test_stage9_watch_alerts.py tests/test_stage10a_trends.py tests/test_stage10b_laya_backends.py tests/test_stage10c_recurring_audits.py tests/test_stage10d_gsc_anomaly.py tests/test_stage10e_cicd_webhook.py tests/test_stage10f_ticket_sync.py tests/test_stage10g_fts.py tests/test_stage10h_rbac.py tests/test_stage10i_portfolio.py -v
-
-# Run individual stage test suites
-PYTHONPATH=. pytest tests/test_pipeline.py -v         # Stage 1: Pipeline & cancellation
-PYTHONPATH=. pytest tests/test_postgres_etl.py -v     # Stage 2: Postgres ETL & isolation
-PYTHONPATH=. pytest tests/test_api_stage3.py -v       # Stage 3: Auth & Sites API
-PYTHONPATH=. pytest tests/test_stage4_queue.py -v     # Stage 4: Redis Queue & SSE
-PYTHONPATH=. pytest tests/test_stage5_artifacts.py -v # Stage 5: Object Storage & Presigned URLs
-PYTHONPATH=. pytest tests/test_stage6_frontend.py -v  # Stage 6: Next.js Frontend E2E Playwright tests
-PYTHONPATH=. pytest tests/test_stage7_exploration.py -v # Stage 7: Real-data Exploration Playwright tests
-PYTHONPATH=. pytest tests/test_stage8_downloads_diff_workorders.py -v # Stage 8: Downloads, snapshot diff, work order verifications & exports
-PYTHONPATH=. pytest tests/test_stage9_watch_alerts.py -v # Stage 9: Watches, Alerts, and Dispatcher
-PYTHONPATH=. pytest tests/test_stage10a_trends.py -v   # Stage 10a: Historical Trends
-PYTHONPATH=. pytest tests/test_stage10b_laya_backends.py -v # Stage 10b: Cloud-Portable Laya
-PYTHONPATH=. pytest tests/test_stage10c_recurring_audits.py -v # Stage 10c: Scheduled Recurring Audits
-PYTHONPATH=. pytest tests/test_stage10d_gsc_anomaly.py -v # Stage 10d: GSC Anomaly Detection
-PYTHONPATH=. pytest tests/test_stage10e_cicd_webhook.py -v # Stage 10e: CI/CD Webhook
-PYTHONPATH=. pytest tests/test_stage10f_ticket_sync.py -v # Stage 10f: Bi-directional Ticket Sync
-PYTHONPATH=. pytest tests/test_stage10g_fts.py -v     # Stage 10g: Full-Text Search
-PYTHONPATH=. pytest tests/test_stage10h_rbac.py -v    # Stage 10h: Role-Based Permissions
-PYTHONPATH=. pytest tests/test_stage10i_portfolio.py -v # Stage 10i: Multi-Site Portfolio
+SEO-Agent-using-LAYA/
+├── analysis/               # Deterministic signal analyzers (links, templates, duplicates)
+├── api/                    # FastAPI REST platform service (routers, auth, schemas)
+├── crawler/                # Async crawler engine, HTTP fetcher, robots, storage
+├── database/               # PostgreSQL connection, migrations, and ETL loaders
+├── docs/                   # Authoritative architecture logs and acceptance records
+│   ├── acceptance/         # Machine-readable validation reports (1000 URLs, autotune, equivalence)
+│   ├── LAYA_CONFIDENCE.md  # Confidence calculation and head probability documentation
+│   ├── LAYA_PROGRESS.md    # Chronological changelog and empirical validation ledger
+│   └── SCALING.md          # Local memory boundaries and cloud scaling design
+├── engine/                 # Core V3 operating system orchestration
+│   ├── chunks.py           # Range-addressed SQLiteStageStore for checkpoints and caching
+│   ├── dev_sample.py       # Deterministic stratified sampler for dev/val profiles
+│   ├── memory_guard.py     # MemoryGuard, RSS/swap monitoring, autotuning, and abort logic
+│   ├── pipeline.py         # Unified 6-Pass pipeline (library mode and CLI entrypoint)
+│   ├── profiles.py         # Profile resolution (dev, val, prod) and resource limits
+│   ├── template_families.py# Structural route shape partitioning
+│   └── work_orders.py      # WorkOrderManager, canonical schema contract, and lifecycle audit
+├── extraction/             # Domain provenance and structured entity extractors
+├── frontend/               # Next.js 14 App Router dashboard (TypeScript + Tailwind)
+├── jobs/                   # Background task queues, workers, and scheduled runners
+├── lab/                    # Defect lab and synthetic testing utilities
+├── laya/                   # Primary Laya decision engine
+│   ├── analyzer.py         # LayaSEOAnalyzer singleton, cache, and preflight canary
+│   ├── backends/           # MLX Apple Silicon native backend (mlx.py)
+│   ├── candidates.py       # Candidate feature formatting and key generation
+│   ├── decision.py         # LayaDecision, LayaCandidateInput, and confidence gating
+│   ├── prompt.py           # Deterministic prompt normalization and hashing
+│   └── streaming.py        # Streamed candidate reducer, class deduplication, fan-out
+├── models/                 # Pydantic data schemas and models
+├── performance/            # Core Web Vitals performance sampling and Lighthouse runner
+├── reporting/              # Master Word, CSV suite, and HTML explorer generators
+├── scripts/                # Validation runners, dev scripts, and acceptance diagnostics
+│   ├── evaluate_laya_dev.py# Dev evaluation harness (equivalence, synthetic, dev run)
+│   ├── gen_synthetic_site.py # Deterministic synthetic site generator
+│   ├── run_dev_pipeline.py # 500-URL offline dev preparation script
+│   └── validate_1000_urls.py # Controlled 1,000-URL Drivio validation runner
+├── search/                 # GSC pipeline, SERP analysis, and query intelligence
+├── services/               # Object storage, notifications, and CI/CD webhooks
+├── store/                  # Content-addressed HTML storage (SHA-256 subdirectories)
+├── technical/              # Root cause clustering and JavaScript SEO detectors
+├── tests/                  # Automated pytest test suites (run individually)
+├── understanding/          # Index funnel reconciliation and entity graph engines
+├── verification/           # Snapshot recorder, differ, and baseline verification runner
+├── verticals/              # Industry domain overlays (Automotive, E-commerce, etc.)
+├── config.yaml             # Engine configuration and runtime profiles
+├── main.py                 # Primary CLI entrypoint
+└── requirements.txt        # Pinned Python package dependencies
 ```
 
 ---
 
-## 5. Stage 9 & Stage 10 Power Features
+## Development Invariants & Rules
 
-### Stage 9: Watches, Regression Alerts & Notification Dispatcher
-- **Autonomous Watch Scheduler (`jobs/scheduler.py`)**: Periodically checks active site schedules, scans robots.txt, sitemaps, top pages, and template drift without human intervention.
-- **Alert Persistence (`alerts` table)**: Structured alert records with severity (`info`, `warning`, `critical`), alert types (`NOINDEX_LEAK`, `CANONICAL_CHANGE`, `SITEMAP_DROP`, `5XX_SPIKE`), and affected URL payloads.
-- **Multi-Channel Notification Dispatcher (`services/notifications.py`)**: Event fan-out delivery across Slack webhooks, Email (SMTP/dummy sink), and generic HTTP webhooks.
-- **UI Center (`/sites/[id]/watch`)**: Schedule configuration, real-time alert ledger, and interactive resolution controls.
+When developing or extending SEOJEV, enforce the following non-negotiable rules:
 
-### Stage 10: Power Features Specification
-
-#### 10a: Historical Trend Engine
-- **Table**: `site_trends` (`site_id`, `org_id`, `run_id`, `metric`, `date`, `value`, `metadata_json`).
-- **Engine**: Triggered asynchronously on `run.completed` to record `issue_count` and `opportunity_count` time-series data. Fully idempotent with duplicate run suppression.
-- **API**: `GET /sites/{id}/trends?metric=issue_count&start_date=...&end_date=...`
-- **Frontend**: Interactive SVG historical trend chart with date-axis, empty states, and dynamic toggle metrics.
-
-#### 10b: Cloud-Portable Laya Backends
-- **Abstraction**: `LayaClassifierBackend` contract under `laya/backends/`.
-- **Implementations**:
-  - `mlx.py`: Apple Silicon native acceleration using `laya-mlx`.
-  - Only the native MLX backend is supported. Other backend selections fail at startup.
-- **Configuration**: `LAYA_BACKEND=mlx`; thresholds and error limits live under `laya` in `config.yaml`.
-
-#### 10c: Scheduled Recurring Audits
-- **Architecture**: Extends the Stage 9 Celery/Redis scheduler to execute full 6-pass SEO audits.
-- **Automation**: Enqueues real runs, generates snapshots, computes diffs against previous snapshots, classifies regressions (`noindex`, `canonical_change`, `sitemap_drop`, `5xx_spike`), and dispatches alerts.
-- **Table**: `sites` augmented with `recurring_cron`, `timezone`, `last_run_at`, and `next_run_at`.
-
-#### 10d: GSC Anomaly Detection
-- **Statistical Detector**: Runs automated daily decay detection over impressions and clicks at both page and template levels.
-- **Algorithm**: Standardized z-score decay calculation with variance guards; explicitly handles short-history/insufficient-data scenarios to prevent false alarms.
-- **Output**: Persists alerts to `alerts` table and emits notifications via the unified Stage 9 dispatcher.
-
-#### 10e: CI/CD Deployment Webhook
-- **Endpoint**: `POST /sites/{site_id}/deploy-webhook`
-- **Workflow**: Accepts authenticated deployment events with commit SHA and deploy reference, triggers scoped re-crawls, performs snapshot diffing, and delivers regression outcomes directly to Slack and PR comments.
-- **Security**: Strict organization scoping and Bearer token / API-key verification.
-
-#### 10f: Bi-Directional Ticket Sync
-- **Webhook Integration**: `POST /work-orders/webhook/{platform}` (GitHub, Jira, Linear).
-- **Execution**: When an external issue is closed, loads the linked work order's `verify_spec`, executes automated verification against real HTTP/HTML targets, and updates status strictly to `Verified` (PASS) or `Verification failed` (FAIL). Idempotent event processing prevents redundant re-verifications.
-
-#### 10g: PostgreSQL Full-Text Search
-- **Database**: Generated `tsvector` columns with GIN indexes across findings, blueprints, and GSC queries (`009_stage10g_search.sql`).
-- **API**: `GET /search?q=...&category=...&site_id=...` returning categorized results with ranking (`ts_rank_cd`) and dynamic highlighting (`ts_headline`).
-- **Frontend**: Global search modal in navigation bar and dedicated `/search` page.
-
-#### 10h: Role-Based Access Control (RBAC)
-- **Roles**:
-  - `viewer`: Read-only access to sites, runs, search, artifacts, and trends; denied all mutations (403 Forbidden).
-  - `editor`: Operational capabilities (create runs, configure watches, export/verify tickets); denied administrative user/org management (403 Forbidden).
-  - `admin`: Full administrative control including user provisioning, role promotion, site deletion, and org settings.
-- **Enforcement**: Server-side dependencies (`require_admin`, `require_editor_or_admin`) with cryptographic JWT signature verification.
-- **Frontend**: Dynamic UI action suppression (hides "New Run", renders role badges and "Viewer (Read-Only)" indicator).
-
-#### 10i: Portfolio View & Lower-Priority Feature Status
-- **10i.1 Multi-Site Portfolio View (Completed)**:
-  - `GET /sites/portfolio`: Aggregates total sites, healthy sites, total issues, opportunities, and open alerts across all sites for a tenant.
-  - Per-site health calculation (`healthy`, `warning`, `critical`).
-  - Frontend summary cards and site cards with real status badges and counters.
-- **10i.2 Grounded Content-Draft Assist (Deferred)**:
-  - *Status*: DEFERRED.
-  - *Reason*: Requires full semantic evidence retrieval across blueprints and GSC queries, strict claim-evidence verification, anti-hallucination guardrails, and custom LLM drafting UI. Deferred to maintain system stability and prevent unverified scaffolding.
-  - *What remains*: Prompt grounding pipeline, evidence-to-claim validators, and content draft editor.
-- **10i.3 Competitor Benchmarking (Deferred)**:
-  - *Status*: DEFERRED.
-  - *Reason*: Requires multi-domain external crawl infrastructure, SERP competitive rank tracker integrations, and careful separation of observed crawler facts from derived competitor metrics. Deferred to prevent crawler queue contention and IP blocking.
-  - *What remains*: Cross-domain competitive crawler scheduler, SERP connector, and comparative benchmarking UI.
+1. **Dev Profile Constraint**: Development runs must use `--profile dev` ($\le 500$ URLs). Never trigger unconstrained crawls during development.
+2. **Laya-MLX is Exclusive**: Zero fallback, mock, or secondary API models. All semantic SEO decisions must originate from `aac6fef/laya-mlx`.
+3. **Single MLX Process**: Exactly one process owns the MLX model on the host. Enforce the exclusive lock `seojev-laya-mlx.lock`.
+4. **CPU Workers Must Not Import MLX**: CPU workers perform ingest, evidence extraction, candidate construction, and reporting. They must never import MLX.
+5. **Zero-Swap-Growth Policy**: Any swap occupancy increase aborts the run immediately. Never loosen memory safety or conceal swap growth.
+6. **No Benchmark Threshold Tuning**: Never tune confidence thresholds or prompts against synthetic test datasets to manufacture passing scores.
+7. **Decision Equivalence Requirement**: Any optimization or candidate refactor must maintain 100% choice and gate equivalence against established baselines.
+8. **No Unmeasured Claims**: Never report projections or extrapolated numbers as measured facts.
 
 ---
 
-## 6. High-Throughput Scale Architecture & Empirical Benchmarks
+## Production Readiness Checklist
 
-SEOJEV has been architected and verified to process large-scale web properties (10K, 50K, 100K, 500K+ URLs) with zero memory degradation and sub-second decision latency:
+| Readiness Dimension | Status | Current Repository State |
+| :--- | :---: | :--- |
+| **Operational Validation** | **PASSED** | 1,000 real URLs processed end-to-end on Drivio.in with 100% integrity. |
+| **Memory Safety** | **PASSED** | Guarded peak RSS 1,014 MiB, zero swap growth, bounded queues, duty-cycle throttling. |
+| **Decision Equivalence** | **PASSED** | 100% choice and gate equality (1,207/1,207 candidates) against pre-change commit. |
+| **Work Order Validation** | **PASSED** | 1,079/1,079 valid work orders; canonical schema validated; 0 failed work orders. |
+| **Restart & Idempotency** | **PASSED** | 100% cache hits on restart; zero duplicate decisions or work orders emitted. |
+| **Synthetic Evaluation** | **PARTIAL** | 100% clean page suppression; 0% defect recall under frozen baseline thresholds. |
+| **Cloud Infrastructure** | **PLANNED** | Postgres StageStore, remote inference service, and object storage are design-only. |
+| **Distributed Reducers** | **PLANNED** | Global SQL link and duplicate reducers for >1,000 URLs are not yet implemented. |
+| **Remote Model Serving** | **PLANNED** | Checkpoint conversion for cloud GPUs (CUDA/vLLM) is not yet implemented. |
+| **Local Deployment** | **OPERATIONAL** | Native Apple Silicon execution via CLI or standalone pipeline scripts. |
 
-### Architectural Bottlenecks Eliminated
-1. **Lock-Free SQLite WAL with Aggressive PRAGMAs**: Eliminated global mutex bottlenecks (`self._lock`) across all database reads and writes. Configured `mmap_size=268435456`, `cache_size=-32000`, `synchronous=NORMAL`, and memory-backed temporary storage.
-2. **Asynchronous Connection Reuse & HTTP/2**: Persistent connection pool (`max_connections=100`, `max_keepalive_connections=80`) with native HTTP/2 multiplexing, DNS caching, and incremental ETag/Last-Modified caching.
-3. **Adaptive Per-Host Concurrency**: Dynamic rate-limiting automatically throttles concurrency between 2 and 50 connections based on rolling latency (p50 < 200ms scales up, 429/5xx drops immediately).
-4. **O(1) Bounded-Search Frontier Scheduler**: Replaced full-heap scans with bounded candidate dequeuing (`max_checks = min(len(heap), max(concurrency, 20))`), eliminating CPU thrashing.
-5. **Batch Database Operations**: Replaced N+1 single-row query patterns with transactional `executemany` operations across findings, opportunities, and work orders.
-6. **Template Candidate Clustering for Laya MLX**: Opportunities are grouped by `(type, action)` pattern, collapsing candidate volume (e.g. 150,000+ per-page issues down to ~30 template-level clusters) before dispatching to `LayaWorkerPool`. This achieves an **authentic 1,500× speedup in Pass 4 decision processing** without sacrificing decision fidelity.
+---
 
-### Empirical Benchmarks (Apple Silicon M-Series)
+## Known Limitations
 
-All numbers below represent real, measured wall-clock performance from synthetic audit runs with planted architectural defects:
+1. **Apple Silicon Hardware Dependency**: Local MLX inference requires native macOS Darwin `arm64` hardware. It cannot execute on Linux, Windows, or inside Docker containers on macOS.
+2. **Synthetic Benchmark Recall**: Under frozen baseline confidence thresholds, whole-page synthetic defect assessments result in 0.0% recall due to conservative suppression.
+3. **In-Process Evidence Boundary**: The deterministic evidence adapter is capped at 1,000 URLs in-process. Auditing larger sites requires implementing global distributed reducers.
+4. **Scalar MLX Inference**: While submission batching chunks candidate dispatches, the underlying `laya-mlx` checkpoint evaluates candidates sequentially (achieving ~1.42–1.74 decisions/second).
+5. **Cloud Serving Not Implemented**: Running SEOJEV on cloud infrastructure requires building a remote model service serving the identical checkpoint and implementing the PostgreSQL stage adapter.
 
-| Metric | Baseline (Legacy) | 1,000 URLs Tier | 10,000 URLs Tier | 50,000 URLs Tier | Speedup vs Baseline |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Crawl Throughput** | 25.0 URLs/sec | **199.2 URLs/sec** | **258.3 URLs/sec** | **238.2 URLs/sec** | **8.0× – 10.3×** |
-| **Crawl Duration** | 40.0s | **5.02s** | **38.71s** | **209.92s** (~3.5 min) | **7.9×** |
-| **Signal Processing** | 80.0 URLs/sec | **199.6 URLs/sec** | **788.0 URLs/sec** | **936.5 URLs/sec** | **2.5× – 11.7×** |
-| **Laya Decisions** | 5.0/sec (unclustered) | **25 decisions (3.8s)** | **36 decisions (5.3s)** | **32 decisions (12.0s)** | **1,500× in P4** |
-| **Peak Memory Footprint** | 650.0 MB | **1,032.8 MB** | **1,096.1 MB** | **1,146.9 MB** | **Bounded (~1.1 GB)** |
-| **Total Pipeline Duration** | 82.5s | **16.75s** | **86.42s** (~1.4 min) | **443.98s** (~7.4 min) | **4.9× – 9.5×** |
-| **Pages Crawled** | 1,000 | **993** | **9,950** | **49,796** | 99.6% Success |
+---
+
+## Roadmap
+
+### Current (Validated on Apple Silicon)
+- [x] Memory-safe 6-pass architecture with active `MemoryGuard` and zero swap growth.
+- [x] Streamed candidate reduction and class-level deduplication.
+- [x] Controlled 1,000-URL validation on Drivio.in (1,079 validated work orders, 0 failed).
+- [x] Canonical work-order schema contract and lifecycle audit runner.
+- [x] 100% decision equivalence verification against historical worker pool.
+- [x] Submission batch autotuning verifying safe operation up to batch 64.
+
+### Next (Near-Term Scaling)
+- [ ] Implement `PostgresStageStore` adapter conforming to `engine/chunks.py` interface.
+- [ ] Replace in-memory link graph with global SQL group-by and PageRank reducers.
+- [ ] Build remote Laya inference microservice serving the identical checkpoint over gRPC/HTTP.
+- [ ] Calibrate synthetic benchmark defect prompts without modifying frozen production gates.
+
+### Future (Cloud & Distributed Scale)
+- [ ] Multi-node distributed crawler and extraction worker pool with Kafka/Redis streams.
+- [ ] Linux/CUDA checkpoint conversion (vLLM / ONNX) with numerical equivalence validation.
+- [ ] Automated pull request generation for engineering work orders via GitHub App.
+- [ ] Continuous AEO/GEO rank tracking and answer-engine presence monitoring.
 
 ---
 
 ## License
 
-Proprietary — Built by the SEOJEV Engineering Team.
+License: not yet specified.
