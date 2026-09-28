@@ -97,6 +97,8 @@ class LayaSEOAnalyzer:
             self.decisions_count += 1
             with self._cache_lock:
                 self._cache[feature_hash] = decision
+                if len(self._cache) > 256:
+                    del self._cache[next(iter(self._cache))]
             logger.info("Laya decision run=%s candidate=%s verdict=%s action=%s confidence=%.4f", run_id, issue_data.get("cluster_id"), decision["verdict"], decision["action"], confidence)
             return decision
         except Exception:

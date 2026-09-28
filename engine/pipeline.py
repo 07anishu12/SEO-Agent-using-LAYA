@@ -684,7 +684,8 @@ class SEOJEVPipeline:
         candidates, members = build_candidates(clusters, pages, opportunities)
         if not candidates:
             raise RuntimeError("Pass 4 has zero candidates; refusing to continue to Pass 5")
-        pool = LayaWorkerPool(model_id=analyzer.model_id, max_queue_depth=max(5000, len(candidates)),
+        pool = LayaWorkerPool(model_id=analyzer.model_id, max_queue_depth=self.config["runtime"]["queue_size"], num_workers=1,
+                              batch_size=self.config["runtime"]["batch_size"],
                               cache_db_path=self.db_path, settings=self.config.get("laya", {}))
         await pool.start()
         try:

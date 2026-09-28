@@ -21,9 +21,9 @@ class CrawlStorage:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA cache_size=-32000")
-        conn.execute("PRAGMA mmap_size=268435456")
-        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA cache_size=-4096")
+        conn.execute("PRAGMA mmap_size=0")
+        conn.execute("PRAGMA temp_store=FILE")
         conn.execute("PRAGMA busy_timeout=5000")
         return conn
 

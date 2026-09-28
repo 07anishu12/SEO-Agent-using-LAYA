@@ -1,58 +1,118 @@
+"""Bounded work with current RSS, available-memory and swap-growth stop signals."""
+from contextlib import contextmanager
 import gc
+import json
+import logging
 import os
-import resource
 import time
-from typing import Optional
+import psutil
+
+log = logging.getLogger(__name__)
+
+
+class MemoryBudgetExceeded(RuntimeError):
+    pass
+
 
 class MemoryGuard:
-    """Monitors process RSS and triggers garbage collection to enforce configurable ceiling."""
-    def __init__(self, limit_mb: float = 2048.0, check_interval_sec: float = 10.0):
-        self.limit_mb = limit_mb
-        self.warning_threshold_mb = limit_mb * 0.8 # 80% ceiling
-        self.check_interval_sec = check_interval_sec
-        self.last_check_time = 0.0
+    def __init__(self, limit_mb=4096, check_interval_sec=0, *, batch_size=8,
+                 min_available_mb=1536, pause_seconds=2, sample=None, sleep=time.sleep):
+        self.limit_mb = float(os.getenv('SEOJEV_MEMORY_BUDGET_MB', limit_mb))
+        self.batch_size = batch_size
+        self.min_available_mb = min_available_mb
+        self.pause_seconds, self.sleep = pause_seconds, sleep
+        self.sample = sample or self._sample
         self.peak_rss_mb = 0.0
+        self.stages = {}
+        self.active_stage = None
+        self.initial = self.sample()
+        self.peak_rss_mb = self.initial['rss_mb']
 
-    def get_current_rss_mb(self) -> float:
-        """Returns current process Resident Set Size (RSS) in Megabytes."""
-        # 1. Try querying OS for actual live dynamic RSS
+    @staticmethod
+    def _sample():
+        process = psutil.Process()
+        rss = process.memory_info().rss
+        for child in process.children(recursive=True):
+            try:
+                rss += child.memory_info().rss
+            except psutil.NoSuchProcess:
+                pass
+        swap = psutil.swap_memory()
+        return dict(rss_mb=rss / 2**20, available_mb=psutil.virtual_memory().available / 2**20,
+                    swap_used=swap.used, swap_out=swap.sout)
+
+    def get_current_rss_mb(self):
+        return self.sample()['rss_mb']
+
+    def observe(self):
+        state = self.sample()
+        self.peak_rss_mb = max(self.peak_rss_mb, state['rss_mb'])
+        if self.active_stage:
+            record = self.stages[self.active_stage]
+            record['peak_rss_mb'] = max(record['peak_rss_mb'], state['rss_mb'])
+        if state['swap_used'] > self.initial['swap_used'] or state['swap_out'] > self.initial['swap_out']:
+            raise MemoryBudgetExceeded('System swap grew; aborting immediately before more work. Close other applications or run this checkpoint on a larger host.')
+        return state
+
+    def over_budget(self, state, reserve_mb=0):
+        return state['rss_mb'] + reserve_mb > self.limit_mb or state['available_mb'] < self.min_available_mb + reserve_mb
+
+    def checkpoint(self, reserve_mb=0):
+        state = self.observe()
+        if not self.over_budget(state, reserve_mb):
+            return self.batch_size
+        self.batch_size = max(1, self.batch_size // 2)
+        gc.collect()
+        state = self.observe()
+        if not self.over_budget(state, reserve_mb):
+            return self.batch_size
+        self.sleep(self.pause_seconds)  # Exactly one pause, never an unbounded retry loop.
+        state = self.observe()
+        if self.over_budget(state, reserve_mb):
+            raise MemoryBudgetExceeded(f'Memory pressure persists after batch shrink and pause: RSS={state["rss_mb"]:.1f} MiB, budget={self.limit_mb:.1f} MiB, available={state["available_mb"]:.1f} MiB. Aborted safely; resume the saved chunk on a larger host.')
+        return self.batch_size
+
+    def check_and_enforce(self):
         try:
-            import subprocess
-            out = subprocess.check_output(["ps", "-o", "rss=", "-p", str(os.getpid())], timeout=0.5)
-            rss_kb = int(out.strip())
-            rss_mb = rss_kb / 1024.0
-            if rss_mb > self.peak_rss_mb:
-                self.peak_rss_mb = rss_mb
-            return rss_mb
-        except Exception:
-            pass
-
-        # 2. Fallback to resource.getrusage (historical peak)
-        try:
-            usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            if os.uname().sysname == "Darwin":
-                rss_mb = usage / (1024.0 * 1024.0)
-            else:
-                rss_mb = usage / 1024.0
-            if rss_mb > self.peak_rss_mb:
-                self.peak_rss_mb = rss_mb
-            return rss_mb
-        except Exception:
-            return 0.0
-
-    def check_and_enforce(self) -> bool:
-        """Checks memory consumption. If above warning threshold, triggers gc.collect().
-        Returns True if memory is within bounds, False if exceeding limit.
-        """
-        now = time.monotonic()
-        if now - self.last_check_time < self.check_interval_sec:
+            self.checkpoint()
             return True
+        except MemoryBudgetExceeded:
+            return False
 
-        self.last_check_time = now
-        current_rss = self.get_current_rss_mb()
+    @contextmanager
+    def stage(self, name):
+        previous = self.active_stage
+        self.active_stage = name
+        self.stages.setdefault(name, dict(seconds=0., peak_rss_mb=0.))
+        start = time.monotonic()
+        try:
+            self.checkpoint()
+            yield
+            self.checkpoint()
+        finally:
+            self.stages[name]['seconds'] += time.monotonic() - start
+            log.info('stage=%s %s', name, self.stages[name])
+            self.active_stage = previous
 
-        if current_rss >= self.warning_threshold_mb:
-            gc.collect()
-            current_rss = self.get_current_rss_mb()
 
-        return current_rss <= self.limit_mb
+def autotune_batches(measure_batch, guard, output, contract):
+    """Measure actual submitted chunks, not extrapolated allocation; scalar MLX stays scalar."""
+    measurements, safe = [], 0
+    for size in (8, 16, 32, 64):
+        try:
+            guard.checkpoint()
+            before = guard.peak_rss_mb
+            start = time.monotonic()
+            measure_batch(size)
+            guard.checkpoint()
+            measurements.append(dict(batch_size=size, peak_rss_mb=guard.peak_rss_mb,
+                                     previous_peak_mb=before, seconds=time.monotonic()-start))
+            safe = size
+        except MemoryBudgetExceeded as exc:
+            measurements.append(dict(batch_size=size, error=str(exc)))
+            break
+    result = dict(safe_batch_size=safe, contract=contract, measurements=measurements,
+                  meaning='Maximum measured safe submission chunk; current checkpoint API predicts one candidate at a time')
+    from pathlib import Path
+    Path(output).write_text(json.dumps(result, indent=2))
+    return result

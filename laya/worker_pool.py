@@ -18,7 +18,7 @@ class LayaCacheError(RuntimeError):
 
 
 class LayaWorkerPool:
-    def __init__(self, model_id="aac6fef/laya-mlx", max_queue_depth=5000, num_workers=2,
+    def __init__(self, model_id="aac6fef/laya-mlx", max_queue_depth=16, num_workers=1,
                  batch_size=10, decision_callback=None, cache_db_path=None, settings=None):
         self.settings = {**load_settings(), **(settings or {})}
         self.model_id, self.max_queue_depth = model_id, max_queue_depth
@@ -43,12 +43,8 @@ class LayaWorkerPool:
         self._workers = [asyncio.create_task(self._worker_loop(i)) for i in range(self.num_workers)]
 
     async def submit_candidate(self, candidate, run_id=""):
-        try:
-            self._queue.put_nowait((candidate, run_id))
-        except asyncio.QueueFull:
-            self.queue_drops += 1
-            logger.error("Laya queue rejected candidate %s", candidate.cluster_id)
-            return False
+        await asyncio.wait_for(self._queue.put((candidate, run_id)),
+                               timeout=self.settings['queue_timeout_seconds'])
         self.total_candidates += 1
         return True
 
