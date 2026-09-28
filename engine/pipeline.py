@@ -206,6 +206,8 @@ class SEOJEVPipeline:
 
     def check_cancelled(self):
         """Raises PipelineCancelledException if cancel_check triggers."""
+        if getattr(self, "memory_guard", None):
+            self.memory_guard.checkpoint()
         if self.cancel_check and self.cancel_check():
             raise PipelineCancelledException(f"Pipeline execution cancelled by caller for run '{self.crawl_id}'.")
 
@@ -327,6 +329,10 @@ class SEOJEVPipeline:
         t0 = time.monotonic()
         self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 26.0, "Retrieving deterministic crawl evidence...")
 
+        with sqlite3.connect(self.db_path) as conn:
+            n = conn.execute('SELECT COUNT(*) FROM pages WHERE crawl_id=?',(self.crawl_id,)).fetchone()[0]
+        if n > 500:
+            raise RuntimeError('Legacy evidence adapter is limited to 500 URLs; use chunk/global reducers before scaling')
         pages = self.storage.get_all_pages(self.crawl_id)
         links = self.storage.get_all_links(self.crawl_id)
         issues = self.storage.get_all_issues(self.crawl_id)
@@ -674,84 +680,55 @@ class SEOJEVPipeline:
         self.check_cancelled()
         t0 = time.monotonic()
         self.emit_progress("P4_LAYA_DECISION_ENGINE", 71.0, "Running strict MLX preflight...")
-        analyzer = LayaSEOAnalyzer.get_singleton(self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"))
-        preflight = analyzer.preflight()
-        clusters = self.storage.get_all_issue_clusters(self.crawl_id)
-        pages = self.storage.get_all_pages(self.crawl_id)
+        from engine.chunks import SQLiteStageStore
+        from engine.memory_guard import MemoryGuard
+        from laya.streaming import LocalMLXService, iter_candidates, decide_classes
+        limits = self.config['runtime']
+        guard = getattr(self, 'memory_guard', None) or MemoryGuard(limits['memory_budget_mb'],
+            batch_size=limits['batch_size'], min_available_mb=limits['min_available_mb'], pause_seconds=limits['pause_seconds'])
+        store = SQLiteStageStore(self.db_path)
+        service = LocalMLXService(self.config, guard, self.db_path)
         with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            opportunities = [dict(r) for r in conn.execute("SELECT * FROM opportunities WHERE run_id=?", (self.crawl_id,))]
-        candidates, members = build_candidates(clusters, pages, opportunities)
-        if not candidates:
-            raise RuntimeError("Pass 4 has zero candidates; refusing to continue to Pass 5")
-        pool = LayaWorkerPool(model_id=analyzer.model_id, max_queue_depth=self.config["runtime"]["queue_size"], num_workers=1,
-                              batch_size=self.config["runtime"]["batch_size"],
-                              cache_db_path=self.db_path, settings=self.config.get("laya", {}))
-        await pool.start()
-        try:
-            for candidate in candidates.values():
+            conn.execute('DELETE FROM laya_decisions WHERE crawl_id=?', (self.crawl_id,))
+            resets = ','.join(f'"{col}"=NULL' for col in OPPORTUNITY_COLUMNS if col != 'laya_validated')
+            conn.execute(f'UPDATE opportunities SET {resets},laya_validated=0 WHERE run_id=?', (self.crawl_id,))
+        gates = Counter()
+        count = real = cache_hits = 0
+        with guard.stage('laya_and_fan_out'):
+            for decision in decide_classes(iter_candidates(self.db_path, self.crawl_id), service, store, guard, self.crawl_id):
                 self.check_cancelled()
-                if not await pool.submit_candidate(candidate, self.crawl_id):
-                    raise RuntimeError("Pass 4 candidate queue rejected work")
-            self.emit_progress("P4_LAYA_DECISION_ENGINE", 74.0, f"Laya is deciding {len(candidates):,} reduced candidates...")
-            all_decisions = await pool.finish()
-        finally:
-            await pool.stop(abort=True)
-        decisions = {d.cluster_id: d for d in all_decisions}
-        if len(decisions) != len(all_decisions):
-            raise RuntimeError("Pass 4 produced duplicate candidate decisions")
-        severity_score = {"critical": 100.0, "high": 80.0, "medium": 55.0, "low": 25.0}
-        priority_model = PriorityModel()
-        updates, unmatched, gates = [], [], Counter()
-        for opportunity in opportunities:
-            key = opportunity_candidate_key(opportunity, members)
-            decision = decisions.get(key)
-            if decision is None:
-                unmatched.append(opportunity["opportunity_id"])
-                continue
-            factors = json.loads(opportunity.get("priority_factors_json") or "{}")
-            factors["technical_severity"] = severity_score[decision.severity]
-            score, tier = priority_model.calculate_opportunity_score(factors)
-            validated = int(decision.is_real_issue and decision.gate in ("AUTO_ACCEPT", "HUMAN_REVIEW"))
-            if not validated:
-                score, tier = 0.0, "Low"
-            gates[decision.gate] += 1
-            updates.append((decision.choice, decision.confidence, decision.decision_id, validated,
-                            decision.verdict, decision.scope, decision.root_cause,
-                            json.dumps(decision.canonical_indexability), json.dumps(decision.content_assessment),
-                            json.dumps(decision.cannibalization), json.dumps(decision.internal_linking), key,
-                            decision.gate, json.dumps(decision.head_confidences), decision.checkpoint_id,
-                            opportunity["opportunity_id"], self.crawl_id))
-        logger.info("Pass 4 unmatched opportunities=%s examples=%s", len(unmatched), unmatched[:20])
-        with sqlite3.connect(self.db_path, timeout=30) as conn:
-            # Recomputing a pass replaces only that run's results, transactionally.
-            conn.execute("DELETE FROM laya_decisions WHERE crawl_id=?", (self.crawl_id,))
-            written = sum(insert_decision(conn, "laya_decisions", d) for d in all_decisions)
-            stored = conn.execute("SELECT COUNT(*) FROM laya_decisions WHERE crawl_id=?", (self.crawl_id,)).fetchone()[0]
-            if written != len(all_decisions) or stored != len(all_decisions):
-                raise RuntimeError(f"Pass 4 persistence mismatch: made={len(all_decisions)}, inserted={written}, stored={stored}")
-            resets = ",".join(f'"{col}"=NULL' for col in OPPORTUNITY_COLUMNS if col != "laya_validated")
-            conn.execute(f"UPDATE opportunities SET {resets}, laya_validated=0 WHERE run_id=?", (self.crawl_id,))
-            conn.executemany("""UPDATE opportunities SET laya_action=?, laya_confidence=?, laya_decision_id=?,
-                laya_validated=?, laya_verdict=?, laya_scope=?, laya_root_cause=?, laya_canonical_indexability=?,
-                laya_content_assessment=?, laya_cannibalization=?, laya_internal_linking=?, laya_candidate_id=?,
-                laya_gate=?, laya_head_confidences=?, laya_checkpoint_id=?
-                WHERE opportunity_id=? AND run_id=?""", updates)
-            matched = conn.execute("SELECT COUNT(*) FROM opportunities WHERE run_id=? AND laya_candidate_id IS NOT NULL", (self.crawl_id,)).fetchone()[0]
-            if matched != len(updates):
-                raise RuntimeError(f"Pass 4 opportunity update mismatch: expected={len(updates)}, stored={matched}")
-        summary = {**pool.get_metrics(), "preflight": preflight, "unmatched_opportunities": len(unmatched),
-                   "real_issues": sum(d.is_real_issue for d in all_decisions),
-                   "validated": gates["AUTO_ACCEPT"] + gates["HUMAN_REVIEW"],
-                   "human_review": gates["HUMAN_REVIEW"], "suppressed": gates["SUPPRESS"],
-                   "opportunity_gates": dict(gates), "cluster_member_opportunities": len(members)}
-        if summary["validated"] in (0, len(opportunities)):
-            logger.warning("Suspicious Pass 4 validation fraction: %s/%s", summary["validated"], len(opportunities))
-        logger.info("Pass 4 summary: %s", summary)
-        self.emit_progress("P4_LAYA_DECISION_ENGINE", 80.0, f"Laya persisted {written} decisions; {summary['validated']} validated opportunities.", {"laya_telemetry": summary})
-        self.pass_timings["P4_LAYA_DECISION_ENGINE"] = round(time.monotonic()-t0, 2)
-        self._laya_summary = summary
-        return {"laya_summary": summary, "laya_decisions": [d.to_dict() for d in all_decisions]}
+                validated = int(decision.is_real_issue and decision.gate in ('AUTO_ACCEPT', 'HUMAN_REVIEW'))
+                with sqlite3.connect(self.db_path) as conn:
+                    insert_decision(conn, 'laya_decisions', decision)
+                    updated = conn.execute("""UPDATE opportunities SET laya_action=?,laya_confidence=?,laya_decision_id=?,
+                        laya_validated=?,laya_verdict=?,laya_scope=?,laya_root_cause=?,laya_canonical_indexability=?,
+                        laya_content_assessment=?,laya_cannibalization=?,laya_internal_linking=?,laya_candidate_id=?,
+                        laya_gate=?,laya_head_confidences=?,laya_checkpoint_id=?
+                        WHERE run_id=? AND opportunity_id IN (SELECT opportunity_id FROM candidate_membership WHERE run_id=? AND candidate_id=?)""",
+                        (decision.choice,decision.confidence,decision.decision_id,validated,decision.verdict,decision.scope,
+                         decision.root_cause,json.dumps(decision.canonical_indexability),json.dumps(decision.content_assessment),
+                         json.dumps(decision.cannibalization),json.dumps(decision.internal_linking),decision.cluster_id,
+                         decision.gate,json.dumps(decision.head_confidences),decision.checkpoint_id,
+                         self.crawl_id,self.crawl_id,decision.cluster_id)).rowcount
+                gates[decision.gate] += updated
+                count += 1
+                real += decision.is_real_issue
+                cache_hits += decision.from_cache
+        if not count:
+            raise RuntimeError('Pass 4 has zero candidates')
+        with sqlite3.connect(self.db_path) as conn:
+            unmatched = conn.execute('SELECT COUNT(*) FROM opportunities WHERE run_id=? AND laya_candidate_id IS NULL',(self.crawl_id,)).fetchone()[0]
+            stored = conn.execute('SELECT COUNT(*) FROM laya_decisions WHERE crawl_id=?',(self.crawl_id,)).fetchone()[0]
+        if unmatched or stored != count:
+            raise RuntimeError(f'Incomplete candidate fan-out: unmatched={unmatched}, decisions={stored}/{count}')
+        summary = {**(store.get('metrics',self.crawl_id) or {}), 'total_decisions':count,
+                   'total_cache_hits':cache_hits,'inference_count':count-cache_hits,'real_issues':real,
+                   'validated':gates['AUTO_ACCEPT']+gates['HUMAN_REVIEW'], 'human_review':gates['HUMAN_REVIEW'],
+                   'suppressed':gates['SUPPRESS'],'opportunity_gates':dict(gates),'unmatched_opportunities':unmatched,
+                   'peak_rss_mb':guard.peak_rss_mb,'preflight':service.analyzer.preflight()}
+        self.pass_timings['P4_LAYA_DECISION_ENGINE'] = round(time.monotonic()-t0,2)
+        self._laya_summary=summary
+        return {'laya_summary':summary}
 
     # -------------------------------------------------------------------------
     # PASS 5: VALIDATED OPPORTUNITIES, PRIORITY & WORK ORDERS
