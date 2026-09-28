@@ -114,6 +114,9 @@ def guarded_process(command, limits, report_path, log_path, batch_size=None):
     child_path=Path(str(report_path)+'.child.json')
     if child_path.exists():
         child=json.loads(child_path.read_text());result['child']=child
+        if child.get('baseline_rss_mb') is not None:
+            result['spawn_rss_mb']=result['baseline_rss_mb']
+            result['baseline_rss_mb']=child['baseline_rss_mb']
         result['peak_rss_mb']=max(result['peak_rss_mb'],child.get('peak_rss_mb',0))
         if child.get('memory_guard_triggered'):
             result.update(memory_guard_triggered=True,error=child.get('error','Child guard triggered'))
@@ -144,6 +147,7 @@ def probe(args):
                       min_available_mb=limits['min_available_mb'],pause_seconds=limits['pause_seconds'])
     result=dict(batch_size=args.batch_size,baseline_rss_mb=guard.get_current_rss_mb(),completed_candidates=0)
     start=time.monotonic()
+    write_report(args.output,{**result,'status':'starting'})
     try:
         with guard.stage('model_startup'):
             service=LocalMLXService(config,guard)
