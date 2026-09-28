@@ -22,18 +22,13 @@ def test_fresh_migration_idempotent(tmp_path):
     assert_schema(db)
 
 
-def test_actual_legacy_database_copy(tmp_path):
-    source = Path("data/seo.db.bak-20260928-141754")
-    # CI still exercises the 19-column legacy shape if the private DB is absent.
+def test_legacy_19_column_schema(tmp_path):
+    # Never copy an unbounded private site DB into a development test.
     db = str(tmp_path / "legacy.db")
-    if source.exists():
-        with sqlite3.connect(source.resolve().as_uri()+"?mode=ro", uri=True) as src, sqlite3.connect(db) as dst:
-            src.backup(dst)
-    else:
-        CrawlStorage(db)
-        with sqlite3.connect(db) as conn:
-            definitions = list(DECISION_COLUMNS.items())[:19]
-            conn.execute("CREATE TABLE laya_decision_log ("+",".join(f"{k} {v}" for k,v in definitions)+")")
+    CrawlStorage(db)
+    with sqlite3.connect(db) as conn:
+        definitions = list(DECISION_COLUMNS.items())[:19]
+        conn.execute("CREATE TABLE laya_decision_log ("+",".join(f"{k} {v}" for k,v in definitions)+")")
     migrator = MigrationRunner(db)
     migrator.run_migrations()
     migrator.run_migrations()

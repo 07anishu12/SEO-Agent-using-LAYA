@@ -1,0 +1,33 @@
+{
+  "safe_batch_size": 64,
+  "equivalence": {
+    "status": "completed",
+    "total_comparisons": 1207,
+    "choice_matches": 1207,
+    "choice_mismatches": 0,
+    "gate_matches": 1207,
+    "gate_mismatches": 0,
+    "missing_decisions": 0
+  },
+  "synthetic": {
+    "status": "completed",
+    "pages": 480,
+    "clean_pages": 184,
+    "tp": 0,
+    "fp": 0,
+    "tn": 184,
+    "fn": 296,
+    "precision": null,
+    "recall": 0.0
+  },
+  "final_dev": {
+    "status": "completed",
+    "urls": 500,
+    "total_runtime_seconds": 1668.73,
+    "successful_peak_rss_mb": 940.22,
+    "swap_change_mb": -8.0,
+    "decisions_per_second": 1.736,
+    "urls_per_second": 0.30
+  },
+  "reason": "Measured successfully with safe batch size 64 after memory guard fix."
+}

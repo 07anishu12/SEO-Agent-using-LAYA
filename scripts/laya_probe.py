@@ -23,11 +23,11 @@ def main():
     parser.add_argument("--db", default="data/seo.db")
     parser.add_argument("--count", type=int, default=200)
     args = parser.parse_args()
-    if args.count < 200:
-        parser.error("At least 200 real candidates are required")
+    if not 1 <= args.count <= 500:
+        parser.error("Probes are restricted to 1..500 existing candidates")
     with sqlite3.connect(Path(args.db).resolve().as_uri()+"?mode=ro", uri=True) as conn:
         conn.row_factory = sqlite3.Row
-        rows = [dict(r) for r in conn.execute("SELECT * FROM opportunities ORDER BY type, opportunity_id")]
+        rows = [dict(r) for r in conn.execute("SELECT * FROM opportunities ORDER BY type, opportunity_id LIMIT 500")]
         # Evenly sample the existing opportunity population, preserving real evidence.
         rows = [rows[i*len(rows)//args.count] for i in range(args.count)]
         candidates = []
@@ -38,12 +38,13 @@ def main():
             hashes = [p["content_hash"] for p in pages if p["content_hash"]]
             canonical = {"indexable": sum(bool(p["is_indexable"]) for p in pages), "non_indexable": sum(not bool(p["is_indexable"]) for p in pages), "canonical_statuses": dict(Counter(p["canonical_status"] or "unknown" for p in pages))}
             candidates.append({"cluster_id": "opportunity:"+opp["opportunity_id"], "issue": opp["observation"], "category": opp["type"], "severity": opp["opportunity_tier"].lower(), "template": opp["implementation_location"], "affected_urls_count": opp["affected_urls_count"], "canonical_indexability": canonical, "content_metrics": {"pages": len(pages), "min_words": min(words or [0]), "avg_words": round(sum(words)/max(len(words),1),1), "unique_content_hashes": len(set(hashes)), "duplicate_content_pages": len(hashes)-len(set(hashes))}, "link_metrics": {"avg_internal_links": round(sum(p["internal_links_count"] or 0 for p in pages)/max(len(pages),1),1)}, "evidence_refs": [opp["hypothesis"]], "root_cause": opp["observation"]})
-    import laya_mlx
-    agent = laya_mlx.load("aac6fef/laya-mlx")
+    from laya.analyzer import LayaSEOAnalyzer
+    backend = LayaSEOAnalyzer.get_singleton().get_backend()
+    agent = backend._agent
     questions = get_laya_seo_questions()
     records = []
     for i, candidate in enumerate(candidates, 1):
-        response = agent.predict({"message": json.dumps(candidate, sort_keys=True), "prompt_version": LAYA_PROMPT_VERSION}, questions)
+        response = backend.predict({"message": json.dumps(candidate, sort_keys=True), "prompt_version": LAYA_PROMPT_VERSION}, questions)
         if set(response["answers"]) != set(questions):
             raise RuntimeError("Missing required model heads")
         records.append({"candidate": candidate, "answers": response["answers"]})

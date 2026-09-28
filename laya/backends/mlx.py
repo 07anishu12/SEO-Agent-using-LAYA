@@ -2,6 +2,7 @@
 Apple Silicon MLX Backend for local inference using laya_mlx.
 """
 import logging
+import gc
 import os
 import multiprocessing
 import tempfile
@@ -21,6 +22,8 @@ class MLXBackend(LayaBackend):
         self._options: Dict[str, Any] = {}
         self._predict_lock = threading.Lock()
         self.checkpoint_id = None
+        self._mx = None
+        self._owner_lock = None
 
     def initialize(self, model_id: str = "aac6fef/laya-mlx", options: Optional[Dict[str, Any]] = None) -> bool:
         self.model_id = model_id
@@ -37,16 +40,24 @@ class MLXBackend(LayaBackend):
             from engine.memory_guard import MemoryGuard
             self.guard = self._options.get('memory_guard') or MemoryGuard()
             self.guard.checkpoint(reserve_mb=1024)
+            import mlx.core as mx
+            self._mx = mx
+            # Reclaim unused allocator buffers; weights, dtype, heads and model batch settings stay unchanged.
+            mx.set_cache_limit(0)
             import laya_mlx
             logger.info(f"Initializing MLX backend with model '{model_id}'...")
             self._agent = laya_mlx.load(model_id)
+            mx.clear_cache()  # Converted checkpoint-loading temporaries are no longer live.
             self.guard.checkpoint()
             self.checkpoint_id = f"{model_id}@{self._agent.model_dir.name}"
             logger.info("Laya calibration temperatures raw=%s applied=%s; SEO questions use at most 8 options", self._agent.temperature_by_options_raw, self._agent.temperature_by_options)
             logger.info("MLX backend initialized successfully.")
             return True
         except Exception as e:
-            self._agent = None
+            self.close()
+            from engine.memory_guard import MemoryBudgetExceeded
+            if isinstance(e, MemoryBudgetExceeded):
+                raise
             raise RuntimeError("Laya MLX startup failed. Run .venv/bin/python3 on the Apple Silicon host; install pinned requirements and ensure aac6fef/laya-mlx is accessible. " + str(e)) from e
 
     def is_available(self) -> bool:
@@ -57,9 +68,25 @@ class MLXBackend(LayaBackend):
             raise RuntimeError("MLX backend is not available for inference.")
         with self._predict_lock:
             self.guard.checkpoint(reserve_mb=256)
-            result = self._agent.predict(prompt_state, questions)
+            try:
+                result = self._agent.predict(prompt_state, questions)
+            finally:
+                # Upstream predict evaluates tensors and returns only Python/NumPy-derived scalars.
+                self._mx.clear_cache()
             self.guard.checkpoint()
             return result
+
+    def close(self):
+        """Release an owned model and allocator cache before relinquishing the OS lock."""
+        self._agent = None
+        gc.collect()
+        try:
+            if self._mx is not None:
+                self._mx.clear_cache()
+        finally:
+            if self._owner_lock is not None:
+                self._owner_lock.close()
+                self._owner_lock = None
 
     def health_status(self) -> Dict[str, Any]:
         return {

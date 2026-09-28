@@ -55,6 +55,8 @@ class WorkOrderManager:
             sample_urls = json.loads(opp.get("sample_urls_json", "[]"))
             evidence = {
                 "opportunity_id": opp.get("opportunity_id"),
+                "class_id": opp.get("class_id"),
+                "member_count": opp.get("member_count", 1),
                 "affected_urls_count": opp.get("affected_urls_count", 1),
                 "sample_urls": sample_urls,
                 "confidence_tier": opp.get("confidence_tier", "High"),
@@ -90,7 +92,7 @@ class WorkOrderManager:
             )
 
             wo = {
-                "work_order_id": f"WO-{disp_id}",
+                "work_order_id": f"WO-{run_id}-{opp['class_id']}" if opp.get("class_id") else f"WO-{disp_id}",
                 "fingerprint": opp.get("fingerprint"),
                 "display_id": disp_id,
                 "run_id": run_id,

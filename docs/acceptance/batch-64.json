@@ -1,0 +1,53 @@
+{
+  "batch_size": 64,
+  "baseline_rss_mb": 39.453125,
+  "peak_rss_mb": 943.265625,
+  "swap_before_mb": 962.5625,
+  "swap_after_mb": 962.5625,
+  "peak_swap_mb": 962.5625,
+  "peak_system_memory_percent": 64.4,
+  "peak_pressure_level": 1,
+  "min_available_mb": 5837.203125,
+  "memory_guard_triggered": false,
+  "safe": true,
+  "elapsed_seconds": 34.85030099999858,
+  "checkpoint_id": "aac6fef/laya-mlx@20aed815fc6acde75733882e7ec0e3f28aeb9717",
+  "pid": 20140,
+  "swap_out_delta_mb": 0.0,
+  "return_code": 0,
+  "started": true,
+  "child": {
+    "batch_size": 64,
+    "baseline_rss_mb": 39.453125,
+    "swap_before_mb": 962.5625,
+    "page_outs_before": 369328128,
+    "completed_candidates": 64,
+    "rss_after_load_mb": 937.453125,
+    "swap_after_load_mb": 962.5625,
+    "page_outs_after_load": 369328128,
+    "status": "completed",
+    "checkpoint_id": "aac6fef/laya-mlx@20aed815fc6acde75733882e7ec0e3f28aeb9717",
+    "input_digest": "aed8356d609361b82bc7908f9d653e434e403353f93a7df03d2522a6719fa612",
+    "native_question_batch_size": 16,
+    "meaning": "Bounded submission batch; native model settings and scalar predict API unchanged",
+    "elapsed_seconds": 34.71234983300019,
+    "peak_rss_mb": 943.234375,
+    "swap_after_mb": 962.5625,
+    "page_outs_after": 369328128,
+    "page_outs_delta": 0,
+    "stages": {
+      "model_startup": {
+        "seconds": 0.35959633300080895,
+        "peak_rss_mb": 937.453125
+      },
+      "probe": {
+        "seconds": 34.34077829200032,
+        "peak_rss_mb": 943.21875
+      }
+    }
+  },
+  "spawn_rss_mb": 0.03125,
+  "rss_after_load_mb": 937.453125,
+  "page_outs_before": 369328128,
+  "page_outs_after": 369328128
+}

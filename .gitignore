@@ -61,4 +61,8 @@ frontend/.next-dev/
 frontend/out/
 reports/laya-*/
 reports/laya-*
+reports/synthetic/
 seo-diff.json
+
+# Also ignore a shared virtual-environment symlink.
+.venv

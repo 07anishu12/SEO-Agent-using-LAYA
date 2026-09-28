@@ -1,0 +1,76 @@
+{
+  "safe_batch_size": 64,
+  "autotune": {
+    "sizes_tested": [8, 16, 32, 64],
+    "largest_safe_batch": 64,
+    "batch_8": {
+      "rss_baseline_mb": 39.47,
+      "rss_after_load_mb": 940.53,
+      "peak_rss_mb": 945.59,
+      "swap_before_mb": 962.56,
+      "swap_after_mb": 962.56,
+      "swap_delta_mb": 0.0,
+      "page_outs_before": 369328128,
+      "page_outs_after": 369328128,
+      "page_outs_delta": 0,
+      "elapsed_seconds": 33.70
+    },
+    "batch_16": {
+      "peak_rss_mb": 942.69,
+      "swap_delta_mb": 0.0,
+      "page_outs_delta": 0,
+      "elapsed_seconds": 33.82,
+      "safe": true
+    },
+    "batch_32": {
+      "peak_rss_mb": 945.88,
+      "swap_delta_mb": 0.0,
+      "page_outs_delta": 0,
+      "elapsed_seconds": 34.52,
+      "safe": true
+    },
+    "batch_64": {
+      "peak_rss_mb": 943.27,
+      "swap_delta_mb": 0.0,
+      "page_outs_delta": 0,
+      "elapsed_seconds": 34.85,
+      "safe": true
+    }
+  },
+  "equivalence": {
+    "status": "completed",
+    "total_comparisons": 1207,
+    "choice_matches": 1207,
+    "choice_mismatches": 0,
+    "gate_matches": 1207,
+    "gate_mismatches": 0,
+    "missing_decisions": 0,
+    "passed": true,
+    "match_percentage": 100.0
+  },
+  "synthetic": {
+    "status": "completed",
+    "pages": 480,
+    "clean_pages": 184,
+    "tp": 0,
+    "fp": 0,
+    "tn": 184,
+    "fn": 296,
+    "precision": null,
+    "recall": 0.0,
+    "clean_suppression": 1.0
+  },
+  "final_dev": {
+    "status": "completed",
+    "urls": 500,
+    "total_runtime_seconds": 1668.73,
+    "successful_peak_rss_mb": 940.22,
+    "swap_change_mb": -8.0,
+    "safe_batch": 64,
+    "candidate_count": 1207,
+    "unique_count": 1207,
+    "dedupe_ratio": 0.0,
+    "decisions_per_second": 1.736,
+    "urls_per_second": 0.2996
+  }
+}

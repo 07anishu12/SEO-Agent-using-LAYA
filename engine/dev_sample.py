@@ -7,7 +7,14 @@ from pathlib import Path
 def sample_urls(conn, crawl_id, limit=500, seed=42):
     if not 1 <= limit <= 500:
         raise ValueError('Development samples must contain 1..500 URLs')
-    counts = dict(conn.execute("SELECT COALESCE(template_id,'unknown'),COUNT(*) FROM pages WHERE crawl_id=? GROUP BY COALESCE(template_id,'unknown') ORDER BY 1", (crawl_id,)))
+    from engine.template_families import template_family
+    conn.create_function('template_family', 2, template_family, deterministic=True)
+    conn.execute('DROP TABLE IF EXISTS temp.sample_families')
+    conn.execute("CREATE TEMP TABLE sample_families AS SELECT url,template_family(url,COALESCE(page_type,'other')) family FROM pages WHERE crawl_id=?",(crawl_id,))
+    conn.execute('CREATE INDEX sample_family_index ON sample_families(family)')
+    counts = dict(conn.execute('SELECT family,COUNT(*) FROM sample_families GROUP BY family ORDER BY family LIMIT 501'))
+    if len(counts) > limit:
+        raise ValueError('More structural families than the development URL budget')
     quotas = {t: min(3, n) for t, n in counts.items()}
     if sum(quotas.values()) > limit:
         raise ValueError('500 URL cap cannot cover every template with min(3, available); select a smaller source cohort explicitly')
@@ -20,7 +27,7 @@ def sample_urls(conn, crawl_id, limit=500, seed=42):
     conn.create_function('sample_rank', 1, lambda u: hashlib.sha256(f'{seed}:{u}'.encode()).hexdigest(), deterministic=True)
     selected = []
     for template, n in quotas.items():
-        selected.extend(r[0] for r in conn.execute("SELECT url FROM pages WHERE crawl_id=? AND COALESCE(template_id,'unknown')=? ORDER BY sample_rank(url),url LIMIT ?", (crawl_id, template, n)))
+        selected.extend(r[0] for r in conn.execute("SELECT url FROM sample_families WHERE family=? ORDER BY sample_rank(url),url LIMIT ?", (template, n)))
     return sorted(selected)
 
 
@@ -56,6 +63,8 @@ def build_sample(source, destination, crawl_id=None, limit=500, seed=42, target=
                 clause = f' AND "{urlcol}" IN (SELECT url FROM selected)' if urlcol else ''
                 if table != 'crawl_runs' and not urlcol:
                     continue
+                if table == 'links':
+                    clause += ' AND target_url IN (SELECT url FROM selected)'
                 query = f'SELECT * FROM "{table}" WHERE crawl_id=?{clause}'
                 dst.executemany(f'INSERT INTO "{table}" VALUES ({",".join("?" for _ in columns)})', src.execute(query, (crawl_id,)))
             dst.execute('UPDATE crawl_runs SET max_pages=?,concurrency=2', (len(urls),))

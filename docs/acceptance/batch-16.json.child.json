@@ -1,0 +1,30 @@
+{
+  "batch_size": 16,
+  "baseline_rss_mb": 39.515625,
+  "swap_before_mb": 962.5625,
+  "page_outs_before": 369328128,
+  "completed_candidates": 64,
+  "rss_after_load_mb": 937.5,
+  "swap_after_load_mb": 962.5625,
+  "page_outs_after_load": 369328128,
+  "status": "completed",
+  "checkpoint_id": "aac6fef/laya-mlx@20aed815fc6acde75733882e7ec0e3f28aeb9717",
+  "input_digest": "aed8356d609361b82bc7908f9d653e434e403353f93a7df03d2522a6719fa612",
+  "native_question_batch_size": 16,
+  "meaning": "Bounded submission batch; native model settings and scalar predict API unchanged",
+  "elapsed_seconds": 33.685069125000155,
+  "peak_rss_mb": 942.6875,
+  "swap_after_mb": 962.5625,
+  "page_outs_after": 369328128,
+  "page_outs_delta": 0,
+  "stages": {
+    "model_startup": {
+      "seconds": 0.356477207998978,
+      "peak_rss_mb": 937.5
+    },
+    "probe": {
+      "seconds": 33.31641387499985,
+      "peak_rss_mb": 942.6875
+    }
+  }
+}

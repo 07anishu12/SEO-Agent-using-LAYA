@@ -69,8 +69,8 @@ class LayaSEOAnalyzer:
         return self._preflight
 
     def compute_feature_hash(self, issue_data):
-        payload = {"evidence": {k: v for k, v in issue_data.items() if k != "run_id"}, "checkpoint_id": self.get_backend().checkpoint_id, "prompt_version": LAYA_PROMPT_VERSION}
-        return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+        from .prompt import prompt_hash
+        return prompt_hash(issue_data, LAYA_PROMPT_VERSION, self.get_backend().checkpoint_id)
 
     def classify_issue(self, issue_data, run_id=None):
         feature_hash = self.compute_feature_hash(issue_data)

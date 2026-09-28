@@ -161,12 +161,8 @@ class LayaCandidateInput:
 
     def compute_hash(self, model_version: str = "") -> str:
         """Compute stable SHA-256 hash of this candidate input for caching."""
-        payload = json.dumps({
-            "candidate": asdict(self),
-            "model_version": model_version,
-            "prompt_version": self.prompt_version,
-        }, sort_keys=True, default=str)
-        return hashlib.sha256(payload.encode()).hexdigest()
+        from .prompt import issue_data, prompt_hash
+        return prompt_hash(issue_data(self), self.prompt_version, model_version)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

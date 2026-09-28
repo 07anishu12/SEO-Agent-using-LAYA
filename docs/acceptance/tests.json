@@ -1,0 +1,84 @@
+{
+  "one_file_at_a_time": true,
+  "mlx_resource_report": "docs/acceptance/autotune.json",
+  "equivalence_report": "reports/laya-dev-eval/measurements.json",
+  "results": [
+    {
+      "file": "test_dev_profile.py",
+      "return_code": 0,
+      "seconds": 0.20279179200224462,
+      "output": "...                                                                      [100%]\n3 passed in 0.08s\n"
+    },
+    {
+      "file": "test_synthetic_generator.py",
+      "return_code": 0,
+      "seconds": 0.1838385830014886,
+      "output": ".                                                                        [100%]\n1 passed in 0.07s\n"
+    },
+    {
+      "file": "test_memory_safety.py",
+      "return_code": 0,
+      "seconds": 0.21709862500210875,
+      "output": ".......                                                                  [100%]\n7 passed in 0.10s\n"
+    },
+    {
+      "file": "test_streaming_candidates.py",
+      "return_code": 0,
+      "seconds": 0.39699483300137217,
+      "output": ".....                                                                    [100%]\n5 passed in 0.25s\n"
+    },
+    {
+      "file": "test_mlx_isolation.py",
+      "return_code": 0,
+      "seconds": 0.2864052089971665,
+      "output": "...                                                                      [100%]\n3 passed in 0.16s\n"
+    },
+    {
+      "file": "test_acceptance_guard.py",
+      "return_code": 0,
+      "seconds": 0.1535672499994689,
+      "output": "...                                                                      [100%]\n3 passed in 0.03s\n"
+    },
+    {
+      "file": "test_equivalence_accounting.py",
+      "return_code": 0,
+      "seconds": 0.12255370799903176,
+      "output": "...                                                                      [100%]\n3 passed in 0.01s\n"
+    },
+    {
+      "file": "test_dev_equivalence.py",
+      "return_code": 0,
+      "seconds": 0.12001212500035763,
+      "output": ".                                                                        [100%]\n1 passed in 0.01s\n"
+    },
+    {
+      "file": "test_noise_metrics.py",
+      "return_code": 0,
+      "seconds": 0.16337037500125007,
+      "output": "..                                                                       [100%]\n2 passed in 0.04s\n"
+    },
+    {
+      "file": "test_laya_flow.py",
+      "return_code": 0,
+      "seconds": 1.5938025420000486,
+      "output": "...                                                                      [100%]\n=============================== warnings summary ===============================\ntests/test_laya_flow.py::test_real_worker_durable_cache_and_completion\n  /Users/anny/Desktop/seojev/.venv/lib/python3.12/site-packages/laya_mlx/agent.py:296: RuntimeWarning: laya-mlx: this checkpoint ships temperatures outside [0.5, 5] which would distort confidence; clamping choice:11+=0.1006. Treat confidence from the affected buckets as uncalibrated.\n    return Agent(model_id_or_path, device=device, token=token, subfolder=subfolder, **kwargs)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3 passed, 1 warning in 1.41s\n"
+    },
+    {
+      "file": "test_laya_migration.py",
+      "return_code": 0,
+      "seconds": 0.3290132910005923,
+      "output": "..                                                                       [100%]\n2 passed in 0.18s\n"
+    },
+    {
+      "file": "test_stage10b_laya_backends.py",
+      "return_code": 0,
+      "seconds": 1.069629541998438,
+      "output": "............................                                             [100%]\n=============================== warnings summary ===============================\ntests/test_stage10b_laya_backends.py::test_real_mlx_preflight_and_cache\n  /Users/anny/Desktop/seojev/.venv/lib/python3.12/site-packages/laya_mlx/agent.py:296: RuntimeWarning: laya-mlx: this checkpoint ships temperatures outside [0.5, 5] which would distort confidence; clamping choice:11+=0.1006. Treat confidence from the affected buckets as uncalibrated.\n    return Agent(model_id_or_path, device=device, token=token, subfolder=subfolder, **kwargs)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n28 passed, 1 warning in 0.92s\n"
+    }
+  ],
+  "unique_test_totals": {
+    "passed": 61,
+    "skipped": 0,
+    "failed": 0
+  }
+}

@@ -21,6 +21,7 @@ def test_key_round_trip_and_cluster_membership():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mlx
 async def test_real_worker_durable_cache_and_completion(tmp_path):
     db = str(tmp_path / "cache.db")
     CrawlStorage(db)
@@ -57,6 +58,7 @@ async def test_real_worker_durable_cache_and_completion(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.mlx
 async def test_worker_error_is_counted_and_fails_pass():
     def failed_callback(decision):
         raise RuntimeError("intentional callback failure")
