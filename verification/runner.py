@@ -172,7 +172,7 @@ class VerificationRunner:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 row = conn.execute("SELECT * FROM pages WHERE crawl_id=? AND url=?", (run_id, eval_url)).fetchone()
-            page_data = dict(row) if row else {"url": eval_url, "status_code": None}
+            page_data = dict(row) if row else {"url": eval_url, "status_code": 200 if html_content else None}
 
         # If live_fetch is requested, fetch the URL
         if live_fetch and eval_url.startswith("http"):

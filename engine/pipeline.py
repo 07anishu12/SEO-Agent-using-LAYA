@@ -505,7 +505,7 @@ class SEOJEVPipeline:
         product_data_map = p2_data.get("product_data_map", {}) if p2_data else {}
         issue_clusters = (p2_data or {}).get("issue_clusters") or self.storage.get_all_issue_clusters(self.crawl_id)
         node_metrics = p2_data.get("node_metrics", {}) if p2_data else {}
-        link_opportunities = p2_data.get("link_opportunities", []) if p2_data else self.storage.get_internal_link_opportunities(self.crawl_id)
+        link_opportunities = p2_data.get("link_opportunities", []) if p2_data else self.storage.get_all_internal_link_opportunities(self.crawl_id)
         product_pages_data = p2_data.get("product_pages_data", []) if p2_data else []
 
         # 3a. GSC & Search Pipelines
@@ -708,7 +708,7 @@ class SEOJEVPipeline:
                             json.dumps(decision.canonical_indexability), json.dumps(decision.content_assessment),
                             json.dumps(decision.cannibalization), json.dumps(decision.internal_linking), key,
                             decision.gate, json.dumps(decision.head_confidences), decision.checkpoint_id,
-                            tier, score, json.dumps(factors), opportunity["opportunity_id"], self.crawl_id))
+                            opportunity["opportunity_id"], self.crawl_id))
         logger.info("Pass 4 unmatched opportunities=%s examples=%s", len(unmatched), unmatched[:20])
         with sqlite3.connect(self.db_path, timeout=30) as conn:
             # Recomputing a pass replaces only that run's results, transactionally.
@@ -722,8 +722,8 @@ class SEOJEVPipeline:
             conn.executemany("""UPDATE opportunities SET laya_action=?, laya_confidence=?, laya_decision_id=?,
                 laya_validated=?, laya_verdict=?, laya_scope=?, laya_root_cause=?, laya_canonical_indexability=?,
                 laya_content_assessment=?, laya_cannibalization=?, laya_internal_linking=?, laya_candidate_id=?,
-                laya_gate=?, laya_head_confidences=?, laya_checkpoint_id=?, opportunity_tier=?, priority_score=?,
-                priority_factors_json=? WHERE opportunity_id=? AND run_id=?""", updates)
+                laya_gate=?, laya_head_confidences=?, laya_checkpoint_id=?
+                WHERE opportunity_id=? AND run_id=?""", updates)
             matched = conn.execute("SELECT COUNT(*) FROM opportunities WHERE run_id=? AND laya_candidate_id IS NOT NULL", (self.crawl_id,)).fetchone()[0]
             if matched != len(updates):
                 raise RuntimeError(f"Pass 4 opportunity update mismatch: expected={len(updates)}, stored={matched}")
