@@ -33,6 +33,14 @@ laya:
   enabled: true
   model_id: "aac6fef/laya-mlx"
   batch_size: 16
+  # Measured on 200 real candidates; see docs/LAYA_CONFIDENCE.md.
+  confidence:
+    verdict_min: 0.60
+    action_min: 0.50
+    auto_accept_min: 0.90
+  max_error_rate: 0.0
+  max_recent_errors: 20
+  queue_timeout_seconds: 1800
 
 storage:
   db_path: "data/seo.db"

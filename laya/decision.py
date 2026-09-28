@@ -3,12 +3,37 @@ import hashlib
 import json
 import time
 import uuid
+import math
+from pathlib import Path
+import yaml
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Optional, List, Dict, Any
 
 
-LAYA_PROMPT_VERSION = "laya-seo-decision-v2"
+LAYA_PROMPT_VERSION = "laya-seo-decision-v3"
+
+
+def load_policy():
+    with (Path(__file__).resolve().parents[1] / "config.yaml").open() as source:
+        return yaml.safe_load(source)["laya"]["confidence"]
+
+
+def confidence_gate(verdict, verdict_probability, action_probability, policy=None):
+    """Route chosen probabilities; the boundaries are measured config, not entropy."""
+    policy = load_policy() if policy is None else policy
+    if verdict not in {"real_issue", "noise"}:
+        raise ValueError("Missing or invalid Laya verdict")
+    for value in [verdict_probability, action_probability, *policy.values()]:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+            raise ValueError("Laya probabilities and thresholds must be finite numbers in [0, 1]")
+    if not 0 < policy["verdict_min"] <= policy["auto_accept_min"] or not 0 < policy["action_min"] <= policy["auto_accept_min"]:
+        raise ValueError("Invalid Laya confidence threshold ordering")
+    if verdict == "noise" or verdict_probability < policy["verdict_min"] or action_probability < policy["action_min"]:
+        return "SUPPRESS"
+    if min(verdict_probability, action_probability) >= policy["auto_accept_min"]:
+        return "AUTO_ACCEPT"
+    return "HUMAN_REVIEW"
 
 
 class DecisionType(Enum):
@@ -36,9 +61,9 @@ class DecisionType(Enum):
 
 class ConfidenceGate(Enum):
     """Confidence-based decision routing."""
-    AUTO_ACCEPT = "AUTO_ACCEPT"      # confidence >= 0.85
-    HUMAN_REVIEW = "HUMAN_REVIEW"    # 0.5 <= confidence < 0.85
-    SUPPRESS = "SUPPRESS"            # confidence < 0.5
+    AUTO_ACCEPT = "AUTO_ACCEPT"
+    HUMAN_REVIEW = "HUMAN_REVIEW"
+    SUPPRESS = "SUPPRESS"
 
 
 @dataclass
@@ -53,7 +78,12 @@ class LayaDecision:
     cluster_id: str = ""
     decision_type: str = DecisionType.SEO_PROBLEM.value
     choice: str = ""                    # The specific decision (e.g., SELF_CANONICAL, CONSOLIDATE)
-    is_real_issue: bool = True
+    is_real_issue: Optional[bool] = None
+    verdict: str = ""
+    head_confidences: Dict[str, Any] = field(default_factory=dict)
+    checkpoint_id: str = ""
+    prompt_version: str = LAYA_PROMPT_VERSION
+    policy: Dict[str, float] = field(default_factory=load_policy)
     confidence: float = 0.0
     severity: str = "medium"            # critical / high / medium / low
     scope: str = "page"
@@ -76,13 +106,19 @@ class LayaDecision:
     gate: str = ConfidenceGate.HUMAN_REVIEW.value
 
     def __post_init__(self):
-        """Apply confidence gating."""
-        if self.confidence >= 0.85:
-            self.gate = ConfidenceGate.AUTO_ACCEPT.value
-        elif self.confidence >= 0.5:
-            self.gate = ConfidenceGate.HUMAN_REVIEW.value
-        else:
-            self.gate = ConfidenceGate.SUPPRESS.value
+        """Derive validity and gate exclusively from validated model answers."""
+        from .heads import validate_heads
+        self.head_confidences = validate_heads({"answers": self.head_confidences})
+        self.verdict = self.head_confidences["verdict"]["choice"]
+        self.is_real_issue = self.verdict == "real_issue"
+        self.choice = self.head_confidences["action"]["choice"]
+        self.severity = self.head_confidences["severity"]["choice"]
+        self.scope = self.head_confidences["scope"]["choice"]
+        self.root_cause = self.head_confidences["root_cause"]["choice"]
+        vp = self.head_confidences["verdict"]["chosen_probability"]
+        ap = self.head_confidences["action"]["chosen_probability"]
+        self.confidence = min(vp, ap)
+        self.gate = confidence_gate(self.verdict, vp, ap, self.policy)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

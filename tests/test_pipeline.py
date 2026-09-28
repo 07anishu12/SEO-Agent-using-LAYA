@@ -14,9 +14,10 @@ from lab.server import SyntheticSiteServer
 from crawler.storage import CrawlStorage
 
 
-def test_pipeline_initialization():
+def test_pipeline_initialization(tmp_path):
     pipe = SEOJEVPipeline(
         target_url="example.com",
+        db_path=str(tmp_path / "init.db"),
         options={"max_pages": 100, "concurrency": 5}
     )
     assert pipe.target_url == "https://example.com"
@@ -24,7 +25,7 @@ def test_pipeline_initialization():
     assert pipe.options["max_pages"] == 100
 
 
-def test_pipeline_progress_callback_unit():
+def test_pipeline_progress_callback_unit(tmp_path):
     events = []
 
     def mock_cb(pass_name: str, pct: float, msg: str, meta=None):
@@ -32,6 +33,7 @@ def test_pipeline_progress_callback_unit():
 
     pipe = SEOJEVPipeline(
         target_url="https://example.com",
+        db_path=str(tmp_path / "progress.db"),
         progress_callback=mock_cb
     )
     pipe.emit_progress("P1_CRAWL", 10.0, "Testing progress", {"test": True})
@@ -40,7 +42,7 @@ def test_pipeline_progress_callback_unit():
     assert events[0] == ("P1_CRAWL", 10.0, "Testing progress")
 
 
-def test_pipeline_cooperative_cancellation_unit():
+def test_pipeline_cooperative_cancellation_unit(tmp_path):
     cancelled = True
 
     def check_cancel():
@@ -48,6 +50,7 @@ def test_pipeline_cooperative_cancellation_unit():
 
     pipe = SEOJEVPipeline(
         target_url="https://example.com",
+        db_path=str(tmp_path / "cancel.db"),
         cancel_check=check_cancel
     )
 
@@ -102,7 +105,9 @@ async def test_baseline_regression_library_mode():
         assert len(templates) in (6, 8), f"Expected 6 or 8 templates from baseline, got {len(templates)}"
         assert len(findings) in (48, 55), f"Expected 48 or 55 findings from baseline, got {len(findings)}"
         assert len(opps) in (48, 55), f"Expected 48 or 55 opportunities from baseline, got {len(opps)}"
-        assert len(work_orders) in (48, 55), f"Expected 48 or 55 work orders from baseline, got {len(work_orders)}"
+        validated = [o for o in opps if o["laya_validated"] == 1]
+        assert len(work_orders) == len(validated)
+        assert 0 < len(work_orders) <= len(opps)
 
     finally:
         server.stop()
