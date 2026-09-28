@@ -16,3 +16,4 @@
 
 ## Bounded development direction
 1. Added default dev profile, environment resource limits, deterministic stratified DB sample isolation, and disabled full-site benchmark. No crawl is started in dev. Templates with fewer than 3 members retain all available; impossible coverage fails explicitly.
+2. Added deterministic streamed synthetic HTML/manifest/ground truth for six observed DB template families, nine defect types and reserved clean controls. Default ceiling 500; explicit generator limit may reach 5,000, but local evaluation remains ≤500. Metrics will use frozen existing confidence policy.
