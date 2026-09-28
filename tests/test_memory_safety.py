@@ -41,3 +41,28 @@ def test_resume_invalidation_and_range(tmp_path):
     store.run_chunk('evidence','b',[2],transform,{'version':1})
     assert len(calls)==2 and list(store.rows('evidence','b','c'))==[[2]]
     assert list(chunks(range(5),2))==[[0,1],[2,3],[4]]
+
+
+@pytest.mark.asyncio
+async def test_queue_applies_backpressure_without_dropping():
+    import asyncio
+    from laya.worker_pool import LayaWorkerPool
+    from laya.decision import LayaCandidateInput
+    pool=LayaWorkerPool(max_queue_depth=1)
+    await pool.submit_candidate(LayaCandidateInput(cluster_id='first'))
+    second=asyncio.create_task(pool.submit_candidate(LayaCandidateInput(cluster_id='second')))
+    await asyncio.sleep(0)
+    assert not second.done()
+    await pool._queue.get();pool._queue.task_done()
+    assert await second is True
+    assert pool.queue_drops==0 and pool.total_candidates==2
+
+
+def test_class_count_not_confused_with_cache_hits(tmp_path):
+    store=SQLiteStageStore(tmp_path/'classes.db')
+    store.put('members','a',dict(class_id='same'))
+    store.put('members','b',dict(class_id='same'))
+    store.put('members','c',dict(class_id='outlier'))
+    assert store.count_classes('members')==2
+    store.clear('members')
+    assert store.count_classes('members')==0

@@ -1,0 +1,89 @@
+{
+  "date": "2026-09-28",
+  "branch": "fix/laya-pipeline",
+  "source_urls": 500,
+  "sampled_structural_families": 266,
+  "cpu_preparation": {
+    "seconds": 4.139444374999584,
+    "peak_rss_mb": 176.078125,
+    "stages": {
+      "ingest": {
+        "seconds": 1.627950416997919,
+        "peak_rss_mb": 97.671875
+      },
+      "evidence": {
+        "seconds": 1.4292563339986373,
+        "peak_rss_mb": 176.078125
+      },
+      "template_grouping_and_candidates": {
+        "seconds": 0.3389283750002505,
+        "peak_rss_mb": 176.078125
+      },
+      "equivalence_prompt_check": {
+        "seconds": 0.7432702080004674,
+        "peak_rss_mb": 170.796875
+      }
+    }
+  },
+  "prompt_equivalence": {
+    "matched": 1207,
+    "total": 1207
+  },
+  "deduplication": {
+    "candidates": 1207,
+    "unique_classes": 1207,
+    "ratio": 0
+  },
+  "mlx_attempt": {
+    "status": "aborted",
+    "seconds": 1.2417314160011301,
+    "peak_rss_mb": 944.015625,
+    "stages": {
+      "model_startup": {
+        "seconds": 0.8580480829987209,
+        "peak_rss_mb": 943.953125
+      },
+      "baseline_laya": {
+        "seconds": 0.3836587920013699,
+        "peak_rss_mb": 944.015625
+      }
+    },
+    "error": "MemoryBudgetExceeded: System swap grew; aborting immediately before more work. Close other applications or run this checkpoint on a larger host.",
+    "checkpoint": "aac6fef/laya-mlx@20aed815fc6acde75733882e7ec0e3f28aeb9717",
+    "decisions_completed": 0
+  },
+  "synthetic": {
+    "pages": 480,
+    "clean_pages": 184,
+    "planted_counts": {
+      "missing_title": 51,
+      "duplicate_title": 54,
+      "thin_content": 52,
+      "bad_canonical": 45,
+      "broken_schema": 63,
+      "orphan_page": 50,
+      "wrong_city_title": 31,
+      "price_mismatch": 53,
+      "noindex_money": 49
+    },
+    "status": "cpu_complete",
+    "precision": null,
+    "recall": null,
+    "inference": "not run: preceding MLX attempt triggered swap-growth guard",
+    "stages": {
+      "synthetic_generation": {
+        "seconds": 0.16484725000191247,
+        "peak_rss_mb": 41.265625
+      },
+      "synthetic_evidence_candidates": {
+        "seconds": 1.9327167090013972,
+        "peak_rss_mb": 49.75
+      }
+    },
+    "seconds": 2.0975838330014085,
+    "peak_rss_mb": 49.75
+  },
+  "safe_batch_size": null,
+  "choice_gate_equivalence": null,
+  "tests": "One file per pytest process; live equality test skipped; no full-site execution"
+}

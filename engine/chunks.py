@@ -25,6 +25,8 @@ class StageStore(Protocol):
     def rows(self, stage: str, start: str = '', end: str | None = None) -> Iterable[dict]: ...
     def put(self, stage: str, key: str, payload: dict) -> None: ...
     def get(self, stage: str, key: str) -> dict | None: ...
+    def clear(self, stage: str) -> None: ...
+    def count_classes(self, stage: str) -> int: ...
 
 
 class DecisionService(Protocol):
@@ -58,6 +60,14 @@ class SQLiteStageStore:
         with closing(self.connect()) as conn:
             for (payload,) in conn.execute('SELECT payload FROM chunk_records WHERE stage=? AND key>=? AND (? IS NULL OR key<?) ORDER BY key', (stage,start,end,end)):
                 yield json.loads(payload)
+
+    def clear(self, stage):
+        with closing(self.connect()) as conn, conn:
+            conn.execute('DELETE FROM chunk_records WHERE stage=?',(stage,))
+
+    def count_classes(self, stage):
+        with closing(self.connect()) as conn:
+            return conn.execute("SELECT COUNT(DISTINCT json_extract(payload,'$.class_id')) FROM chunk_records WHERE stage=?",(stage,)).fetchone()[0]
 
     def run_chunk(self, stage, key, inputs, transform, contract):
         fingerprint = digest([inputs, contract])

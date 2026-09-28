@@ -19,11 +19,12 @@ class LayaCacheError(RuntimeError):
 
 class LayaWorkerPool:
     def __init__(self, model_id="aac6fef/laya-mlx", max_queue_depth=16, num_workers=1,
-                 batch_size=10, decision_callback=None, cache_db_path=None, settings=None):
+                 batch_size=10, decision_callback=None, cache_db_path=None, settings=None, retain_decisions=True):
         self.settings = {**load_settings(), **(settings or {})}
         self.model_id, self.max_queue_depth = model_id, max_queue_depth
         self.num_workers, self.batch_size = num_workers, batch_size
         self.decision_callback, self.cache_db_path = decision_callback, cache_db_path
+        self.retain_decisions = retain_decisions
         self._queue = asyncio.Queue(maxsize=max_queue_depth)
         self._decisions, self._workers = [], []
         self._analyzer = None
@@ -43,6 +44,8 @@ class LayaWorkerPool:
         self._workers = [asyncio.create_task(self._worker_loop(i)) for i in range(self.num_workers)]
 
     async def submit_candidate(self, candidate, run_id=""):
+        if self.retain_decisions and self.total_candidates >= 500:
+            raise ValueError('Retained decision mode is limited to 500 candidates; use a durable callback with retain_decisions=False')
         await asyncio.wait_for(self._queue.put((candidate, run_id)),
                                timeout=self.settings['queue_timeout_seconds'])
         self.total_candidates += 1
@@ -99,7 +102,8 @@ class LayaWorkerPool:
                 self._persist_decision(decision)
                 if self.decision_callback:
                     self.decision_callback(decision)
-                self._decisions.append(decision)
+                if self.retain_decisions:
+                    self._decisions.append(decision)
                 self.total_decisions += 1
                 self.total_cache_hits += int(decision.from_cache)
                 self.total_cache_misses += int(not decision.from_cache)

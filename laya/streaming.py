@@ -93,6 +93,7 @@ class LocalMLXService:
         guard.checkpoint(reserve_mb=1024)
         self.guard=guard
         self.analyzer=LayaSEOAnalyzer.get_singleton(options={'memory_guard':guard})
+        self.analyzer.get_backend().guard=guard
         self.checkpoint_id=self.analyzer.preflight()['checkpoint_id']
         self.pool=LayaWorkerPool(cache_db_path=cache_db,settings=config.get('laya',{}),num_workers=1)
         self.pool._analyzer=self.analyzer
@@ -124,6 +125,7 @@ def fan_out(decision, member):
 def decide_classes(candidates, service, store, guard, run_id):
     """Durable, idempotent class decisions with explicit candidate membership."""
     total=unique=0
+    store.clear('members:'+run_id)
     for candidate in candidates:
         guard.checkpoint()
         record=class_record(candidate,service.checkpoint_id)
@@ -142,5 +144,27 @@ def decide_classes(candidates, service, store, guard, run_id):
             result=LayaDecision.from_dict({**cached,'run_id':run_id,'from_cache':True})
         total+=1
         yield fan_out(result,member)
-    store.put('metrics',run_id,dict(candidates=total,new_class_decisions=unique,
-                                  dedupe_ratio=1-unique/max(total,1)))
+    distinct=store.count_classes('members:'+run_id)
+    store.put('metrics',run_id,dict(candidates=total,unique_classes=distinct,new_class_decisions=unique,
+                                  cache_reuses=total-unique,dedupe_ratio=1-distinct/max(total,1)))
+
+
+def class_opportunities(db_path, run_id):
+    """One work order input per decision class, with explicit opportunity membership."""
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.row_factory=sqlite3.Row
+        conn.execute('CREATE TABLE IF NOT EXISTS work_order_membership(run_id TEXT,class_id TEXT,opportunity_id TEXT,PRIMARY KEY(run_id,class_id,opportunity_id))')
+        conn.execute('DELETE FROM work_order_membership WHERE run_id=?',(run_id,))
+        conn.execute('INSERT INTO work_order_membership SELECT run_id,laya_decision_id,opportunity_id FROM opportunities WHERE run_id=? AND laya_validated=1',(run_id,))
+        conn.commit()
+        for (class_id,) in conn.execute('SELECT DISTINCT class_id FROM work_order_membership WHERE run_id=? ORDER BY class_id',(run_id,)):
+            first=None; count=0; urls=set(); affected=0
+            for row in conn.execute('SELECT * FROM opportunities WHERE run_id=? AND laya_decision_id=? AND laya_validated=1 ORDER BY opportunity_id',(run_id,class_id)):
+                row=dict(row)
+                if first is None:first=row
+                count+=1;affected=max(affected,int(row.get('affected_urls_count') or 1))
+                urls=set(sorted(urls | set(samples(row.get('sample_urls_json'))))[:5])
+            # The class candidate count is authoritative; summed overlapping opportunities are not.
+            decision=conn.execute('SELECT affected_count FROM laya_decisions WHERE crawl_id=? AND decision_id=?',(run_id,class_id)).fetchone()
+            yield {**first,'class_id':class_id,'member_count':count,
+                   'affected_urls_count':decision[0] if decision else affected,'sample_urls_json':json.dumps(sorted(urls))}

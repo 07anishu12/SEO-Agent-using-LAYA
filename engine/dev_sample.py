@@ -12,7 +12,9 @@ def sample_urls(conn, crawl_id, limit=500, seed=42):
     conn.execute('DROP TABLE IF EXISTS temp.sample_families')
     conn.execute("CREATE TEMP TABLE sample_families AS SELECT url,template_family(url,COALESCE(page_type,'other')) family FROM pages WHERE crawl_id=?",(crawl_id,))
     conn.execute('CREATE INDEX sample_family_index ON sample_families(family)')
-    counts = dict(conn.execute('SELECT family,COUNT(*) FROM sample_families GROUP BY family ORDER BY family'))
+    counts = dict(conn.execute('SELECT family,COUNT(*) FROM sample_families GROUP BY family ORDER BY family LIMIT 501'))
+    if len(counts) > limit:
+        raise ValueError('More structural families than the development URL budget')
     quotas = {t: min(3, n) for t, n in counts.items()}
     if sum(quotas.values()) > limit:
         raise ValueError('500 URL cap cannot cover every template with min(3, available); select a smaller source cohort explicitly')

@@ -60,3 +60,20 @@ def test_cache_key_matches_complete_prompt():
     b=LayaCandidateInput(cluster_id='same',sample_urls=['https://x/b'])
     assert a.compute_hash('checkpoint')==prompt_hash(issue_data(a),LAYA_PROMPT_VERSION,'checkpoint')
     assert a.compute_hash('checkpoint')==b.compute_hash('checkpoint')  # URLs are not sent by the established prompt.
+
+
+def test_class_work_orders_keep_all_member_ids(tmp_path):
+    from laya.streaming import class_opportunities
+    from engine.work_orders import WorkOrderManager
+    db=str(tmp_path/'members.db');CrawlStorage(db);MigrationRunner(db).run_migrations()
+    with sqlite3.connect(db) as c:
+        for i in range(3):
+            o=dict(opportunity_id=f'o{i}',fingerprint=f'f{i}',display_id=f'd{i}',run_id='r',type='TPL',observation='title',diagnosis='title',hypothesis='title',action='repair',opportunity_tier='Medium',confidence_tier='High',effort='S',sample_urls_json=json.dumps([f'https://x/{i}']),laya_validated=1,laya_decision_id='class1',laya_candidate_id='candidate1',laya_action='repair',laya_gate='HUMAN_REVIEW')
+            c.execute(f'INSERT INTO opportunities({",".join(o)}) VALUES ({",".join("?" for _ in o)})',tuple(o.values()))
+    inputs=list(class_opportunities(db,'r'))
+    assert len(inputs)==1 and inputs[0]['member_count']==3
+    orders=WorkOrderManager(db).create_work_orders_from_opportunities('r',inputs)
+    assert len(orders)==1 and json.loads(orders[0]['evidence_json'])['member_count']==3
+    with sqlite3.connect(db) as c:
+        assert {r[0] for r in c.execute('SELECT opportunity_id FROM work_order_membership')}=={'o0','o1','o2'}
+    assert len(list(class_opportunities(db,'r')))==1

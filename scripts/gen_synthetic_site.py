@@ -39,6 +39,8 @@ def defects_at(index, kind, seed, rate):
         defects = [d for d in defects if d not in ('duplicate_title', 'wrong_city_title')]
     if 'duplicate_title' in defects:
         defects = [d for d in defects if d != 'wrong_city_title']
+    if 'broken_schema' in defects and kind != 'blog':
+        defects = [d for d in defects if d != 'price_mismatch']
     return defects
 
 
@@ -95,7 +97,16 @@ def generate(db, crawl_id, output, cities=20, price_variants=4, seed=42, defect_
                 f'Test ride in normal traffic and on uneven roads. Ask the dealer in {city} about warranty coverage, service intervals and available colours. Compare total repayment over the full loan period instead of using monthly EMI alone. Review the written quotation and confirm current delivery estimates.',
                 f'Ownership in {city} includes fuel, routine maintenance, insurance renewals and parking. A lightweight commuter can simplify short daily trips; a larger motorcycle may suit longer journeys. Compare usable performance, riding position and pillion comfort against your own travel needs before selecting this {subject.lower()}.',
                 'Frequently asked questions: Does the price include registration? Yes, the displayed illustration is on-road. Can the loan term change? The estimate uses 36 months; lenders may offer other terms. Is insurance included? The quote includes an illustrative policy. Confirm final pricing directly with the dealer before purchase.']
-            body = '<p>Contact the dealer.</p>' if 'thin_content' in defects else ''.join('<p>'+html.escape(p)+'</p>' for p in paragraphs)
+            paragraphs += [f'Compare the cost of running your vehicle over three years in {city}. Estimate weekly travel, fuel consumption and servicing separately. Review tyre replacement intervals and insurance renewal terms. Keep a written comparison of the options available locally, including features that matter to both rider and pillion. Loan eligibility and actual interest rates depend on the lender and applicant; the example EMI is illustrative.',
+                f'Before collecting the vehicle in {city}, inspect the registration details, invoice, insurance certificate and warranty booklet. Check lights, brakes, tyres and the toolkit with the dealer. Record the chassis and engine identifiers and confirm that the chosen colour and equipment match your order. Ask for the first service date and the emergency assistance contact information.']
+            sections = {
+                'variant': '<h2>Variant specifications</h2><table><tr><th>Engine</th><th>Transmission</th></tr><tr><td>124.8 cc</td><td>5 speed</td></tr></table>',
+                'city-price': f'<h2>On-road price in {city}</h2><p>Ex-showroom INR {price-10000}; registration INR 6000; insurance INR 4000. Total INR {price}. Monthly EMI INR {emi}.</p>',
+                'comparison': '<h2>Compare specifications</h2><table><tr><th>Model</th><th>Engine</th></tr><tr><td>TVS Raider</td><td>124.8 cc</td></tr><tr><td>Bajaj Pulsar</td><td>124.4 cc</td></tr></table>',
+                'brand': '<h2>TVS model range</h2><ul><li>Raider 125 commuter</li><li>Apache RTR sports commuter</li><li>Jupiter family scooter</li></ul>',
+                'listing': '<h2>Commuter shortlist</h2><ol><li>TVS Raider 125</li><li>Bajaj Pulsar 125</li><li>Honda Shine</li></ol>',
+                'blog': '<h2>Local ownership guide</h2><p>Editorial advice for choosing a two-wheeler, planning a commute and understanding local running costs.</p>'}
+            body = '<p>Contact the dealer.</p>' if 'thin_content' in defects else ''.join('<p>'+html.escape(p)+'</p>' for p in paragraphs) + sections[kind]
             schema = {'@context': 'https://schema.org', '@type': 'Article' if kind == 'blog' else 'Product', 'name': heading, 'url': url}
             if kind != 'blog':
                 schema['offers'] = {'@type': 'Offer', 'priceCurrency': 'INR', 'price': price+17000 if 'price_mismatch' in defects else price, 'availability': 'https://schema.org/InStock', 'url': url}

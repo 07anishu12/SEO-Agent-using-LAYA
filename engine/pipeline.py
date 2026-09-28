@@ -100,7 +100,12 @@ class SEOJEVPipeline:
         self.target_url = target
         from engine.profiles import resolve_profile
         self.config = resolve_profile(config, (options or {}).get("profile", "dev"))
-        self.options = options or {}
+        self.options = dict(options or {})
+        from engine.memory_guard import MemoryGuard
+        limits = self.config['runtime']
+        self.memory_guard = MemoryGuard(limits['memory_budget_mb'],batch_size=limits['batch_size'],
+            min_available_mb=limits['min_available_mb'],pause_seconds=limits['pause_seconds'])
+        self.memory_guard.checkpoint()
         self.progress_callback = progress_callback
         self.cancel_check = cancel_check
 
@@ -752,7 +757,8 @@ class SEOJEVPipeline:
             if any(o["laya_gate"] not in ("AUTO_ACCEPT", "HUMAN_REVIEW") or not o["laya_candidate_id"] or not o["laya_decision_id"] for o in v3_opps):
                 raise RuntimeError("Pass 5 found validated opportunities with invalid Laya provenance")
 
-        work_orders = wo_mgr.create_work_orders_from_opportunities(self.crawl_id, v3_opps)
+        from laya.streaming import class_opportunities
+        work_orders = wo_mgr.create_work_orders_from_opportunities(self.crawl_id, class_opportunities(self.db_path, self.crawl_id))
         wo_mgr.persist_work_orders(work_orders, run_id=self.crawl_id)
 
         # Baseline verification measures stored evidence; no deployment is implied.
@@ -867,13 +873,15 @@ class SEOJEVPipeline:
         start_wall_time = time.monotonic()
         try:
             self.check_cancelled()
-            LayaSEOAnalyzer.get_singleton(self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx")).preflight()
+            LayaSEOAnalyzer.get_singleton(self.config.get("laya", {}).get("model_id", "aac6fef/laya-mlx"),
+                options={'memory_guard':self.memory_guard}).preflight()
             # P1: Crawl
             if self.is_stage_complete("P1_CRAWL"):
                 self.emit_progress("P1_CRAWL", 25.0, f"Stage P1_CRAWL already completed for {self.crawl_id}. Resuming from checkpoint.")
                 p1_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
-                p1_res = await self.run_pass_1_crawl()
+                with self.memory_guard.stage('P1_crawl'):
+                    p1_res = await self.run_pass_1_crawl()
                 self.mark_stage_complete("P1_CRAWL", p1_res)
             self.check_cancelled()
 
@@ -882,7 +890,8 @@ class SEOJEVPipeline:
                 self.emit_progress("P2_DETERMINISTIC_EVIDENCE", 50.0, f"Deterministic evidence already completed for {self.crawl_id}.")
                 p2_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
-                p2_res = await self.run_pass_2_signals(p1_res)
+                with self.memory_guard.stage('P2_signals'):
+                    p2_res = await self.run_pass_2_signals(p1_res)
                 self.mark_stage_complete("P2_DETERMINISTIC_EVIDENCE", {"status": "completed"})
             self.check_cancelled()
 
@@ -891,7 +900,8 @@ class SEOJEVPipeline:
                 self.emit_progress("P3_CANDIDATE_REDUCTION", 70.0, f"Candidate reduction already completed for {self.crawl_id}.")
                 p3_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
-                p3_res = await self.run_pass_3_search_opportunities(p2_res)
+                with self.memory_guard.stage('P3_search_opportunities'):
+                    p3_res = await self.run_pass_3_search_opportunities(p2_res)
                 self.mark_stage_complete("P3_CANDIDATE_REDUCTION", {"status": "completed"})
             self.check_cancelled()
 
@@ -902,7 +912,8 @@ class SEOJEVPipeline:
                     p4_res = json.loads(conn.execute("SELECT metadata_json FROM stage_checkpoints WHERE crawl_id=? AND stage='P4_LAYA_DECISION_ENGINE'", (self.crawl_id,)).fetchone()[0])
                 self._laya_summary = p4_res["laya_summary"]
             else:
-                p4_res = await self.run_pass_4_laya_decision(p3_res)
+                with self.memory_guard.stage('P4_laya_decision'):
+                    p4_res = await self.run_pass_4_laya_decision(p3_res)
                 self.mark_stage_complete("P4_LAYA_DECISION_ENGINE", p4_res)
             self.check_cancelled()
 
@@ -911,7 +922,8 @@ class SEOJEVPipeline:
                 self.emit_progress("P5_VALIDATED_OPPORTUNITIES", 90.0, f"Validated opportunities already completed for {self.crawl_id}.")
                 p5_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
-                p5_res = await self.run_pass_5_work_orders(p4_res)
+                with self.memory_guard.stage('P5_work_orders'):
+                    p5_res = await self.run_pass_5_work_orders(p4_res)
                 self.mark_stage_complete("P5_VALIDATED_OPPORTUNITIES", {"status": "completed"})
             self.check_cancelled()
 
@@ -920,7 +932,8 @@ class SEOJEVPipeline:
                 self.emit_progress("P6_REPORTS", 100.0, f"Reports already completed for {self.crawl_id}.")
                 p6_res = {"crawl_id": self.crawl_id, "resumed": True}
             else:
-                p6_res = await self.run_pass_6_deliverables(p5_res)
+                with self.memory_guard.stage('P6_deliverables'):
+                    p6_res = await self.run_pass_6_deliverables(p5_res)
                 self.mark_stage_complete("P6_REPORTS", {"status": "completed"})
 
             total_duration = round(time.monotonic() - start_wall_time, 2)
