@@ -1,0 +1,42 @@
+{
+  "branch": "fix/laya-pipeline",
+  "prepared_db": "reports/laya-dev-500/dev-sample-1790609053814360000.db",
+  "crawl_id": "crawl_20260928_152046",
+  "url_count": 500,
+  "candidates": 1207,
+  "checkpoint": "aac6fef/laya-mlx@20aed815fc6acde75733882e7ec0e3f28aeb9717",
+  "model_owner_lock_available": true,
+  "no_crawl_or_inference_process_observed": true,
+  "runtime": {
+    "max_urls": 500,
+    "seed": 42,
+    "memory_budget_mb": 4096,
+    "max_workers": 2,
+    "batch_size": 8,
+    "queue_size": 16,
+    "throttle_seconds": 0.05,
+    "pause_seconds": 2.0,
+    "min_available_mb": 1536
+  },
+  "profile": "dev",
+  "memory": {
+    "total": 17179869184,
+    "available": 7317897216,
+    "percent": 57.4,
+    "used": 8236384256,
+    "free": 1785266176,
+    "active": 5518737408,
+    "inactive": 5384454144,
+    "wired": 2717646848
+  },
+  "swap": {
+    "total": 2147483648,
+    "used": 1068040192,
+    "free": 1079443456,
+    "percent": 49.7,
+    "sin": 234289496064,
+    "sout": 369147904
+  },
+  "macos_pressure_level": 1,
+  "old_pipeline_commit": "896b2dd"
+}
