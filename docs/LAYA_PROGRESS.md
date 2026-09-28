@@ -59,7 +59,10 @@ Follow-up correctness: wired class-level work orders and durable member IDs into
     - Validated opportunities: 1,079. Suppressed opportunities: 1,450. Unmatched opportunities: 0.
   - Pass 5 (Work Orders & Verification): 19.83 s, peak RSS 822.19 MiB.
     - 1,079 work orders generated (851 content, 228 engineering), 0 failed work orders.
-    - 1,079 baseline verifications executed, claims linter: 0 violations.
+    - Added canonical `WorkOrderManager.validate_work_order` and `audit_run_work_orders` schema/lifecycle contracts in `engine/work_orders.py`.
+    - Resolved validator key mismatch (`action_type` -> canonical `order_type` in `('content', 'engineering')` and `priority` in `('P0', 'P1', 'P2', 'P3')`).
+    - Added comprehensive regression tests in `tests/test_work_order_validation.py` verifying valid generation, failure accounting, and live DB integrity (4 passed).
+    - 1,079 baseline verifications executed (443 confirming defect presence before remediation, 636 passed), claims linter: 0 violations.
 - Idempotency & Restart Verification: 50 candidate chunk re-run through `decide_classes`: 50/50 cache hits (100%), 0 new inferences. 100% choice and gate equality against persisted decisions.
 - Memory Safety & Telemetry: Total runtime 1,829.22 s (30.49 min); Laya throughput: 1.4209 decisions/sec; URL throughput: 0.5467 URLs/sec. Peak RSS across all stages: 1,014.48 MiB (well below 4,096 MiB budget). Peak system memory pressure: 68.5%. Swap before: 874.56 MiB; Swap after: 874.56 MiB; Swap delta: 0.00 MiB (zero swap growth). Memory guard triggers: 0 triggers (SAFE). Maximum batch size used: 16. Errors/retries: 0.
 

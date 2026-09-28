@@ -1,7 +1,7 @@
 import json
 import sqlite3
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 class WorkOrderManager:
     """
@@ -281,4 +281,64 @@ class WorkOrderManager:
             "total_tickets": len(work_orders),
             "engineering_tickets": sum(1 for w in work_orders if w["order_type"] == "engineering"),
             "content_tickets": sum(1 for w in work_orders if w["order_type"] == "content")
+        }
+
+    @staticmethod
+    def validate_work_order(wo: Dict[str, Any]) -> Tuple[bool, str]:
+        """
+        Validates the lifecycle and schema integrity of a work order record.
+        A work order is valid if it possesses valid identifiers, recognized order_type and priority,
+        non-empty required_change and acceptance_criteria, and parseable evidence_json.
+        """
+        if not wo.get("work_order_id"):
+            return False, "Missing work_order_id"
+        if not wo.get("display_id"):
+            return False, "Missing display_id"
+        if wo.get("order_type") not in ("engineering", "content"):
+            return False, f"Invalid order_type: {wo.get('order_type')}"
+        if wo.get("priority") not in ("P0", "P1", "P2", "P3"):
+            return False, f"Invalid priority: {wo.get('priority')}"
+        if not wo.get("required_change"):
+            return False, "Missing required_change"
+        if not wo.get("acceptance_criteria"):
+            return False, "Missing acceptance_criteria"
+        try:
+            ev = json.loads(wo.get("evidence_json") or "{}")
+            if not isinstance(ev, dict):
+                return False, "evidence_json is not a valid JSON object"
+        except Exception as exc:
+            return False, f"Malformed evidence_json: {exc}"
+        return True, "Valid"
+
+    def audit_run_work_orders(self, run_id: str) -> Dict[str, Any]:
+        """Audits all persisted work orders for a run against the canonical contract."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("SELECT * FROM work_orders WHERE run_id = ?", (run_id,)).fetchall()
+            wos = [dict(r) for r in rows]
+            verifs = conn.execute("SELECT status, COUNT(*) FROM verifications WHERE run_id = ? GROUP BY status", (run_id,)).fetchall()
+            verif_dist = {r[0]: r[1] for r in verifs}
+
+        valid = failed = 0
+        reasons = []
+        by_type = {"content": 0, "engineering": 0}
+        by_priority = {}
+        for w in wos:
+            is_valid, msg = self.validate_work_order(w)
+            if is_valid:
+                valid += 1
+                by_type[w["order_type"]] = by_type.get(w["order_type"], 0) + 1
+                by_priority[w["priority"]] = by_priority.get(w["priority"], 0) + 1
+            else:
+                failed += 1
+                reasons.append({"work_order_id": w.get("work_order_id"), "reason": msg})
+
+        return {
+            "total_work_orders": len(wos),
+            "valid_count": valid,
+            "failed_count": failed,
+            "failed_reasons": reasons,
+            "by_type": by_type,
+            "by_priority": by_priority,
+            "baseline_verifications": verif_dist
         }

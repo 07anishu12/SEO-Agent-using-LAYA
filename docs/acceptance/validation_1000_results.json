@@ -48,13 +48,13 @@
     "work_orders": 822.19
   },
   "peak_rss_mb": 1014.48,
-  "peak_system_memory_pressure_pct": 68.5,
+  "peak_system_memory_pressure_pct": 69.1,
   "swap_before_mb": 874.56,
   "swap_after_mb": 874.56,
   "swap_delta_mb": 0.0,
-  "pageouts_before": 23346,
-  "pageouts_after": 23361,
-  "pageouts_delta": 15,
+  "pageouts_before": 23361,
+  "pageouts_after": 23366,
+  "pageouts_delta": 5,
   "max_batch_size_used": 16,
   "memory_guard_status": "0 triggers (SAFE)"
 }

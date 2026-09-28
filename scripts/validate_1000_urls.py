@@ -263,17 +263,20 @@ async def run_validation(output_dir="reports/laya_val_1000", existing_db=None):
         print(f"Gate Counts: {gate_counts}")
         assert unmatched_opps == 0, f"Found {unmatched_opps} unmatched opportunities in fan-out"
 
-        wo_rows = conn.execute("SELECT * FROM work_orders WHERE run_id=?", (crawl_id,)).fetchall()
-        work_orders_count = len(wo_rows)
-        failed_work_orders = 0
-        for wo in wo_rows:
-            if not wo["order_type"] or not wo["priority"]:
-                failed_work_orders += 1
+        from engine.work_orders import WorkOrderManager
+        wo_mgr = WorkOrderManager(db_path)
+        wo_audit = wo_mgr.audit_run_work_orders(crawl_id)
+        work_orders_count = wo_audit["total_work_orders"]
+        failed_work_orders = wo_audit["failed_count"]
 
-        print(f"\n--- WORK ORDERS ---")
+        print(f"\n--- WORK ORDERS AUDIT ---")
         print(f"Work Orders Generated: {work_orders_count}")
+        print(f"Valid Work Orders: {wo_audit['valid_count']}")
         print(f"Failed Work Orders: {failed_work_orders}")
-        assert failed_work_orders == 0, f"Found {failed_work_orders} failed work orders"
+        print(f"By Order Type: {wo_audit['by_type']}")
+        print(f"By Priority: {wo_audit['by_priority']}")
+        print(f"Baseline Verifications: {wo_audit['baseline_verifications']}")
+        assert failed_work_orders == 0, f"Found {failed_work_orders} failed work orders: {wo_audit['failed_reasons']}"
         assert work_orders_count == val_opps, f"Work order count {work_orders_count} != validated opps {val_opps}"
 
     # 7. Persistence / Restart / Idempotency Verification on a representative chunk
