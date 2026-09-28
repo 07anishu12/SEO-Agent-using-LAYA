@@ -1,0 +1,33 @@
+{
+  "safe_batch_size": null,
+  "equivalence": {
+    "status": "blocked",
+    "total_comparisons": 0,
+    "choice_matches": 0,
+    "choice_mismatches": 0,
+    "gate_matches": 0,
+    "gate_mismatches": 0,
+    "missing_decisions": 1207
+  },
+  "synthetic": {
+    "status": "blocked",
+    "pages": 480,
+    "clean_pages": 184,
+    "tp": null,
+    "fp": null,
+    "tn": null,
+    "fn": null,
+    "precision": null,
+    "recall": null
+  },
+  "final_dev": {
+    "status": "blocked",
+    "urls": 500,
+    "total_runtime_seconds": null,
+    "successful_peak_rss_mb": null,
+    "swap_change_mb": null,
+    "decisions_per_second": null,
+    "urls_per_second": null
+  },
+  "reason": "Batch 8 triggered the zero-swap-growth watchdog; no further model runs or retries were performed."
+}

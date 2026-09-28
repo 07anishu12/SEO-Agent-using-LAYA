@@ -10,7 +10,7 @@ import time
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from engine.chunks import SQLiteStageStore
 from engine.memory_guard import MemoryGuard
-from engine.evaluation import empty_equivalence, compare_decision, require_safe_batch
+from engine.evaluation import empty_equivalence, compare_decision, require_safe_batch, score_synthetic
 from engine.profiles import resolve_profile
 from laya.streaming import LocalMLXService, iter_candidates, decide_classes
 from laya.decision import LayaCandidateInput, LayaDecision, LAYA_PROMPT_VERSION
@@ -162,9 +162,8 @@ def evaluate(args):
                     continue
                 decision=service.submit_batch([candidate],'synthetic')[0]
                 store.put('synthetic_decisions',candidate.sample_urls[0],dict(url=candidate.sample_urls[0],choice=decision.choice,gate=decision.gate,is_real_issue=decision.is_real_issue))
-        truth=json.loads((synthetic/'ground_truth.json').read_text())
         with guard.stage('synthetic_scoring'):
-            result['noise_detection']=confusion((bool(truth[row['url']]),row['is_real_issue'] and row['gate']!='SUPPRESS') for row in store.rows('synthetic_decisions'))
+            result['noise_detection']=score_synthetic(synthetic/'ground_truth.json',store)
         result['metric_definition']='Page-level: any planted defect is positive; validated requires real_issue and AUTO_ACCEPT/HUMAN_REVIEW. This does not establish per-defect localization accuracy.'
         result['status']='completed'
     except Exception as exc:
