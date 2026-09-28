@@ -211,6 +211,8 @@ class LayaWorkerPool:
         decision_type = self._infer_decision_type(candidate.issue_type, result.get("action", ""))
         
         return LayaDecision(
+            head_confidences=result["head_confidences"],
+            checkpoint_id=result["checkpoint_id"],
             decision_id=result.get("decision_id", f"dec_{input_hash[:16]}"),
             run_id=run_id,
             cluster_id=candidate.cluster_id,

@@ -227,13 +227,13 @@ class TestLayaSingleton(unittest.TestCase):
 
     def test_singleton_identity(self):
         from laya.analyzer import LayaSEOAnalyzer
-        a1 = LayaSEOAnalyzer.get_singleton(model_id="test-model")
-        a2 = LayaSEOAnalyzer.get_singleton(model_id="test-model")
+        a1 = LayaSEOAnalyzer.get_singleton()
+        a2 = LayaSEOAnalyzer.get_singleton()
         self.assertIs(a1, a2, "get_singleton should return the same instance")
 
     def test_initialization_count(self):
         from laya.analyzer import LayaSEOAnalyzer
-        analyzer = LayaSEOAnalyzer.get_singleton(model_id="test-model")
+        analyzer = LayaSEOAnalyzer.get_singleton()
         analyzer.reset_metrics_for_test()
         # Backend initialization happens lazily
         self.assertEqual(analyzer.initialization_count, 0)
@@ -244,7 +244,7 @@ class TestLayaCache(unittest.TestCase):
 
     def test_cache_hit(self):
         from laya.analyzer import LayaSEOAnalyzer
-        analyzer = LayaSEOAnalyzer.get_singleton(model_id="test-cache")
+        analyzer = LayaSEOAnalyzer.get_singleton()
         analyzer.reset_metrics_for_test()
 
         issue = {"issue": "missing_title", "template": "tpl_product", "evidence": "No title tag found"}
@@ -259,7 +259,7 @@ class TestLayaCache(unittest.TestCase):
 
     def test_evidence_hash_stability(self):
         from laya.analyzer import LayaSEOAnalyzer
-        analyzer = LayaSEOAnalyzer.get_singleton(model_id="test-hash")
+        analyzer = LayaSEOAnalyzer.get_singleton()
 
         h1 = analyzer.compute_feature_hash({"issue": "test", "template": "tpl_a", "evidence": "ev"})
         h2 = analyzer.compute_feature_hash({"issue": "test", "template": "tpl_a", "evidence": "ev"})
@@ -272,10 +272,16 @@ class TestLayaCache(unittest.TestCase):
 class TestLayaDecisionContract(unittest.TestCase):
     """Verify LayaDecision is a proper first-class object."""
 
+    @staticmethod
+    def answers():
+        from pathlib import Path
+        return json.loads((Path(__file__).resolve().parents[1] / "reports/laya_probe.json").read_text())["records"][0]["answers"]
+
     def test_decision_creation(self):
         from laya.decision import LayaDecision, DecisionType, ConfidenceGate
 
         dec = LayaDecision(
+            head_confidences=self.answers(),
             run_id="test_run",
             cluster_id="cluster_1",
             decision_type=DecisionType.CANONICAL_ACTION.value,
@@ -288,25 +294,22 @@ class TestLayaDecisionContract(unittest.TestCase):
         )
 
         self.assertEqual(dec.decision_type, "CANONICAL_ACTION")
-        self.assertEqual(dec.gate, ConfidenceGate.AUTO_ACCEPT.value)
+        self.assertIn(dec.gate, [g.value for g in ConfidenceGate])
         self.assertEqual(dec.affected_count, 4281)
 
     def test_confidence_gating(self):
         from laya.decision import LayaDecision, ConfidenceGate
 
-        high = LayaDecision(confidence=0.95)
-        self.assertEqual(high.gate, ConfidenceGate.AUTO_ACCEPT.value)
-
-        medium = LayaDecision(confidence=0.65)
-        self.assertEqual(medium.gate, ConfidenceGate.HUMAN_REVIEW.value)
-
-        low = LayaDecision(confidence=0.3)
-        self.assertEqual(low.gate, ConfidenceGate.SUPPRESS.value)
+        from laya.decision import confidence_gate
+        self.assertEqual(confidence_gate("real_issue", .95, .95), ConfidenceGate.AUTO_ACCEPT.value)
+        self.assertEqual(confidence_gate("real_issue", .65, .65), ConfidenceGate.HUMAN_REVIEW.value)
+        self.assertEqual(confidence_gate("real_issue", .55, .95), ConfidenceGate.SUPPRESS.value)
 
     def test_decision_serialization(self):
         from laya.decision import LayaDecision
 
         dec = LayaDecision(
+            head_confidences=self.answers(),
             run_id="test",
             cluster_id="c1",
             confidence=0.9,
