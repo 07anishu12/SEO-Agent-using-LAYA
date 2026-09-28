@@ -44,6 +44,7 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+data/*.db.bak-*
 
 # Reports & Logs (optional ignore, keep directory structure)
 logs/*.log
