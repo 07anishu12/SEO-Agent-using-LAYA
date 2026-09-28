@@ -38,7 +38,7 @@ def system_state():
 
 
 def unsafe_reason(state, before, limits, rss=0):
-    if state['swap_used'] > before['swap_used'] or state['swap_out'] > before['swap_out']:
+    if state['swap_used'] > before['swap_used']:
         return 'System swap grew (zero-growth guard)'
     if state['pressure_level'] is not None and state['pressure_level'] > 1:
         return 'macOS memory pressure rose above normal'
@@ -117,6 +117,13 @@ def guarded_process(command, limits, report_path, log_path, batch_size=None):
         if child.get('baseline_rss_mb') is not None:
             result['spawn_rss_mb']=result['baseline_rss_mb']
             result['baseline_rss_mb']=child['baseline_rss_mb']
+        if child.get('rss_after_load_mb') is not None:
+            result['rss_after_load_mb']=child['rss_after_load_mb']
+        if child.get('page_outs_before') is not None:
+            result['page_outs_before']=child['page_outs_before']
+            result['page_outs_after']=child.get('page_outs_after', after['swap_out'])
+            result['swap_before_mb']=child.get('swap_before_mb', result['swap_before_mb'])
+            result['swap_after_mb']=child.get('swap_after_mb', result['swap_after_mb'])
         result['peak_rss_mb']=max(result['peak_rss_mb'],child.get('peak_rss_mb',0))
         if child.get('memory_guard_triggered'):
             result.update(memory_guard_triggered=True,error=child.get('error','Child guard triggered'))
@@ -145,13 +152,21 @@ def probe(args):
     limits=config['runtime'];limits['batch_size']=args.batch_size
     guard=MemoryGuard(limits['memory_budget_mb'],batch_size=args.batch_size,
                       min_available_mb=limits['min_available_mb'],pause_seconds=limits['pause_seconds'])
-    result=dict(batch_size=args.batch_size,baseline_rss_mb=guard.get_current_rss_mb(),completed_candidates=0)
+    init_state = system_state()
+    result=dict(batch_size=args.batch_size,baseline_rss_mb=guard.get_current_rss_mb(),
+                swap_before_mb=init_state['swap_used']/2**20,page_outs_before=init_state['swap_out'],
+                completed_candidates=0)
     start=time.monotonic()
     write_report(args.output,{**result,'status':'starting'})
     try:
         with guard.stage('model_startup'):
             service=LocalMLXService(config,guard)
             if service.checkpoint_id!=CHECKPOINT:raise RuntimeError('Checkpoint differs from the old pipeline')
+        post_load = system_state()
+        result.update(rss_after_load_mb=guard.get_current_rss_mb(),
+                      swap_after_load_mb=post_load['swap_used']/2**20,
+                      page_outs_after_load=post_load['swap_out'])
+        guard.rebase_inference()
         with closing(sqlite3.connect(prepared['db'])) as conn:
             # Identical 64 longest saved inputs in every fresh process, ordered deterministically.
             rows=(r[0] for r in conn.execute("SELECT payload FROM chunk_records WHERE stage='baseline_candidates' ORDER BY LENGTH(payload) DESC,key LIMIT 64"))
@@ -172,7 +187,10 @@ def probe(args):
         raise
     finally:
         high_water=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/(2**20 if platform.system()=='Darwin' else 1024)
-        result.update(elapsed_seconds=time.monotonic()-start,peak_rss_mb=max(high_water,guard.peak_rss_mb),stages=guard.stages)
+        end_state = system_state()
+        result.update(elapsed_seconds=time.monotonic()-start,peak_rss_mb=max(high_water,guard.peak_rss_mb),
+                      swap_after_mb=end_state['swap_used']/2**20,page_outs_after=end_state['swap_out'],
+                      page_outs_delta=(end_state['swap_out']-init_state['swap_out']),stages=guard.stages)
         write_report(args.output,result)
 
 

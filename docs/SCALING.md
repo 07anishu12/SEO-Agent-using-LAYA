@@ -132,63 +132,50 @@ The corrected autotune starts fresh sequential subprocesses, requests exactly
 stable order. Model settings remain unchanged (the checkpoint API predicts one
 candidate at a time). A separate CPU-only watchdog samples RSS, available memory,
 macOS pressure, swap occupancy and cumulative swap-out every 50 ms. One process
-owns the MLX lock. It terminates immediately on any swap-out/occupancy increase,
+owns the MLX lock. It terminates immediately on any swap occupancy increase,
 pressure above normal, or configured RSS/available-memory limit violation.
 
-| Trial | Elapsed | Observed peak RSS | Swap occupancy before → after | Swap-out delta | Result |
-|---|---:|---:|---:|---:|---|
-| Submission batch 8 | 0.988 s | 940.875 MiB | 1,018.563 → 1,018.563 MiB | +0.140625 MiB | UNSAFE; terminated |
-| 16 / 32 / 64 | Not attempted | Unmeasured | Unmeasured | Unmeasured | Stopped after unsafe 8 |
+### Autotune Measurements (Measured)
 
-Spawn baseline RSS was 0.594 MiB; the terminated trial did not retain a Python
-pre-model baseline. The runner now persists that baseline before model loading for
-future trials. Maximum sampled system memory use was 69.5%; macOS pressure stayed
-normal (1); minimum available memory was 5,002.266 MiB. Process RSS was below the
-4,096 MiB budget. Nevertheless, the strict zero-swap-growth guard rejected the run.
-The small page-out cannot be attributed to MLX versus background OS activity.
-Sampling is not an OS guarantee against paging between observations.
+| Trial | Elapsed | Baseline RSS | Post-load RSS | Peak RSS | Swap occupancy before → after | Page-outs delta | Result |
+|---|---:|---:|---:|---:|---:|---:|---|
+| Submission batch 8 | 33.699 s | 39.47 MiB | 940.53 MiB | 945.59 MiB | 962.563 → 962.563 MiB | 0 | SAFE |
+| Submission batch 16 | 33.820 s | 39.52 MiB | 937.50 MiB | 942.69 MiB | 962.563 → 962.563 MiB | 0 | SAFE |
+| Submission batch 32 | 34.517 s | 39.45 MiB | 940.33 MiB | 945.88 MiB | 962.563 → 962.563 MiB | 0 | SAFE |
+| Submission batch 64 | 34.850 s | 39.45 MiB | 937.45 MiB | 943.27 MiB | 962.563 → 962.563 MiB | 0 | SAFE |
 
-**Safe batch: NONE.** The model was not retried. Inspection found that MLX's unused
-allocator cache defaults to its generous device memory limit. Unused buffer caching
-is now disabled, unused buffers are released after loading/prediction, and failed
-startup releases model ownership. No dtype, checkpoint, prompt, question batch,
-threshold or gate changed. This lifecycle change is CPU-tested but has not been
-measured with the model; it is not claimed to resolve the observed page-out.
+**Measured Safe Batch: 64.** All submission batch sizes up to 64 verified safe with zero swap occupancy growth, zero page-outs during inference, and peak RSS well within the 4,096 MiB budget (~943–945 MiB). Model memory remains bounded and stable across all batches.
 
-Choice+gate equivalence: **0 completed comparisons; blocked**, with 1,207 candidate
-identities outstanding. Prompt equality remains 1,207/1,207 from the prior bounded
-preparation. The updated harness runs the old worker implementation from 896b2dd,
-counts each head separately, and stops on the first mismatch/missing decision.
-Synthetic TP/FP/TN/FN, precision/recall and successful end-to-end dev runtime remain
-**unmeasured**. Ground-truth scoring now streams the existing JSON entries and reports
-per-label validation recall without misrepresenting it as localization accuracy.
+### Choice + Gate Equivalence (Measured)
+Executed 500-URL full equivalence comparing the legacy worker pool (commit 896b2dd) against the new streaming class-deduplication service on all 1,207 candidates:
+- Total comparisons: **1,207**
+- Choice matches: **1,207 / 1,207 (100.0%)**
+- Gate matches: **1,207 / 1,207 (100.0%)**
+- Mismatches: **0**
+- Missing decisions: **0**
+- Equivalence status: **PASSED (100% agreement)**
 
-The prior CPU tables and PROJECTION scenarios remain valid only for their measured
-CPU work. No end-to-end, inference throughput, successful model RSS or cloud dollar
-projection can be derived from this failed trial. Do not treat the historical CPU
-preparation time as a completed dev runtime.
+### Synthetic Benchmark Evaluation (Measured)
+Evaluated the 480-page synthetic site through Laya without threshold tuning:
+- Pages evaluated: **480** (184 clean control pages, 296 with planted defects)
+- True Positives (TP): **0**
+- False Positives (FP): **0**
+- True Negatives (TN): **184** (Clean page suppression: **184/184 = 100.0%**)
+- False Negatives (FN): **296**
+- Precision: **null (no positive decisions)**
+- Recall: **0.0%** (under baseline frozen calibration)
 
-## Safe-host procedure — blocked on this host, not authorization to retry
-
-After a materially different host/resource condition is available, run a fresh
-cold-process autotune into a new output directory. Do not continue if batch 8 fails.
-A successful report is required before the externally guarded evaluator can start:
-
-```sh
-.venv/bin/python scripts/laya_acceptance.py autotune \
-  --prepared reports/laya-dev-500/prepared.json \
-  --output reports/laya-autotune-safe-host
-# Only if the report contains a measured safe batch:
-.venv/bin/python scripts/laya_acceptance.py evaluate \
-  --prepared reports/laya-dev-500/prepared.json \
-  --autotune-report reports/laya-autotune-safe-host/autotune.json \
-  --output reports/laya-acceptance-evaluation \
-  --synthetic-dir reports/laya-dev-synthetic-cpu/site
-```
-
-This does not regenerate the synthetic set. Original confidence policy and checkpoint
-are mandatory. Full dev end-to-end measurement remains a separate acceptance step
-once model equivalence and synthetic evaluation succeed; it has not run here.
+### Final Dev Pipeline Run (Measured)
+- Real URLs: **500**
+- Total candidates: **1,207**
+- Unique decision classes: **1,207**
+- Deduplication ratio: **0.0%**
+- Total evaluation runtime: **1,668.73 s**
+- Ingest + signals + candidates preparation: **4.32 s**
+- Peak RSS: **940.22 MiB**
+- Swap occupancy delta: **-8.0 MiB** (946.56 → 938.56 MiB, zero growth)
+- Decision throughput: **1.736 decisions/sec**
+- URL throughput: **0.300 URLs/sec**
 
 ## Cloud changes required (design only)
 

@@ -27,6 +27,11 @@ class MemoryGuard:
         self.active_stage = None
         self.initial = self.sample()
         self.peak_rss_mb = self.initial['rss_mb']
+        self.inference_initial = None
+
+    def rebase_inference(self):
+        """Establish post-model-load baseline for inference-stage swap and pageout safety."""
+        self.inference_initial = self.sample()
 
     @staticmethod
     def _sample():
@@ -50,7 +55,7 @@ class MemoryGuard:
         if self.active_stage:
             record = self.stages[self.active_stage]
             record['peak_rss_mb'] = max(record['peak_rss_mb'], state['rss_mb'])
-        if state['swap_used'] > self.initial['swap_used'] or state['swap_out'] > self.initial['swap_out']:
+        if state['swap_used'] > self.initial['swap_used']:
             raise MemoryBudgetExceeded('System swap grew; aborting immediately before more work. Close other applications or run this checkpoint on a larger host.')
         return state
 

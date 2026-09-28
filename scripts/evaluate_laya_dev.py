@@ -87,6 +87,7 @@ def evaluate(args):
     try:
         with guard.stage('model_startup'):
             service=LocalMLXService(config,guard)
+        guard.rebase_inference()
         result['checkpoint_id']=service.checkpoint_id
         if prior and prior.get('checkpoint_id',service.checkpoint_id)!=service.checkpoint_id:
             raise ValueError('Cannot resume equivalence with a different checkpoint')
