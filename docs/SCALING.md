@@ -100,7 +100,7 @@ linear. Template grouping and opportunity candidate construction are measured to
 The equivalence prompt check is validation overhead, excluded from projections below.
 Dollar cost is unmeasured: no cloud instance, price or completed inference rate exists.
 
-## Projections only — no scale runs
+## PROJECTION only — no scale runs
 
 Linear single-worker CPU scenarios, holding the measured work mix constant. They
 exclude Laya, network crawl, remote storage, global reducers, work orders and reports.
@@ -108,7 +108,7 @@ A 500-URL sample cannot establish cache behavior or template distribution at sca
 The synthetic timings describe fixture generation/parsing, not a production audit.
 No total end-to-end completion time can be projected responsibly before model timing.
 
-| URLs | Real ingest + evidence + candidates (projected) | Synthetic generation + evidence (projected) | CPU memory scenario |
+| URLs | Real ingest + evidence + candidates (PROJECTION) | Synthetic generation + evidence (PROJECTION) | CPU memory scenario |
 |---:|---:|---:|---|
 | 50,000 | 5.66 min | 3.64 min | ~176 MiB per isolated 500-URL real-data worker; ~50 MiB per fixture worker |
 | 500,000 | 56.60 min | 36.42 min | ~176 MiB per isolated 500-URL real-data worker; ~50 MiB per fixture worker |
@@ -121,29 +121,89 @@ Multiplying the CPU envelope by worker count is only a budgeting scenario; measu
 actual concurrent RSS before increasing workers. Model memory cannot be projected
 from this aborted run. There are **no 50k / 500k / 5M execution measurements**.
 
-## Remaining verification and safe-host resume
+## Current acceptance continuation
 
-The MLX evaluation is blocked by system swap growth on the current host. Leave the
-confidence policy and checkpoint unchanged. On a host with sufficient free memory,
-resume the recorded evaluation, reusing the existing synthetic directory:
+Machine-readable evidence: `docs/acceptance/preflight.json`, `autotune.json`,
+`blocked_measurements.json` and `tests.json`. The existing prepared 500-URL DB and
+480-page synthetic dataset were retained; no new sample, crawl or generation occurred.
+
+The corrected autotune starts fresh sequential subprocesses, requests exactly
+8/16/32/64 submission batch sizes, and uses the same 64 longest prepared inputs in
+stable order. Model settings remain unchanged (the checkpoint API predicts one
+candidate at a time). A separate CPU-only watchdog samples RSS, available memory,
+macOS pressure, swap occupancy and cumulative swap-out every 50 ms. One process
+owns the MLX lock. It terminates immediately on any swap-out/occupancy increase,
+pressure above normal, or configured RSS/available-memory limit violation.
+
+| Trial | Elapsed | Observed peak RSS | Swap occupancy before → after | Swap-out delta | Result |
+|---|---:|---:|---:|---:|---|
+| Submission batch 8 | 0.988 s | 940.875 MiB | 1,018.563 → 1,018.563 MiB | +0.140625 MiB | UNSAFE; terminated |
+| 16 / 32 / 64 | Not attempted | Unmeasured | Unmeasured | Unmeasured | Stopped after unsafe 8 |
+
+Spawn baseline RSS was 0.594 MiB; the terminated trial did not retain a Python
+pre-model baseline. The runner now persists that baseline before model loading for
+future trials. Maximum sampled system memory use was 69.5%; macOS pressure stayed
+normal (1); minimum available memory was 5,002.266 MiB. Process RSS was below the
+4,096 MiB budget. Nevertheless, the strict zero-swap-growth guard rejected the run.
+The small page-out cannot be attributed to MLX versus background OS activity.
+Sampling is not an OS guarantee against paging between observations.
+
+**Safe batch: NONE.** The model was not retried. Inspection found that MLX's unused
+allocator cache defaults to its generous device memory limit. Unused buffer caching
+is now disabled, unused buffers are released after loading/prediction, and failed
+startup releases model ownership. No dtype, checkpoint, prompt, question batch,
+threshold or gate changed. This lifecycle change is CPU-tested but has not been
+measured with the model; it is not claimed to resolve the observed page-out.
+
+Choice+gate equivalence: **0 completed comparisons; blocked**, with 1,207 candidate
+identities outstanding. Prompt equality remains 1,207/1,207 from the prior bounded
+preparation. The updated harness runs the old worker implementation from 896b2dd,
+counts each head separately, and stops on the first mismatch/missing decision.
+Synthetic TP/FP/TN/FN, precision/recall and successful end-to-end dev runtime remain
+**unmeasured**. Ground-truth scoring now streams the existing JSON entries and reports
+per-label validation recall without misrepresenting it as localization accuracy.
+
+The prior CPU tables and PROJECTION scenarios remain valid only for their measured
+CPU work. No end-to-end, inference throughput, successful model RSS or cloud dollar
+projection can be derived from this failed trial. Do not treat the historical CPU
+preparation time as a completed dev runtime.
+
+## Safe-host procedure — blocked on this host, not authorization to retry
+
+After a materially different host/resource condition is available, run a fresh
+cold-process autotune into a new output directory. Do not continue if batch 8 fails.
+A successful report is required before the externally guarded evaluator can start:
 
 ```sh
-.venv/bin/python scripts/evaluate_laya_dev.py \
+.venv/bin/python scripts/laya_acceptance.py autotune \
   --prepared reports/laya-dev-500/prepared.json \
-  --output reports/laya-dev-evaluation --resume \
+  --output reports/laya-autotune-safe-host
+# Only if the report contains a measured safe batch:
+.venv/bin/python scripts/laya_acceptance.py evaluate \
+  --prepared reports/laya-dev-500/prepared.json \
+  --autotune-report reports/laya-autotune-safe-host/autotune.json \
+  --output reports/laya-acceptance-evaluation \
   --synthetic-dir reports/laya-dev-synthetic-cpu/site
-SEOJEV_EQUIVALENCE_REPORT=reports/laya-dev-evaluation/measurements.json \
-  .venv/bin/python -m pytest -q tests/test_dev_equivalence.py
 ```
 
-The runner compares independent old/new model choice+gate results, keeps labels out
-of model inputs, and writes partial results on abort. Its 8/16/32/64 autotune measures
-bounded submission chunks with the scalar checkpoint API; it does not claim native
-cross-page tensor batching. Resume does not regenerate the planted test set. A
-completed report is mandatory for the live equivalence test to pass.
+This does not regenerate the synthetic set. Original confidence policy and checkpoint
+are mandatory. Full dev end-to-end measurement remains a separate acceptance step
+once model equivalence and synthetic evaluation succeed; it has not run here.
 
-Before cloud scale: implement Postgres/object-store adapters and global reducers;
-configure worker/memory/queue sizes from actual measurements; implement the remote
-submit-batch boundary using a conversion of this SAME checkpoint; validate all heads
-and 500-URL choice+gate equivalence again. Do not deploy the compatibility island on
-more than 500 URLs. No cloud infrastructure was built.
+## Cloud changes required (design only)
+
+- SQLite → Postgres stage adapter; content-addressed HTML/evidence → object storage.
+- Preserve bounded queues, range/template chunks, explicit membership and atomic,
+  idempotent stage checkpoints. Global link/duplicate reductions must combine chunks
+  before model evidence is built; the compatibility adapter remains capped at 500.
+- Increase `max_workers`, `memory_budget_mb`, `queue_size`, `batch_size` only from
+  measurements on the target host. Current dev values are 2, 4,096 MiB, 16 and 8;
+  8 is a configured submission size, **not a successfully measured safe size**.
+- Budget approximately 176 MiB per isolated real-data CPU worker from the small run,
+  plus shared DB/cache/coordinator memory; this is a conditional PROJECTION. Keep
+  at least the configured available-memory reserve; model memory is not validated.
+- Containerize non-MLX L0/L1/fan-out stages. Existing CPU Docker boundary is not a
+  distributed full audit; no cloud infrastructure was built or deployed.
+- Keep Laya behind `submit_batch → decisions`, serving the SAME checkpoint remotely.
+  Checkpoint conversion, remote adapter and numerical/choice+gate validation are
+  required but **NOT implemented**. No replacement/fallback model is permitted.

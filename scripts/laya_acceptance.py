@@ -195,10 +195,31 @@ def autotune(args):
     if len(digests)>1:raise RuntimeError('Autotune inputs changed between sizes')
 
 
+def guarded_evaluate(args):
+    from engine.evaluation import require_safe_batch
+    _,config=load_prepared(args.prepared)
+    if not args.autotune_report:
+        raise ValueError('--autotune-report is required for evaluation')
+    measured=json.loads(Path(args.autotune_report).read_text())
+    size=require_safe_batch(measured,CHECKPOINT)
+    if not args.synthetic_dir or not (Path(args.synthetic_dir)/'generation.json').exists():
+        raise ValueError('Use --synthetic-dir pointing to the existing generated dataset')
+    output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
+    command=[sys.executable,str(Path(__file__).with_name('evaluate_laya_dev.py')),
+             '--prepared',args.prepared,'--output',str(output),'--autotune-report',args.autotune_report,
+             '--synthetic-dir',args.synthetic_dir]
+    if args.resume:command.append('--resume')
+    result=guarded_process(command,config['runtime'],output/'evaluation-watchdog.json',output/'evaluation.log',size)
+    if not result['safe']:
+        raise SystemExit('Evaluation aborted; inspect evaluation-watchdog.json before any further model work')
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('mode',choices=('autotune','probe'))
+    p.add_argument('mode',choices=('autotune','probe','evaluate'))
     p.add_argument('--prepared',required=True);p.add_argument('--output',required=True)
     p.add_argument('--batch-size',type=int,choices=SIZES,default=8)
+    p.add_argument('--autotune-report');p.add_argument('--synthetic-dir')
+    p.add_argument('--resume',action='store_true')
     args=p.parse_args()
-    (autotune if args.mode=='autotune' else probe)(args)
+    {'autotune':autotune,'probe':probe,'evaluate':guarded_evaluate}[args.mode](args)

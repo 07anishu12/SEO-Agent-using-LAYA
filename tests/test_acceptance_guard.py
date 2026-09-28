@@ -23,3 +23,15 @@ def test_supervisor_records_fresh_process_without_model(tmp_path,monkeypatch):
     assert report['swap_before_mb']==report['swap_after_mb']==0
     assert report['elapsed_seconds']>0 and report['pid']>0
     assert json.loads((tmp_path/'report.json').read_text())==report
+
+
+def test_evaluation_never_starts_after_unsafe_minimum_batch(tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    from scripts.laya_acceptance import guarded_evaluate,CHECKPOINT
+    import pytest
+    path=tmp_path/'unsafe.json'
+    path.write_text(json.dumps(dict(checkpoint_id=CHECKPOINT,safe_batch_size=None)))
+    monkeypatch.setattr('scripts.laya_acceptance.load_prepared',lambda _:({},dict(runtime={})))
+    monkeypatch.setattr('scripts.laya_acceptance.guarded_process',lambda *a,**k:pytest.fail('Model process started despite unsafe batch'))
+    with pytest.raises(RuntimeError,match='No measured safe'):
+        guarded_evaluate(SimpleNamespace(prepared='unused',autotune_report=str(path)))
