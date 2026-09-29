@@ -136,6 +136,36 @@ async def execute_run_task(job_data: Dict[str, Any], queue: RunQueue) -> Dict[st
             })
             return {"status": "cancelled", "run_id": run_id}
 
+        if pipeline_result.get("status") in ("memory_budget_exceeded", "paused"):
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE runs
+                        SET status = 'paused',
+                            current_pass = 'MEMORY_PAUSED',
+                            finished_at = %s
+                        WHERE id = %s
+                        """,
+                        (datetime.now(timezone.utc), run_id)
+                    )
+                conn.commit()
+
+            queue.publish_progress(run_id, {
+                "run_id": run_id,
+                "status": "paused",
+                "pass": "MEMORY_PAUSED",
+                "pct": getattr(pipeline, "_last_pct", 0.0),
+                "message": f"Run paused safely due to memory pressure: {pipeline_result.get('reason')}. Resumable.",
+                "recoverable": True
+            })
+            return {
+                "status": "paused",
+                "run_id": run_id,
+                "reason": pipeline_result.get("reason"),
+                "recoverable": True
+            }
+
         # Successful completion -> Execute Stage-2 ETL
         etl_result = run_etl(
             sqlite_db_path=db_path,

@@ -31,6 +31,28 @@ def sample_urls(conn, crawl_id, limit=500, seed=42):
     return sorted(selected)
 
 
+def has_existing_crawl(source, target=None, crawl_id=None) -> bool:
+    """Checks whether the source SQLite database exists and has crawled pages."""
+    src_path = Path(source).resolve()
+    if not src_path.exists() or not src_path.is_file():
+        return False
+    try:
+        with sqlite3.connect(src_path.as_uri() + '?mode=ro', uri=True) as src:
+            tables = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if 'crawl_runs' not in tables or 'pages' not in tables:
+                return False
+            if crawl_id is not None:
+                row = src.execute('SELECT 1 FROM pages WHERE crawl_id=? LIMIT 1', (crawl_id,)).fetchone()
+                return row is not None
+            row = src.execute(
+                'SELECT crawl_id FROM crawl_runs WHERE (? IS NULL OR target_url=?) AND EXISTS (SELECT 1 FROM pages p WHERE p.crawl_id=crawl_runs.crawl_id) ORDER BY start_time DESC LIMIT 1',
+                (target, target)
+            ).fetchone()
+            return row is not None
+    except Exception:
+        return False
+
+
 def build_sample(source, destination, crawl_id=None, limit=500, seed=42, target=None):
     source, destination = Path(source).resolve(), Path(destination).resolve()
     if source == destination or destination.exists():
