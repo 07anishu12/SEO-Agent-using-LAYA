@@ -1,168 +1,110 @@
-# SEOJEV — Technical SEO Intelligence & Work Order Automation Engine
+# SEOJEV
 
-> A production-hardened, deterministic technical SEO intelligence and automated work-order generation platform powered by native Apple Silicon machine learning inference (`laya-mlx`).
+A production-hardened, deterministic technical SEO intelligence and automated work-order generation platform powered by local Apple Silicon machine learning inference (`laya-mlx`).
 
-[![Architecture: Apple Silicon Metal](https://img.shields.io/badge/Hardware-Apple%20Silicon%20(Metal)-black.svg)](docs/PRODUCTION.md)
+[![Hardware: Apple Silicon (Metal)](https://img.shields.io/badge/Hardware-Apple%20Silicon%20(Metal)-black.svg)](docs/ARCHITECTURE.md)
 [![AI Engine: Laya-MLX Exclusive](https://img.shields.io/badge/AI%20Engine-Laya--MLX%20Exclusive-blue.svg)](docs/LAYA_CONFIDENCE.md)
-[![Memory Safety: MemoryGuard](https://img.shields.io/badge/Memory%20Safety-Zero%20Swap%20Growth-brightgreen.svg)](docs/PRODUCTION_READINESS.md)
-[![Status: Production Hardened](https://img.shields.io/badge/Status-Production%20Hardened-green.svg)](docs/PRODUCTION_READINESS.md)
-
-SEOJEV transforms raw website crawls into an actionable search engineering operating system. Rather than flooding development teams with thousands of repetitive, unranked per-page alerts, SEOJEV groups crawled pages into structural template families, synthesizes root causes across deterministic crawl signals and internal link graphs, executes calibrated decision inference using a local Apple Silicon MLX model, and emits deduplicated, verified engineering and content work orders.
+[![Memory Safety: Zero Swap Growth](https://img.shields.io/badge/Memory%20Safety-Zero%20Swap%20Growth-brightgreen.svg)](docs/PROJECT_REPORT.md)
+[![Project Status: v1.0 Frozen](https://img.shields.io/badge/Status-v1.0%20Feature%20Frozen-orange.svg)](docs/PROJECT_REPORT.md)
 
 ---
 
-## Production Status & Readiness
+## What It Does
 
-SEOJEV is production-hardened across 25 verification dimensions. All universal development limits have been removed from the production pipeline and replaced with configuration-driven resource limits.
+Traditional SEO crawlers inundate engineering teams with thousands of unranked, repetitive per-page warnings (e.g., "5,000 pages missing meta description"). **SEOJEV** eliminates this alert fatigue by acting as an end-to-end search intelligence operating system:
 
-| Dimension | Production State | Verified Evidence |
-| :--- | :---: | :--- |
-| **AI Decision Engine** | **LAYA-MLX EXCLUSIVE** | Pinned checkpoint `aac6fef/laya-mlx`. Zero fallback, mock, or secondary AI models (no OpenAI, Claude, Gemini, DeepSeek, Ollama, llama.cpp). Fails fast and closed if Laya cannot run. |
-| **Target Deployment** | **APPLE SILICON** | Native execution on Apple Silicon workstations (M1/M2/M3/M4) and dedicated Apple Silicon servers via Metal hardware acceleration. Supported hybrid cloud topology with containerized storage/queues. |
-| **Dev/Prod Initialization** | **HARDENED** | Fresh crawls start Pass 1 cleanly without crashing; stratified dev sampling executes only when an existing crawl database is present. |
-| **Memory Safety** | **ZERO SWAP GROWTH** | `MemoryGuard` continuously monitors process RSS, system available RAM, and swap delta. Raises `MemoryBudgetExceeded`, halts crawlers, flushes batches, and saves paused checkpoints for clean resumption. |
-| **Authentication & Secrets** | **PRODUCTION SECURE** | High-entropy JWT secrets enforced. Negative authorization and strict tenant isolation verified across all sites, runs, artifacts, alerts, and work orders. Default credentials blocked. |
-| **API & Crawler Security** | **SSRF PROTECTED** | Blocks private IP ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback (`127.0.0.1`), and cloud metadata (`169.254.169.254`). Strict CORS configuration. |
-| **Database & Migrations** | **POSTGRESQL 15+** | Connection pooling with exponential backoff retry. 9 migrations applied and verified. SQLite supported for isolated local development. |
-| **Queue & Backpressure** | **REDIS 7+** | Bounded Redis task queue with `max_queue_size` rejection (`QueueFullError`), stale job recovery, and worker retry backoff. |
-| **Storage & Artifacts** | **S3 / MINIO** | Content-addressed storage for HTML snapshots, Word reports, CSV suites, and verification bundles. Default `minioadmin` credentials blocked in production. |
-| **Health Probes** | **STANDARDIZED** | `/health` & `/health/liveness` for liveness; `/health/ready` & `/ready` checking PostgreSQL, Redis, MinIO, and Apple Silicon MLX readiness (returns 503 on degradation). |
+1. **Groups pages into structural template families** using 64-bit SimHash DOM token frequencies and route patterns.
+2. **Clusters deterministic crawl signals** into upstream root-cause blockers (e.g., a routing 404 suppressing downstream checks) using directed internal link graphs (PageRank/CheiRank) and 11 rule suites.
+3. **Executes calibrated machine learning decisions** on an on-device Apple Silicon 4-bit transformer (`laya-mlx`) across 10 multi-task SEO heads.
+4. **Emits deduplicated, verifiable work orders** (`WO-ENG-...`, `WO-CNT-...`) with executable acceptance criteria and ticket exports for Jira, Linear, and GitHub Issues.
 
 ---
 
-## High-Level Architecture & End-to-End Pipeline
-
-```
-Raw URLs / Crawl DB
-       │
-       ▼
-Pass 1: Ingest & State Snapshots (SQLite WAL / PostgreSQL + Content-Addressed Store)
-       │
-       ▼
-Pass 2: Deterministic Evidence Extraction (NetworkX Link Graph, SimHash Templates, CWV, Index Funnel)
-       │
-       ▼
-Pass 3: Candidate & Opportunity Reduction (OpportunityEngineV3 multi-factor synthesis & ICE scoring)
-       │
-       ▼
-Pass 4: Laya-MLX Decision Engine (Native Apple Silicon inference across 10 SEO heads, gated confidence)
-       │
-       ▼
-Pass 5: Work Orders & Verification (Class deduplication, canonical schema audit, baseline spec verification)
-       │
-       ▼
-Pass 6: Deliverables & Reports (Master Word reports, Executive summaries, 28 CSV dataset suite, HTML explorer)
-```
+## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph StorageAndQueue["Infrastructure Layer"]
-        PG[("PostgreSQL 15+\n(Sites, Runs, Work Orders)")]
-        RedisQueue[("Redis 7+\nBounded Task Queue")]
-        S3Store[("S3 / MinIO\nHTML Snapshots & Artifacts")]
-    end
-
-    subgraph ServiceLayer["API & Worker Layer"]
-        API["FastAPI Platform Service\n• JWT Auth & Multi-Tenancy\n• SSRF Protection\n• Health Probes (/health/ready)"]
-        Worker["Background Worker\n(jobs/worker.py)"]
-    end
-
-    subgraph CoreEngine["SEOJEV Pipeline (engine/pipeline.py)"]
-        P1["Pass 1: Ingest & Snapshot Recorder"]
-        P2["Pass 2: Deterministic Evidence (Link Graph, SimHash)"]
-        P3["Pass 3: Candidate Reduction (OpportunityEngineV3)"]
-        P4["Pass 4: Laya Decision Engine (Exact Prompt Hashing)"]
-        P5["Pass 5: Validated Work Orders & Verification"]
-        P6["Pass 6: Deliverables (Word, 28 CSVs, Explorer)"]
-        MemGuard["MemoryGuard\n(Zero Swap Delta & Budget Enforcement)"]
-    end
-
-    subgraph NativeMLX["Apple Silicon MLX Host Boundary"]
-        OSLock["Exclusive Host Lock\n(seojev-laya-mlx.lock)"]
-        MLX["Native Apple Silicon Metal\n(aac6fef/laya-mlx)"]
-        Heads["10 Multi-Task Heads\n(Verdict, Category, Severity, Action, etc.)"]
-    end
-
-    API <-->|Enqueue / Status| RedisQueue
-    Worker <-->|Pull Tasks| RedisQueue
-    Worker --> CoreEngine
-    CoreEngine <--> PG
-    CoreEngine <--> S3Store
-    CoreEngine --- MemGuard
-    P4 <-->|submit_batch| MLX
-    MLX --- OSLock
-    MLX --> Heads
+flowchart LR
+    Crawl["1. Ingest & Crawl\n(Async HTTP / Playwright)"] --> Evidence["2. Evidence Extraction\n(Link Graph & SimHash)"]
+    Evidence --> Reduce["3. Candidate Reduction\n(OpportunityEngineV3)"]
+    Reduce --> Laya["4. Laya-MLX Engine\n(Native Metal / 10 Heads)"]
+    Laya --> WorkOrders["5. Work Orders & Verify\n(Canonical Schema / DSL)"]
+    WorkOrders --> Reports["6. Deliverables\n(Word, 28 CSVs, Explorer)"]
 ```
 
 ---
 
-## Component Responsibilities
+## Key Capabilities
 
-| Component | Module | Responsibility |
-| :--- | :--- | :--- |
-| **API Service** | `api/` | FastAPI REST service providing multi-tenant authentication, RBAC, site/run lifecycle management, SSRF protection, and health probes. |
-| **Crawler & Ingest** | `crawler/` | Asynchronous HTTP crawler with robots.txt compliance, sitemap parsing, crawl trap filtering, memory backpressure handling, and SQLite/PostgreSQL frontier storage. |
-| **Content Store** | `engine/content_store.py`, `services/object_store.py` | Content-addressed storage of raw HTML payloads keyed by SHA-256 hash in local zlib files or MinIO/S3 buckets. |
-| **Evidence Extraction** | `analysis/`, `extraction/` | Internal link graphs (NetworkX PageRank, CheiRank), SimHash DOM layout clustering, Core Web Vitals sampling, and vertical attribute extraction. |
-| **Opportunity Engine** | `engine/opportunity_engine_v3.py` | Synthesizes detector findings into structured opportunities with SHA-256 fingerprints, display IDs (`OPP-...`), and 7-factor ICE scores. |
-| **Laya-MLX Engine** | `laya/` | Exclusive AI decision maker running on Apple Silicon Metal framework; evaluates candidates across 10 multi-task SEO heads with exact prompt caching. |
-| **Memory Guard** | `engine/memory_guard.py` | Actively enforces process RSS budgets, monitors system available RAM, detects swap delta growth, and cleanly pauses runs for safe restart. |
-| **Work Order Manager** | `engine/work_orders.py` | Transforms validated opportunities into engineering (`WO-ENG-...`) and content (`WO-CNT-...`) work orders conforming to canonical schema contracts. |
-| **Verification Runner** | `verification/runner.py` | Executes baseline acceptance criteria against stored crawl HTML before remediation. |
-| **Reporting Suite** | `reporting/` | Generates 28-section Master Word audit report, Executive Summary, 28 CSV dataset suite, and offline HTML Explorer. |
+- **Deterministic Root-Cause Clustering:** Upstream server errors and global directives suppress repetitive downstream symptoms.
+- **Graph-Theoretic Analysis:** NetworkX directed multigraph computing PageRank, CheiRank, click depth, and orphan page isolation.
+- **Template Family Miner:** Clusters URLs by structural layout signatures rather than surface-level query strings.
+- **Cryptographic Fingerprinting:** Every opportunity receives a permanent SHA-256 fingerprint: $\text{hash}(\text{rule\_id} + \text{scope} + \text{subject})$.
+- **Baseline Acceptance DSL:** Sandboxed verification evaluates test specifications against stored crawl HTML before developers write code.
+- **Claims Linter:** Deterministic AST/regex quality gate rejecting unsubstantiated ranking or traffic promises.
 
 ---
 
-## Laya-MLX Exclusive AI Decision Contract
+## Laya-MLX Local Inference
 
-**Laya-MLX is the single, non-negotiable decision engine in SEOJEV.**
-- Checkpoint: [`aac6fef/laya-mlx`](https://huggingface.co/aac6fef/laya-mlx) pinned at `@20aed815fc6acde75733882e7ec0e3f28aeb9717`
-- 10 Multi-Task Heads: `verdict`, `category`, `severity`, `action`, `scope`, `root_cause`, `canonical_indexability`, `content_assessment`, `cannibalization`, `internal_linking`.
-- Calibrated Gating: Decisions evaluated strictly on selected option probabilities:
-  $$\text{confidence} = \min\left(P_{\text{verdict}}(\text{choice}), P_{\text{action}}(\text{choice})\right)$$
-  - `AUTO_ACCEPT`: $\text{confidence} \ge 0.90$ and $\text{action} \ne \text{'ignore'}$.
-  - `HUMAN_REVIEW`: $P_{\text{verdict}} \ge 0.60$ and $P_{\text{action}} \ge 0.50$.
-  - `SUPPRESS`: Below threshold or classified as noise.
-- **Fail-Closed Guarantee**: If Apple Silicon Metal hardware, MLX, or the pinned checkpoint is unavailable, the pipeline terminates immediately with an explicit error. No secondary AI models or heuristics are permitted.
+**Laya-MLX is the exclusive decision maker in SEOJEV.**
+- **Checkpoint:** Pinned HuggingFace checkpoint [`aac6fef/laya-mlx`](https://huggingface.co/aac6fef/laya-mlx) (`@20aed815fc6acde75733882e7ec0e3f28aeb9717`).
+- **10 Multi-Task Heads:** Evaluates `verdict`, `category`, `severity`, `action`, `scope`, `root_cause`, `canonical_indexability`, `content_assessment`, `cannibalization`, and `internal_linking` in a single forward pass.
+- **Fail-Closed AI Safety:** If Apple Silicon Metal hardware or the pinned checkpoint is missing, the system terminates immediately. **No fallback LLMs, mock models, or heuristic substitutes exist.**
+- **Calibrated Gating Policy:** Evaluates selected option probabilities ($\min(P_{\text{verdict}}, P_{\text{action}})$) to route candidates to `AUTO_ACCEPT`, `HUMAN_REVIEW`, or `SUPPRESS`.
+- **Exact Prompt Caching:** Re-evaluating identical template prompts yields 0 ms GPU latency via `SQLiteStageStore`.
 
 ---
 
-## Deployment Topologies
+## Production Engineering
 
-```
-TOPOLOGY 1: Local Apple Silicon Workstation (MacBook Pro / Mac Studio)
-  • Host OS: macOS 14+ (Darwin arm64)
-  • Storage: Local PostgreSQL & Redis via Homebrew or Docker
-  • Engine: Native virtual environment running directly on Metal
-  • Use Case: Local development, testing, and single-operator site audits
-
-TOPOLOGY 2: Dedicated Apple Silicon Server (Mac Studio / Mac Pro)
-  • Host OS: macOS Sonoma or Sequoia
-  • Supervision: launchd daemons managing API and background workers
-  • Storage: Dedicated PostgreSQL 15+, Redis 7+, and S3/MinIO
-  • Engine: Exclusive native host worker process with single-owner lock
-  • Use Case: Production multi-tenant SaaS platform
-
-TOPOLOGY 3: Hybrid Cloud Topology
-  • Cloud Tier (Linux/AWS/GCP): Dockerized PostgreSQL, Redis, S3, and API
-  • Worker Tier (Apple Silicon host): Host-based worker connects to remote
-    Redis queue and executes Pass 4 Laya-MLX Metal inference with full provenance.
-```
-
-> [!IMPORTANT]
-> **Native Metal Boundary**: Apple Silicon MLX inference requires macOS Metal API access. It **cannot run inside standard Linux Docker containers on macOS**. Non-inference infrastructure (PostgreSQL, Redis, MinIO) can be run via `docker-compose.prod.yml`, while the pipeline and inference worker run on the macOS host.
+- **MemoryGuard & Zero Swap Growth:** Actively monitors process RSS and active swap delta ($\Delta \text{Swap} \le 64\text{ MB}$), pausing runs cleanly for resumable restart on memory pressure.
+- **Multi-Tenant Isolation:** Full `organization_id` row-level scoping across all database tables with 20 passing negative authorization tests.
+- **SSRF Defense:** Blocks crawling requests to private IP ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback (`127.0.0.1`), and cloud metadata (`169.254.169.254`).
+- **Bounded Redis Queues:** Enforces `max_queue_size` backpressure rejection (`QueueFullError`) and automatic stale job recovery.
+- **Standardized Health Probes:** `/health/liveness` for process health; `/health/ready` deep-inspecting PostgreSQL, Redis, MinIO, and Apple Silicon MLX compatibility.
 
 ---
 
-## Quick Start & Installation
+## Validation & Empirical Results
+
+All metrics represent measured data from experimental validation runs (documented in `docs/acceptance/`):
+
+- **1,000 Real URLs Validated (Drivio.in):** 266 template families, 2,529 candidates, 1,079 work orders, 0 failed schemas.
+- **Zero Swap Growth:** 1,014.48 MiB peak RSS, 0.00 MiB swap delta across all 5 execution passes.
+- **Decision Equivalence:** 100.0% choice and gate match (1,207/1,207 candidates) between streaming reducers and baseline worker pools.
+- **Safe Submission Batch:** Autotuned safe batch sizes up to **64** candidates with zero swap growth.
+- **Idempotency Replay:** 100.0% cache hit rate (50/50 candidates) on restart without GPU execution.
+- **Synthetic Defect Benchmark:** 100.0% clean page suppression (184/184 TN, 0 FP); 0.0% recall under frozen production thresholds (documented baseline).
+
+---
+
+## Limitations
+
+- **Apple Silicon Hardware Dependency:** Local inference requires macOS Darwin `arm64` hardware with Metal support (cannot run MLX inside standard Linux Docker on macOS).
+- **Scalar Inference Rate:** Inference operates sequentially at ~1.42–1.74 decisions per second (~85–104 decisions/minute).
+- **In-Process Evidence Boundary:** Deterministic evidence operates in-process via SQLite/NetworkX (multi-node crawls require future distributed SQL reducers).
+- **Synthetic Benchmark Recall:** Generic whole-page synthetic assessment prompts result in 0.0% recall under frozen production thresholds due to conservative suppression.
+
+---
+
+## Documentation
+
+- [**Technical & Research Project Report**](docs/PROJECT_REPORT.md): Comprehensive 26-section paper covering motivation, architecture, ML inference, memory safety, problems encountered, and lessons learned.
+- [**System Architecture Specification**](docs/ARCHITECTURE.md): Concise architectural specifications, data flows, storage topology, and failure matrices.
+- [**Production Deployment Guide**](docs/PRODUCTION.md): Deployment topologies, `launchd` supervision, environment configurations, and operational runbooks.
+- [**Production Readiness Matrix**](docs/PRODUCTION_READINESS.md): Audit matrix and test evidence across all 25 operational dimensions.
+- [**Laya Confidence Specification**](docs/LAYA_CONFIDENCE.md): Probability calculations, temperature calibrations, and threshold specifications.
+
+---
+
+## Quick Start
 
 ### 1. Prerequisites
-- macOS 14+ (Sonoma) or 15+ (Sequoia) on Apple Silicon (`arm64`)
+- macOS 14+ on Apple Silicon (`arm64`) with 16 GB+ unified memory
 - Python 3.11 or 3.12
 - PostgreSQL 15+ and Redis 7+
-- Playwright with Chromium
 
-### 2. Setup Virtual Environment
+### 2. Setup
 ```bash
 git clone https://github.com/07anishu12/SEO-Agent-using-LAYA.git
 cd SEO-Agent-using-LAYA
@@ -170,122 +112,31 @@ git checkout fix/laya-pipeline
 
 python3 -m venv .venv
 source .venv/bin/activate
-
-pip install --upgrade pip
 pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 3. Environment Configuration
-Copy the production environment template and configure secrets:
+### 3. Run Verification Tests
 ```bash
-cp .env.production.example .env.production
-# Edit .env.production and set high-entropy JWT_SECRET, DATABASE_URL, REDIS_URL, etc.
-```
+# Run Production Hardening test suite (10 tests)
+PYTHONPATH=. .venv/bin/pytest tests/test_production_hardening.py -v
 
-### 4. Database Migrations
-```bash
-export DATABASE_URL="postgresql://seojev_user:StrongPassword987!@127.0.0.1:5432/seojev_prod"
-python -c "from database.migrator import run_migrations; run_migrations()"
-```
+# Run Stage 11 Security & Multi-Tenancy suite (20 tests)
+PYTHONPATH=. .venv/bin/pytest tests/test_stage11_security.py -v
 
-### 5. Start Infrastructure (Docker Compose)
-Start supporting PostgreSQL, Redis, and MinIO instances:
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### 6. Run API Service
-```bash
-source .venv/bin/activate
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-### 7. Run Background Worker
-```bash
-source .venv/bin/activate
-python -m jobs.worker
-```
-
----
-
-## Health Checks & Monitoring
-
-The platform provides standardized HTTP health and readiness endpoints:
-
-- **Liveness Probe**: `GET /health` or `GET /health/liveness`
-  - Returns `200 OK` `{"status": "ok", "environment": "production"}`.
-- **Readiness Probe**: `GET /health/ready` or `GET /ready`
-  - Deep inspection of PostgreSQL, Redis, MinIO, and Apple Silicon MLX compatibility.
-  - Returns `200 OK` when healthy, or `503 Service Unavailable` if any component fails.
-
----
-
-## Operational CLI Commands
-
-### 1. Preflight Diagnostics
-```bash
-# Check database tables and Laya schema
-.venv/bin/python scripts/diagnose_laya.py --db data/seo.db
-
-# Run real MLX inference probe across existing opportunities
-.venv/bin/python scripts/laya_probe.py --db data/seo.db --count 10
-```
-
-### 2. Full Production Smoke Test
-```bash
-# Runs end-to-end bounded validation with real MLX inference, work orders, and zero swap verification
+# Execute End-to-End Production Smoke Test (real MLX inference & work orders)
 .venv/bin/python scripts/smoke_test.py
 ```
 
-### 3. Run Pipeline via CLI
+### 4. Run CLI Audit
 ```bash
-# Fresh crawl and audit in dev profile
-.venv/bin/python main.py https://www.drivio.in/ --fresh --profile dev --output reports/audit-run/
-
-# Production audit of existing crawl data
-.venv/bin/python main.py https://www.drivio.in/ --crawl-id crawl_20260928_152046 --analyze-only --profile prod
-```
-
-### 4. Automated Work Order Verification
-```bash
-.venv/bin/python main.py verify --work-order SEOJEV-ENG-001 --db data/seo.db
+# Analyze existing crawl data in dev profile (<=500 URLs)
+.venv/bin/python main.py https://www.drivio.in/ --crawl-id crawl_20260928_152046 --analyze-only --profile dev
 ```
 
 ---
 
-## Testing & Verification Suites
+## Project Status
 
-Execute tests individually to preserve file descriptor and memory isolation:
-
-```bash
-# Production hardening suite (Dev init, memory guard, Laya fail-closed, secrets, health endpoints)
-PYTHONPATH=. .venv/bin/pytest tests/test_production_hardening.py -v
-
-# Stage 11 Multi-tenant security & SSRF suite (20 tests)
-PYTHONPATH=. .venv/bin/pytest tests/test_stage11_security.py -v
-
-# Stage 5 Artifact storage & signed URL suite
-PYTHONPATH=. .venv/bin/pytest tests/test_stage5_artifacts.py -v
-
-# Core pipeline, crawler, opportunities, and streaming tests
-PYTHONPATH=. .venv/bin/pytest tests/test_v3_core.py -v
-PYTHONPATH=. .venv/bin/pytest tests/test_v3_crawler.py -v
-PYTHONPATH=. .venv/bin/pytest tests/test_work_order_validation.py -v
-PYTHONPATH=. .venv/bin/pytest tests/test_streaming_candidates.py -v
-```
-
----
-
-## Documentation Index
-
-- [Production Deployment Guide](docs/PRODUCTION.md): Topologies, environment variables, launchd supervision, backup/recovery, and troubleshooting.
-- [Production Readiness Audit Matrix](docs/PRODUCTION_READINESS.md): Full 25-phase verification checklist and test evidence.
-- [Laya Confidence & Gating Policy](docs/LAYA_CONFIDENCE.md): Probability calculations, temperature calibrations, and threshold specifications.
-- [Local Memory & Scaling Design](docs/SCALING.md): Process memory budgets, batch autotuning, and global reducer specifications.
-
----
-
-## License
-
-All rights reserved. Proprietary software.
+**SEOJEV v1.0 — FEATURE DEVELOPMENT FROZEN.**  
+The repository is complete, production-hardened, and packaged as an authoritative open-source technical and research artifact.
