@@ -89,11 +89,13 @@ class MLXBackend(LayaBackend):
                 self._owner_lock = None
 
     def health_status(self) -> Dict[str, Any]:
+        compatible = platform.system() == "Darwin" and platform.machine() == "arm64"
         return {
             "backend": "mlx",
             "available": self.is_available(),
+            "apple_silicon_compatible": compatible,
             "model_id": self.model_id,
             "checkpoint_id": self.checkpoint_id,
-            "device": "apple_silicon",
+            "device": "apple_silicon" if compatible else platform.machine(),
             "framework": "mlx"
         }
