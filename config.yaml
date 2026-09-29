@@ -77,3 +77,7 @@ profiles:
     batch_size: 32
     queue_size: 64
     throttle_seconds: 0.0
+    pause_seconds: 2.0
+    min_available_mb: 4096
+    max_swap_delta_mb: 128.0
+
