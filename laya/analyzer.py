@@ -55,7 +55,18 @@ class LayaSEOAnalyzer:
         return self.get_backend().is_available()
 
     def get_health(self):
-        return self.get_backend().health_status()
+        try:
+            return self.get_backend().health_status()
+        except Exception as e:
+            import platform
+            compatible = platform.system() == "Darwin" and platform.machine() == "arm64"
+            return {
+                "backend": "mlx",
+                "available": False,
+                "apple_silicon_compatible": compatible,
+                "model_id": self.model_id,
+                "error": str(e)
+            }
 
     def preflight(self):
         """Load the exact checkpoint and verify all ten outputs using real inference."""

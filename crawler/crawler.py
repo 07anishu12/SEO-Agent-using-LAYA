@@ -23,7 +23,7 @@ from .scheduler import CrawlScheduler
 from .traps import TrapDetector
 from .soft404 import Soft404Detector
 from engine.content_store import ContentStore
-from engine.memory_guard import MemoryGuard
+from engine.memory_guard import MemoryGuard, MemoryBudgetExceeded
 from seo.engine import SEOEngine
 from analysis.page_types import infer_page_type
 from analysis.templates import derive_template_id
@@ -41,7 +41,8 @@ class SEOCrawler:
         concurrency: Optional[int] = None,
         cancel_check: Optional[Any] = None,
         url_progress_callback: Optional[Any] = None,
-        show_live_display: Optional[bool] = None
+        show_live_display: Optional[bool] = None,
+        memory_guard: Optional[MemoryGuard] = None
     ):
         self.target_url = target_url
         self.crawl_id = crawl_id
@@ -82,7 +83,8 @@ class SEOCrawler:
         self.content_store = ContentStore(base_dir=config.get("storage", {}).get("store_dir", "store"))
         self.trap_detector = TrapDetector()
         self.soft404_detector = Soft404Detector()
-        self.memory_guard = MemoryGuard(limit_mb=crawl_cfg.get("rss_limit_mb", 2048.0))
+        self.memory_guard = memory_guard or MemoryGuard(limit_mb=crawl_cfg.get("rss_limit_mb", 2048.0))
+        self.abort_reason: Optional[str] = None
 
         self.start_time = 0.0
         self.console = Console()
@@ -253,8 +255,14 @@ class SEOCrawler:
                     return
 
                 # Check memory guard periodically
-                # Check memory guard periodically
-                self.memory_guard.check_and_enforce()
+                try:
+                    self.memory_guard.check_and_enforce(raise_on_exceeded=True)
+                except MemoryBudgetExceeded as mem_err:
+                    self._shutdown_requested = True
+                    self.scheduler.stop()
+                    self.abort_reason = f"Memory budget exceeded: {mem_err}"
+                    self.scheduler.requeue(item)
+                    raise
 
                 # Redirect learning
                 if url in self._redirect_map:
@@ -416,6 +424,8 @@ class SEOCrawler:
                     except Exception:
                         pass
 
+            except MemoryBudgetExceeded:
+                raise
             except Exception as e:
                 import traceback
                 self.console.print(f"[bold red]Error in process_item: {e}[/bold red]")
@@ -438,7 +448,13 @@ class SEOCrawler:
                         continue
                     else:
                         break
-                await process_item(item)
+                try:
+                    await process_item(item)
+                except MemoryBudgetExceeded as mem_err:
+                    self._shutdown_requested = True
+                    self.scheduler.stop()
+                    self.abort_reason = f"Memory budget exceeded: {mem_err}"
+                    break
 
         # Launch worker pool
         try:
@@ -461,6 +477,9 @@ class SEOCrawler:
         finally:
             # Always flush remaining batch items to SQLite
             await flush_batch(force=True)
+
+        if self.abort_reason:
+            raise MemoryBudgetExceeded(self.abort_reason)
 
         if self.cancel_check and self.cancel_check():
             self.storage.update_crawl_status(self.crawl_id, "cancelled", datetime.datetime.now().isoformat())

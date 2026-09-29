@@ -1,0 +1,55 @@
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Secrets and Local Configurations
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# Git & IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+.DS_Store
+.agents/
+skills-lock.json
+
+# Local Data & Databases
+data/*.db*
+data/*.sqlite*
+data/site-profile.json
+store/
+logs/*.log
+
+# Model Weights and Large Caches
+models/
+.cache/
+huggingface/
+
+# Reports and Output
+reports/
+reports-v2/
+reports/laya-*/
+reports/synthetic/
+seo-diff.json
+
+# Python Bytecode and Test Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend Build Caches
+frontend/node_modules/
+frontend/.next/
+frontend/.next-dev/
+frontend/out/

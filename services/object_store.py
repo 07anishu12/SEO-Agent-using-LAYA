@@ -63,6 +63,19 @@ class ObjectStorageService:
         self.region = region or S3_REGION
         self._client = None
 
+        env = (os.environ.get("ENV") or os.environ.get("ENVIRONMENT") or "development").lower()
+        if env in ("production", "prod"):
+            if self.access_key == "minioadmin" or self.secret_key == "minioadmin":
+                raise RuntimeError("CRITICAL SECURITY ERROR: Cannot use default minioadmin credentials in production object storage.")
+
+    def check_health(self) -> dict:
+        """Verifies S3 bucket accessibility."""
+        try:
+            self.client.head_bucket(Bucket=self.bucket)
+            return {"status": "ok", "healthy": True, "bucket": self.bucket, "endpoint": self.endpoint_url}
+        except Exception as e:
+            return {"status": "error", "healthy": False, "error": str(e), "bucket": self.bucket}
+
     @property
     def client(self):
         if self._client is None:
@@ -365,3 +378,13 @@ def get_storage_service() -> ObjectStorageService:
     if _global_storage_service is None:
         _global_storage_service = ObjectStorageService()
     return _global_storage_service
+
+
+def check_storage_health() -> dict:
+    """Verifies object storage connectivity."""
+    try:
+        svc = get_storage_service()
+        return svc.check_health()
+    except Exception as e:
+        return {"status": "error", "healthy": False, "error": str(e)}
+

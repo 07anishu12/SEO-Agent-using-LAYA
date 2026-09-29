@@ -36,12 +36,19 @@ app = FastAPI(
 
 app.add_exception_handler(Exception, global_exception_handler)
 
+from .config import CORS_ORIGINS
+from database.connection import check_db_health
+from jobs.queue import check_redis_health
+from services.object_store import check_storage_health
+from laya.analyzer import LayaSEOAnalyzer
+from fastapi import Response, status
+
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True if CORS_ORIGINS else False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -63,5 +70,44 @@ app.include_router(search.router)
 
 
 @app.get("/health", tags=["system"])
-def health_check():
+@app.get("/health/liveness", tags=["system"])
+def health_liveness():
+    """Liveness probe: confirms API process is running and responsive."""
     return {"status": "ok", "version": "2.0.0"}
+
+
+@app.get("/health/ready", tags=["system"])
+@app.get("/ready", tags=["system"])
+def health_readiness(response: Response):
+    """
+    Readiness probe: validates availability of database, Redis queue,
+    object storage, and the local Laya inference runtime.
+    """
+    db_h = check_db_health()
+    redis_h = check_redis_health()
+    storage_h = check_storage_health()
+
+    laya_analyzer = LayaSEOAnalyzer.get_singleton()
+    laya_h = laya_analyzer.get_health()
+
+    all_healthy = (
+        db_h.get("healthy", False)
+        and redis_h.get("healthy", False)
+        and storage_h.get("healthy", False)
+        and laya_h.get("apple_silicon_compatible", True)
+    )
+
+    result = {
+        "status": "ready" if all_healthy else "degraded",
+        "components": {
+            "database": db_h,
+            "redis": redis_h,
+            "object_storage": storage_h,
+            "laya": laya_h
+        }
+    }
+
+    if not all_healthy:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return result

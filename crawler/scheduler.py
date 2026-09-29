@@ -88,6 +88,14 @@ class CrawlScheduler:
         heapq.heappush(self._priority_heap, (-score, self._seq, item))
         return True
 
+    def requeue(self, item: Tuple[str, str, int]):
+        """Re-enqueues an in-flight item when processing is interrupted or paused."""
+        url, discovery_source, depth = item
+        self._dispatched.discard(url)
+        score = self.calculate_priority(discovery_source, depth)
+        self._seq += 1
+        heapq.heappush(self._priority_heap, (-score, self._seq, item))
+
     def mark_host_active(self, host: str):
         self._host_active[host] = self._host_active.get(host, 0) + 1
 

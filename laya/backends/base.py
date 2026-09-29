@@ -1,6 +1,6 @@
 """
 Base abstraction for Laya inference backends.
-Enables cloud portability across Apple Silicon (MLX), CPU/CUDA (llama.cpp), and Remote HTTP API.
+SEOJEV uses native Apple Silicon MLX as the exclusive AI decision maker.
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional

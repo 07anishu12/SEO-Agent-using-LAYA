@@ -64,6 +64,7 @@ from understanding.index_funnel import IndexFunnelReconciler
 from understanding.entity_graph import EntityGraphEngine
 from verification.snapshot import SnapshotRecorder
 from verification.runner import VerificationRunner
+from engine.memory_guard import MemoryGuard, MemoryBudgetExceeded
 
 
 class PipelineCancelledException(Exception):
@@ -114,18 +115,21 @@ class SEOJEVPipeline:
         os.makedirs(self.output_dir, exist_ok=True)
         self.db_path = db_path or self.config.get("storage", {}).get("db_path", "data/seo.db")
         os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
-        if self.config['profile'] in ('dev', 'val'):
-            from engine.dev_sample import build_sample
+        if self.config['profile'] in ('dev', 'val') and not self.options.get('fresh'):
+            from engine.dev_sample import build_sample, has_existing_crawl
             source = self.db_path
-            prefix = 'val-sample-' if self.config['profile'] == 'val' else 'dev-sample-'
-            sample_path = os.path.join(self.output_dir, prefix + str(time.time_ns()) + '.db')
-            crawl_id, selected = build_sample(source, sample_path,
-                crawl_id or self.options.get('crawl_id'), self.config['runtime']['max_urls'],
-                self.config['runtime']['seed'], self.target_url)
-            self.db_path = sample_path
-            self.options.update(analyze_only=True, crawl_id=crawl_id, max_pages=len(selected),
-                                concurrency=2, performance_sample=0)
-            crawl_id = None  # Preserve the copied source run instead of replacing it.
+            if has_existing_crawl(source, target=self.target_url, crawl_id=crawl_id or self.options.get('crawl_id')):
+                prefix = 'val-sample-' if self.config['profile'] == 'val' else 'dev-sample-'
+                sample_path = os.path.join(self.output_dir, prefix + str(time.time_ns()) + '.db')
+                crawl_id, selected = build_sample(source, sample_path,
+                    crawl_id or self.options.get('crawl_id'), self.config['runtime']['max_urls'],
+                    self.config['runtime']['seed'], self.target_url)
+                self.db_path = sample_path
+                self.options.update(analyze_only=True, crawl_id=crawl_id, max_pages=len(selected),
+                                    concurrency=2, performance_sample=0)
+                crawl_id = None  # Preserve the copied source run instead of replacing it.
+            else:
+                logger.info(f"No existing crawl found in {source}; allowing fresh crawl for profile {self.config['profile']}.")
         self.storage = CrawlStorage(db_path=self.db_path)
         self.content_store = ContentStore(base_dir=self.config.get("storage", {}).get("store_dir", "store"))
         self.migration_runner = MigrationRunner(db_path=self.db_path)
@@ -138,9 +142,11 @@ class SEOJEVPipeline:
         self.pass_timings: Dict[str, float] = {}
 
     def _resolve_crawl_id(self, explicit_id: Optional[str]) -> str:
+        default_max_pages = self.config.get("runtime", {}).get("max_urls") or self.config.get("crawler", {}).get("max_pages", 50000)
+        default_conc = self.config.get("runtime", {}).get("max_workers") or self.config.get("crawler", {}).get("concurrency", 10)
         if explicit_id:
-            max_p = self.options.get("max_pages", 5000)
-            conc = self.options.get("concurrency", 10)
+            max_p = self.options.get("max_pages", default_max_pages)
+            conc = self.options.get("concurrency", default_conc)
             run_record = CrawlRun(
                 crawl_id=explicit_id,
                 target_url=self.target_url,
@@ -162,8 +168,8 @@ class SEOJEVPipeline:
 
         # Default: fresh run
         fresh_id = f"crawl_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        max_p = self.options.get("max_pages", 5000)
-        conc = self.options.get("concurrency", 10)
+        max_p = self.options.get("max_pages", default_max_pages)
+        conc = self.options.get("concurrency", default_conc)
         run_record = CrawlRun(
             crawl_id=fresh_id,
             target_url=self.target_url,
@@ -277,8 +283,12 @@ class SEOJEVPipeline:
         crawl_duration = 0.0
 
         if not is_analyze_only:
+            default_max_pages = self.config.get("runtime", {}).get("max_urls") or self.config.get("crawler", {}).get("max_pages", 50000)
+            default_conc = self.config.get("runtime", {}).get("max_workers") or self.config.get("crawler", {}).get("concurrency", 10)
+            max_pages = len(self.options["scope_urls"]) if self.options.get("scope_urls") else self.options.get("max_pages", default_max_pages)
+            concurrency = self.options.get("concurrency", default_conc)
+
             def url_cb(crawled: int, discovered: int, current_url: str):
-                max_pages = self.options.get("max_pages", 5000)
                 sub_pct = min(25.0, (crawled / max(max_pages, 1)) * 25.0)
                 self.emit_progress("P1_CRAWL", round(sub_pct, 1), f"Crawling ({crawled}/{discovered}): {current_url[:60]}", {
                     "crawled": crawled,
@@ -300,16 +310,29 @@ class SEOJEVPipeline:
                 config=crawler_config,
                 render_enabled=bool(self.options.get("render")),
                 resume=bool(self.options.get("resume")),
-                max_pages=len(self.options["scope_urls"]) if self.options.get("scope_urls") else self.options.get("max_pages", 5000),
-                concurrency=self.options.get("concurrency", 10),
+                max_pages=max_pages,
+                concurrency=concurrency,
                 cancel_check=self.cancel_check,
                 url_progress_callback=url_cb,
-                show_live_display=self.options.get("show_live_display")
+                show_live_display=self.options.get("show_live_display"),
+                memory_guard=self.memory_guard
             )
 
             await crawler.initialize()
             self.emit_progress("P1_CRAWL", 5.0, "Crawler initialized. Fetching URLs...")
-            await crawler.crawl()
+            from engine.memory_guard import MemoryBudgetExceeded
+            try:
+                await crawler.crawl()
+            except MemoryBudgetExceeded as mem_err:
+                logger.warning(f"Crawl paused due to memory pressure: {mem_err}")
+                self.mark_stage_complete("P1_CRAWL", {
+                    "status": "paused",
+                    "reason": str(mem_err),
+                    "recoverable": True,
+                    "crawled_count": getattr(crawler.scheduler, "crawled_count", 0),
+                    "discovered_count": getattr(crawler.scheduler, "discovered_count", 0)
+                })
+                raise
             self.check_cancelled()
             crawl_duration = round(time.monotonic() - t0, 2)
             self.emit_progress("P1_CRAWL", 25.0, f"Crawl phase complete ({crawl_duration}s).")
@@ -337,8 +360,9 @@ class SEOJEVPipeline:
 
         with sqlite3.connect(self.db_path) as conn:
             n = conn.execute('SELECT COUNT(*) FROM pages WHERE crawl_id=?',(self.crawl_id,)).fetchone()[0]
-        if n > 1000:
-            raise RuntimeError('Legacy evidence adapter is limited to 1000 URLs; use chunk/global reducers before scaling')
+        max_allowed = self.config.get('runtime', {}).get('max_urls', 1000)
+        if self.config.get('profile') in ('dev', 'val') and n > max_allowed:
+            raise RuntimeError(f'{self.config["profile"]} evidence adapter is limited to {max_allowed} URLs; configure prod profile for full-scale processing')
         pages = self.storage.get_all_pages(self.crawl_id)
         links = self.storage.get_all_links(self.crawl_id)
         issues = self.storage.get_all_issues(self.crawl_id)
@@ -985,6 +1009,22 @@ class SEOJEVPipeline:
                 "laya_summary": p4_res.get("laya_summary", {})
             }
 
+        except MemoryBudgetExceeded as exc:
+            self.storage.update_crawl_status(self.crawl_id, "paused", datetime.datetime.now().isoformat())
+            exact_reason = f"Memory budget exceeded: {str(exc)}"
+            self.emit_progress("MEMORY_PAUSED", 0.0, exact_reason, {
+                "recoverable": True,
+                "reason": str(exc)
+            })
+            logger.warning("Pipeline execution paused cleanly under memory pressure: %s", exact_reason)
+            return {
+                "status": "memory_budget_exceeded",
+                "crawl_id": self.crawl_id,
+                "target_url": self.target_url,
+                "reason": str(exc),
+                "recoverable": True,
+                "pass_timings": self.pass_timings
+            }
         except PipelineCancelledException as exc:
             self.storage.update_crawl_status(self.crawl_id, "cancelled", datetime.datetime.now().isoformat())
             self.emit_progress("CANCELLED", 0.0, f"Run cancelled: {str(exc)}")

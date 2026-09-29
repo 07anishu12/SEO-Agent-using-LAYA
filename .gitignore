@@ -25,10 +25,15 @@ wheels/
 .venv/
 venv/
 ENV/
-# Environment variables
+# Environment variables and secrets
 .env
 .env.local
 .env.*.local
+*.pem
+*.key
+*.cert
+*.pfx
+*.p12
 *.log
 
 # System / IDE

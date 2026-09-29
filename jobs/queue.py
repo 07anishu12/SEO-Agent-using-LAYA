@@ -11,6 +11,7 @@ import redis
 from api.config import REDIS_URL
 
 QUEUE_KEY = "seojev:queue:runs"
+DEFAULT_MAX_QUEUE_SIZE = int(os.environ.get("SEOJEV_MAX_QUEUE_SIZE", "10000"))
 
 
 def get_redis_client(url: Optional[str] = None) -> redis.Redis:
@@ -18,9 +19,21 @@ def get_redis_client(url: Optional[str] = None) -> redis.Redis:
     return redis.Redis.from_url(r_url, decode_responses=True)
 
 
+def check_redis_health(url: Optional[str] = None) -> dict:
+    """Verifies Redis connectivity and returns current queue depth."""
+    try:
+        r = get_redis_client(url)
+        r.ping()
+        depth = r.llen(QUEUE_KEY)
+        return {"status": "ok", "healthy": True, "queue_depth": depth}
+    except Exception as e:
+        return {"status": "error", "healthy": False, "error": str(e)}
+
+
 class RunQueue:
-    def __init__(self, redis_url: Optional[str] = None):
+    def __init__(self, redis_url: Optional[str] = None, max_queue_size: Optional[int] = None):
         self.redis_url = redis_url or REDIS_URL
+        self.max_queue_size = max_queue_size or DEFAULT_MAX_QUEUE_SIZE
         self._client: Optional[redis.Redis] = None
 
     @property
@@ -37,6 +50,10 @@ class RunQueue:
         target_url: str,
         options: Optional[Dict[str, Any]] = None
     ) -> str:
+        current_len = self.client.llen(QUEUE_KEY)
+        if current_len >= self.max_queue_size:
+            raise RuntimeError(f"Queue capacity exceeded ({current_len}/{self.max_queue_size}). Backpressure engaged.")
+
         payload = {
             "run_id": run_id,
             "org_id": org_id,

@@ -1,0 +1,67 @@
+# ==============================================================================
+# SEOJEV Production Topology Configuration (docker-compose.prod.yml)
+#
+# IMPORTANT ARCHITECTURAL BOUNDARY:
+# Laya-MLX requires native Apple Silicon GPU/Unified Memory execution (outside Docker).
+# This compose file manages production infrastructure services (Postgres, Redis, Object Store)
+# while the SEOJEV Engine and Laya-MLX execute natively on Apple Silicon.
+# ==============================================================================
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: seojev-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - seojev_postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: seojev-redis-prod
+    restart: unless-stopped
+    command: >
+      redis-server --requirepass "${REDIS_PASSWORD}"
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - seojev_redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: seojev-minio-prod
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - seojev_minio_prod_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  seojev_postgres_prod_data:
+  seojev_redis_prod_data:
+  seojev_minio_prod_data:

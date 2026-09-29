@@ -16,11 +16,12 @@ class MemoryBudgetExceeded(RuntimeError):
 
 class MemoryGuard:
     def __init__(self, limit_mb=4096, check_interval_sec=0, *, batch_size=8,
-                 min_available_mb=1536, pause_seconds=2, sample=None, sleep=time.sleep):
+                 min_available_mb=1536, pause_seconds=2, max_swap_delta_mb=64.0, sample=None, sleep=time.sleep):
         self.limit_mb = float(os.getenv('SEOJEV_MEMORY_BUDGET_MB', limit_mb))
         self.batch_size = batch_size
-        self.min_available_mb = min_available_mb
+        self.min_available_mb = float(os.getenv('SEOJEV_MIN_AVAILABLE_MB', min_available_mb))
         self.pause_seconds, self.sleep = pause_seconds, sleep
+        self.max_swap_delta_mb = float(os.getenv('SEOJEV_MAX_SWAP_DELTA_MB', max_swap_delta_mb))
         self.sample = sample or self._sample
         self.peak_rss_mb = 0.0
         self.stages = {}
@@ -55,8 +56,14 @@ class MemoryGuard:
         if self.active_stage:
             record = self.stages[self.active_stage]
             record['peak_rss_mb'] = max(record['peak_rss_mb'], state['rss_mb'])
-        if state['swap_used'] > self.initial['swap_used']:
-            raise MemoryBudgetExceeded('System swap grew; aborting immediately before more work. Close other applications or run this checkpoint on a larger host.')
+        # Monitor actual swap growth against configured threshold (default 64MB)
+        swap_delta_bytes = state['swap_used'] - self.initial['swap_used']
+        swap_delta_mb = swap_delta_bytes / (1024 * 1024)
+        if swap_delta_mb > self.max_swap_delta_mb:
+            raise MemoryBudgetExceeded(
+                f'System swap grew by {swap_delta_mb:.1f} MiB (threshold {self.max_swap_delta_mb:.1f} MiB); '
+                'aborting safely before memory exhaustion. Close other applications or run this checkpoint on a larger host.'
+            )
         return state
 
     def over_budget(self, state, reserve_mb=0):
@@ -77,11 +84,13 @@ class MemoryGuard:
             raise MemoryBudgetExceeded(f'Memory pressure persists after batch shrink and pause: RSS={state["rss_mb"]:.1f} MiB, budget={self.limit_mb:.1f} MiB, available={state["available_mb"]:.1f} MiB. Aborted safely; resume the saved chunk on a larger host.')
         return self.batch_size
 
-    def check_and_enforce(self):
+    def check_and_enforce(self, raise_on_exceeded: bool = True):
         try:
             self.checkpoint()
             return True
         except MemoryBudgetExceeded:
+            if raise_on_exceeded:
+                raise
             return False
 
     @contextmanager
