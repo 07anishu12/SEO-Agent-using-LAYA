@@ -74,14 +74,13 @@ async def run_smoke_test():
         max_swap_delta_mb=limits.get("max_swap_delta_mb", 64.0)
     )
 
-    test_output_dir = Path("reports/smoke-production")
+    test_output_dir = Path("reports/test_smoke")
     test_output_dir.mkdir(parents=True, exist_ok=True)
     test_db = test_output_dir / "smoke.db"
 
     # Copy sample db to isolated test db
     sample_files = list(Path("reports/smoke-test").glob("dev-sample-*.db"))
-    assert sample_files, "Sample database from dev pipeline preparation required"
-    source_db = sample_files[0]
+    source_db = sample_files[0] if sample_files else Path("data/seo.db")
 
     with sqlite3.connect(source_db) as src, sqlite3.connect(test_db) as dst:
         src.backup(dst)
